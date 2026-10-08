@@ -1,7 +1,7 @@
 import { createClient } from '@libsql/client';
 import bcrypt from 'bcryptjs';
 import { config } from './config.js';
-import { SCHEMA, SCHEMA_VERSION, SCHEMA_V2_COLUMNS, SCHEMA_V2_TABLES } from './schema.js';
+import { SCHEMA, SCHEMA_VERSION, SCHEMA_V2_COLUMNS, SCHEMA_V2_TABLES, SCHEMA_EXTRA_TABLES } from './schema.js';
 
 let client;
 let ready;
@@ -236,6 +236,7 @@ async function migrate() {
   if (Number(version.rows[0]?.value || 0) < SCHEMA_VERSION) {
     await upgradeToV2(db);
   }
+  await db.executeMultiple(SCHEMA_EXTRA_TABLES);
   console.log(`База Qween готова (${config.tursoUrl.startsWith('file:') ? 'локальный файл' : 'Turso'})`);
 }
 

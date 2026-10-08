@@ -41,6 +41,8 @@ async function fleetOverview(user) {
       brand: car.brand,
       model: car.model,
       color: car.color,
+      year: car.year,
+      photo_version: car.photo_version,
       status: car.status,
       branch_name: car.branch_name,
       driver_name: car.driver_name,
@@ -139,6 +141,7 @@ router.get('/', async (req, res) => {
         const m = money.get(Number(c.id));
         return {
           id: c.id, plate: c.plate, brand: c.brand, model: c.model, status: c.status,
+          color: c.color, year: c.year, photo_version: c.photo_version,
           income: m.income, expenses: m.expenses, profit: m.profit,
         };
       });

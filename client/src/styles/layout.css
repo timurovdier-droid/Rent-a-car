@@ -43,6 +43,20 @@
 .theme-toggle:hover { background: var(--c-row-hover); }
 .theme-toggle--icon { width: 40px; margin: 0; border-radius: 50%; }
 .theme-toggle--icon .theme-toggle__text { display: none; }
+.lang-toggle {
+  display: flex; gap: 4px; padding: 3px; margin-bottom: 8px;
+  border: 1px solid var(--c-line-strong); border-radius: var(--r-control);
+}
+.lang-toggle__btn {
+  flex: 1; height: 32px; padding: 0 10px;
+  border: 0; border-radius: calc(var(--r-control) - 3px);
+  background: transparent; color: var(--c-muted);
+  font: 600 13px/1 var(--font-ui); cursor: pointer;
+}
+.lang-toggle__btn:hover { color: var(--c-ink); }
+.lang-toggle__btn--on { background: var(--c-active); color: var(--c-ink); }
+.lang-toggle--compact { margin: 0; }
+.login__tools { display: flex; align-items: center; gap: 8px; }
 .nav__user {
   display: block;
   margin-top: 8px;

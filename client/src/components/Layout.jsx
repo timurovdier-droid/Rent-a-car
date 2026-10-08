@@ -1,6 +1,7 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth';
 import ThemeToggle from './ThemeToggle';
+import LangToggle from './LangToggle';
 
 export default function Layout() {
   const { user, logout } = useAuth();
@@ -88,6 +89,7 @@ export default function Layout() {
         </nav>
 
         <div className="nav__foot">
+          <LangToggle />
           <ThemeToggle />
           <button className="btn btn--quiet nav__logout" onClick={handleLogout}>
             Выйти

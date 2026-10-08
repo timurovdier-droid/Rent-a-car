@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { api, ApiError } from '../api';
 import { useAuth } from '../auth';
 import ThemeToggle from '../components/ThemeToggle';
+import LangToggle from '../components/LangToggle';
 
 export default function LoginPage() {
   const [login, setLogin] = useState('');
@@ -41,7 +42,10 @@ export default function LoginPage() {
     <main className="login">
       <div className="login__corner">
         <img src="/logo.png" alt="GTA" className="brand-logo" width="84" height="22" />
-        <ThemeToggle className="theme-toggle--icon" />
+        <div className="login__tools">
+          <LangToggle className="lang-toggle--compact" />
+          <ThemeToggle className="theme-toggle--icon" />
+        </div>
       </div>
       <div className="login__card">
       <h1 className="page-title">RENT A CAR GTA</h1>

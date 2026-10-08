@@ -1,16 +1,25 @@
+function splitPlate(value) {
+  const raw = String(value).toUpperCase().replace(/[\s-]+/g, '');
+  const m = /^(\d{2})(.*)$/.exec(raw);
+  const region = m ? m[1] : '';
+  const rest = m ? m[2] : raw;
+  const groups = rest.match(/[A-Z]+|\d+|[^A-Z\d]+/g) || [rest];
+  return { region, number: groups.join(' ') };
+}
+
 export default function Plate({ value, large = false }) {
   if (!value) return null;
-  
-  // Разделяем номер на часть для полосы (первые 2 символа, например "UZ" или "01") и основную часть
-  // В спецификации показан пример "UZ 01 A 123 BC". 
-  // Для простоты берём первые 2 символа как код региона/страны, остальное как номер.
-  const strip = value.slice(0, 2).toUpperCase();
-  const text = value.slice(2).trim().toUpperCase();
+  const { region, number } = splitPlate(value);
 
   return (
-    <span className={`plate ${large ? 'plate--l' : ''}`}>
-      <span className="plate__strip">{strip}</span>
-      <span className="plate__text">{text}</span>
+    <span className={`plate ${large ? 'plate--l' : ''}`} aria-label={`Госномер ${region} ${number}`}>
+      {region && <span className="plate__region">{region}</span>}
+      <span className="plate__text">{number}</span>
+      <span className="plate__flag" aria-hidden="true">
+        <i className="plate__stripe plate__stripe--blue" />
+        <i className="plate__stripe plate__stripe--green" />
+        <b>UZ</b>
+      </span>
     </span>
   );
 }

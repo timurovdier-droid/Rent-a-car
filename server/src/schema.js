@@ -183,7 +183,23 @@ INSERT INTO settings (key, value) VALUES
 ON CONFLICT (key) DO NOTHING;
 `;
 
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_EXTRA_TABLES = `
+CREATE TABLE IF NOT EXISTS driver_waitlist (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  full_name TEXT NOT NULL,
+  phone TEXT NOT NULL,
+  wanted_car TEXT,
+  comment TEXT,
+  branch_id INTEGER,
+  status TEXT NOT NULL DEFAULT 'WAITING',
+  created_by INTEGER,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  closed_at TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_driver_waitlist_status ON driver_waitlist (status, created_at);
+`;
+
+export const SCHEMA_VERSION = 3;
 
 export const SCHEMA_V2_COLUMNS = {
   cars: {
@@ -192,6 +208,7 @@ export const SCHEMA_V2_COLUMNS = {
     fuel_type: 'TEXT',
     insurance_expires: 'TEXT',
     inspection_expires: 'TEXT',
+    photo_version: 'INTEGER NOT NULL DEFAULT 0',
   },
   drivers: {
     deposit: 'INTEGER NOT NULL DEFAULT 0',
@@ -204,6 +221,13 @@ export const SCHEMA_V2_COLUMNS = {
 };
 
 export const SCHEMA_V2_TABLES = `
+CREATE TABLE IF NOT EXISTS car_photos (
+  car_id INTEGER PRIMARY KEY REFERENCES cars(id),
+  mime TEXT NOT NULL,
+  data TEXT NOT NULL,
+  updated_by INTEGER REFERENCES users(id),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
 CREATE TABLE IF NOT EXISTS car_transactions (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   car_id INTEGER NOT NULL,

@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { todayLocal } from '../labels';
+import { useLang } from '../i18n';
 
 const WEEKDAYS = ['П', 'В', 'С', 'Ч', 'П', 'С', 'В'];
+const WEEKDAYS_UZ = ['D', 'S', 'Ch', 'P', 'J', 'Sh', 'Y'];
 const MONTHS_SHORT = ['Янв.', 'Февр.', 'Март', 'Апр.', 'Май', 'Июнь', 'Июль', 'Авг.', 'Сент.', 'Окт.', 'Нояб.', 'Дек.'];
 const MONTHS_GEN = ['янв.', 'февр.', 'марта', 'апр.', 'мая', 'июня', 'июля', 'авг.', 'сент.', 'окт.', 'нояб.', 'дек.'];
 const MONTHS_LOWER = ['янв.', 'февр.', 'март', 'апр.', 'май', 'июнь', 'июль', 'авг.', 'сент.', 'окт.', 'нояб.', 'дек.'];
@@ -37,6 +39,7 @@ export function rangeLabel({ month, from, to }) {
 export default function MonthRangePicker({ value, onChange }) {
   const today = todayLocal();
   const thisMonth = today.slice(0, 7);
+  const lang = useLang();
   const [open, setOpen] = useState(false);
   const [view, setView] = useState(value.month);
   const [anchor, setAnchor] = useState(null);
@@ -150,7 +153,7 @@ export default function MonthRangePicker({ value, onChange }) {
           ) : (
             <>
               <div className="dp__grid dp__grid--head">
-                {WEEKDAYS.map((w, i) => <span key={i}>{w}</span>)}
+                {(lang === 'uz' ? WEEKDAYS_UZ : WEEKDAYS).map((w, i) => <span key={i} data-no-translate>{w}</span>)}
               </div>
               <div className="dp__grid" onMouseLeave={() => setHover(null)}>
                 {cells.map((day, i) => {

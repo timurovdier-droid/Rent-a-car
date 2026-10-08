@@ -8,6 +8,7 @@ import dispatchersRouter from './routes/dispatchers.js';
 import carsRouter from './routes/cars.js';
 import carHubRouter from './routes/car-hub.js';
 import driversRouter from './routes/drivers.js';
+import driverWaitlistRouter from './routes/driver-waitlist.js';
 import paymentsRouter from './routes/payments.js';
 import auditRouter from './routes/audit.js';
 import ownersRouter from './routes/owners.js';
@@ -36,7 +37,7 @@ app.use(cors({
   },
   credentials: true,
 }));
-app.use(express.json());
+app.use(express.json({ limit: '3mb' }));
 app.use(cookieParser());
 
 app.use(async (req, res, next) => {
@@ -54,6 +55,7 @@ app.use('/api/v1/dispatchers', dispatchersRouter);
 app.use('/api/v1/cars', carHubRouter);
 app.use('/api/v1/cars', carsRouter);
 app.use('/api/v1/drivers', driversRouter);
+app.use('/api/v1/driver-waitlist', driverWaitlistRouter);
 app.use('/api/v1/payments', paymentsRouter);
 app.use('/api/v1/audit', auditRouter);
 app.use('/api/v1/owners', ownersRouter);

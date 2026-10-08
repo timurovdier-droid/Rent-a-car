@@ -13,9 +13,10 @@
 .btn:disabled { opacity: .55; cursor: not-allowed; }
 
 /* Поля формы (16 px, чтобы iOS не увеличивал страницу) */
-.field { display: grid; gap: .375rem; max-width: 28rem; margin-bottom: var(--sp-3); }
+.field { display: grid; gap: .375rem; max-width: 28rem; min-width: 0; margin-bottom: var(--sp-3); }
 .field__label { font-size: var(--fs-s); font-weight: 500; }
 .field__input {
+  box-sizing: border-box; min-width: 0;
   min-height: 40px; padding: 0 12px;
   font: inherit; font-size: 16px; color: var(--c-ink);
   background: var(--c-surface);
@@ -52,16 +53,22 @@
 /* Номерной знак */
 .plate {
   display: inline-flex; align-items: stretch; vertical-align: middle;
-  background: var(--plate-bg); color: var(--plate-ink);
-  border: 2px solid var(--plate-ink); border-radius: 6px; overflow: hidden;
+  background: #fff; color: #1A1A1A;
+  border: 2px solid #1A1A1A; border-radius: 6px; overflow: hidden;
   font-family: var(--font-plate); font-weight: 700; font-size: 1.125rem;
-  line-height: 1; letter-spacing: .04em; text-transform: uppercase; white-space: nowrap;
+  line-height: 1; text-transform: uppercase; white-space: nowrap;
+  box-shadow: inset 0 0 0 1px #fff;
 }
-.plate__strip {
-  display: flex; align-items: flex-end; padding: 0 .4rem .25rem;
-  background: var(--plate-strip); color: #fff; font-size: .625rem; letter-spacing: .02em;
+.plate__region {
+  display: flex; align-items: center; padding: 0 .35em;
+  border-right: 2px solid #1A1A1A; font-size: .78em; font-weight: 600;
 }
-.plate__text { padding: .4rem .7rem; }
+.plate__text { display: flex; align-items: center; padding: .3em .35em .3em .45em; letter-spacing: .03em; }
+.plate__flag { display: flex; flex-direction: column; justify-content: center; gap: 2px; padding: 0 .35em 0 .1em; }
+.plate__stripe { display: block; width: 1em; height: .14em; border-radius: 1px; }
+.plate__stripe--blue { background: #1EB4E6; }
+.plate__stripe--green { background: #1EB53A; margin-top: .08em; }
+.plate__flag b { font-size: .5em; font-weight: 700; color: #1E90C8; letter-spacing: .02em; line-height: 1; margin-top: 1px; }
 .plate--l { font-size: 1.75rem; }
 
 /* Статус: маркер + слово */
@@ -134,6 +141,143 @@
 
 /* Сетка карточек машин */
 .car-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(15.5rem, 1fr)); gap: 12px; }
+.car-grid--tiles { grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr)); gap: 14px; }
+
+/* Карточка машины: марка, фото, номер */
+.ct {
+  --ct-bg: var(--c-surface);
+  position: relative; display: flex; flex-direction: column; gap: 6px;
+  padding: 18px 18px 16px; border-radius: 28px;
+  background: var(--ct-bg); border: 1px solid var(--c-line);
+  transition: box-shadow .15s, transform .15s, border-color .15s;
+}
+.ct:hover { box-shadow: 0 10px 28px rgb(33 32 31 / .10); transform: translateY(-2px); border-color: transparent; }
+.ct--alert { border-color: #F5C26B; }
+.ct__link { position: absolute; inset: 0; z-index: 1; border-radius: inherit; }
+.ct__link:focus-visible { outline: 2px solid var(--c-focus); outline-offset: 2px; }
+.ct__head { display: flex; align-items: center; gap: 14px; }
+.ct__logo {
+  flex: none; width: 56px; height: 56px; border-radius: 16px; background: var(--c-soft);
+  display: grid; place-items: center; overflow: hidden;
+}
+.ct__logo img { width: 36px; height: 36px; object-fit: contain; }
+.ct__logo-letter { font-size: 22px; font-weight: 700; color: var(--c-muted); }
+.ct__names { min-width: 0; flex: 1; }
+.ct__brand { font-size: 18px; font-weight: 500; color: var(--c-muted); line-height: 1.2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ct__model { font-size: 14px; font-weight: 600; color: var(--c-ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ct__edit {
+  position: relative; z-index: 2; flex: none; width: 44px; height: 44px; border: 0; border-radius: 50%;
+  background: var(--c-soft); color: var(--c-ink); display: grid; place-items: center; cursor: pointer;
+}
+.ct__edit:hover { background: var(--c-line-strong); }
+.ct__visual { height: 150px; display: grid; place-items: center; margin: 4px 0; }
+.ct__photo { max-width: 100%; max-height: 150px; object-fit: contain; }
+.ct__drawing { width: 82%; max-width: 280px; height: auto; }
+.ct__plate { display: flex; justify-content: center; }
+.ct__plate .plate { font-size: 1.35rem; }
+.ct__info { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; padding-top: 12px; border-top: 1px solid var(--c-line); }
+.ct__row { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 13px; }
+.ct__row b { font-variant-numeric: tabular-nums; }
+
+/* История водителей машины */
+.dh__head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin-bottom: 14px; }
+/* Календарь на странице */
+.cal { max-width: 22rem; padding: 12px; border-radius: 14px; background: var(--c-soft); }
+.cal__head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.cal__title { font-size: 15px; font-weight: 600; }
+.cal__arrow {
+  width: 32px; height: 32px; border: 0; border-radius: 50%; background: transparent;
+  color: var(--c-ink); font-size: 20px; line-height: 1; cursor: pointer;
+}
+.cal__arrow:hover:not(:disabled) { background: var(--c-surface); }
+.cal__arrow:disabled { opacity: .3; cursor: default; }
+.cal__grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
+.cal__grid--head { margin-bottom: 4px; }
+.cal__grid--head span { text-align: center; font-size: 11px; font-weight: 600; color: var(--c-muted); padding: 2px 0; }
+.cal__day {
+  height: 36px; border: 0; border-radius: 10px; background: transparent; color: var(--c-ink);
+  font: 500 14px/1 var(--font-ui); font-variant-numeric: tabular-nums; cursor: pointer;
+}
+.cal__day:hover:not(:disabled) { background: var(--c-surface); }
+.cal__day:disabled { opacity: .35; cursor: default; }
+.cal__day--today { box-shadow: inset 0 0 0 1.5px var(--c-muted); }
+.cal__day--busy { background: rgb(31 157 85 / .16); }
+.cal__day--busy:hover:not(:disabled) { background: rgb(31 157 85 / .26); }
+.cal__day--on, .cal__day--on:hover:not(:disabled) { background: #FCE000; color: #21201F; font-weight: 700; }
+.cal__day--new { box-shadow: inset 0 0 0 2px #21201F; }
+.cal__day--removed { color: var(--c-danger); text-decoration: line-through; box-shadow: inset 0 0 0 1.5px var(--c-danger); }
+.cal__day--pick, .cal__day--pick:hover:not(:disabled) { background: var(--c-ink); color: var(--c-surface); font-weight: 700; }
+.cal-changes { margin-top: 12px; padding: 12px; border-radius: 12px; border: 1px solid var(--c-line); font-size: 13px; display: grid; gap: 4px; }
+.cal-changes__actions { display: flex; gap: 8px; margin-top: 8px; }
+
+.dh-answer { margin-top: 12px; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--c-line); display: grid; gap: 4px; }
+.dh-answer__date { font-size: 12px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--c-muted); }
+.dh__sub { margin: 18px 0 10px; font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--c-muted); }
+.dh { list-style: none; margin: 0; padding: 0; max-height: 26rem; overflow-y: auto; }
+.dh__item { position: relative; display: flex; gap: 12px; padding-bottom: 16px; }
+.dh__item:last-child { padding-bottom: 0; }
+.dh__item:not(:last-child)::before {
+  content: ''; position: absolute; left: 5px; top: 16px; bottom: 0; width: 2px; background: var(--c-line);
+}
+.dh__dot { flex: none; width: 12px; height: 12px; margin-top: 4px; border-radius: 50%; background: var(--c-line-strong); }
+.dh__item--now .dh__dot { background: #1F9D55; box-shadow: 0 0 0 4px rgb(31 157 85 / .18); }
+.dh__body {
+  min-width: 0; flex: 1; display: block; text-align: left; font: inherit; color: inherit;
+  border: 0; background: transparent; padding: 4px 8px; margin: -4px -8px; border-radius: 10px; cursor: pointer;
+}
+.dh__body:hover { background: var(--c-soft); }
+.dh__item--hit .dh__body { background: var(--c-soft); box-shadow: inset 3px 0 0 #FCE000; }
+.dh__top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.dh__name { font-weight: 600; color: var(--c-ink); text-decoration: none; }
+a.dh__name:hover { text-decoration: underline; }
+.dh__dates { margin-top: 2px; font-size: 14px; font-variant-numeric: tabular-nums; }
+.dh__meta { margin-top: 2px; font-size: 13px; color: var(--c-muted); }
+.dh__note { margin-top: 6px; padding: 6px 10px; border-radius: 8px; background: var(--c-soft); font-size: 13px; }
+
+/* Форма машины */
+.cf { display: flex; flex-direction: column; gap: 20px; }
+.cf .notice { margin: 0; }
+.photo-pick {
+  display: grid; grid-template-columns: 13rem minmax(0, 1fr); gap: 20px; align-items: center;
+  padding: 12px 20px 12px 12px; border-radius: 16px; background: var(--c-soft);
+}
+.photo-pick__preview {
+  --ct-bg: var(--c-surface);
+  height: 112px; padding: 8px 12px; border-radius: 12px; background: var(--c-surface);
+  display: grid; place-items: center; overflow: hidden;
+}
+.photo-pick__preview .ct__photo { max-height: 96px; }
+.photo-pick__preview .ct__drawing { width: 100%; max-width: 190px; }
+.photo-pick__title { font-size: 15px; font-weight: 600; color: var(--c-ink); }
+.photo-pick__hint { margin: 4px 0 12px; font-size: 13px; line-height: 1.45; color: var(--c-muted); }
+.photo-pick__actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.photo-pick__actions .btn { display: inline-flex; align-items: center; justify-content: center; cursor: pointer; }
+.cf__section { margin: 0; padding: 0; border: 0; min-width: 0; }
+.cf__legend {
+  padding: 0; margin-bottom: 12px;
+  font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--c-muted);
+}
+.cf__grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px 12px; }
+.cf__grid--2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.cf__grid .field { margin: 0; max-width: none; }
+.cf__footer {
+  display: flex; justify-content: flex-end; gap: 8px;
+  margin: 4px -20px -20px; padding: 16px 20px; border-top: 1px solid var(--c-line);
+}
+@media (max-width: 640px) {
+  .cf__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 560px) {
+  .photo-pick { grid-template-columns: 1fr; padding: 12px; }
+  .cf__grid, .cf__grid--2 { grid-template-columns: 1fr; }
+  .cf__footer .btn { flex: 1; }
+}
+
+.car-head { display: flex; align-items: center; gap: 16px; min-width: 0; }
+.car-head__visual { flex: 0 0 9rem; height: 64px; display: grid; place-items: center; border-radius: 14px; background: var(--c-soft); --ct-bg: var(--c-soft); padding: 4px 8px; }
+.car-head__visual .ct__photo { max-height: 56px; }
+.car-head__visual .ct__drawing { width: 100%; }
+@media (max-width: 560px) { .car-head__visual { display: none; } }
 .car-card {
   display: flex; flex-direction: column; gap: 10px;
   padding: 14px 16px; border-radius: 16px;
@@ -212,6 +356,26 @@ a.person:hover, .person--link:hover { border-color: #CFCDC8; box-shadow: 0 6px 1
 .tabs { display: flex; gap: 4px; flex-wrap: wrap; border-bottom: 1px solid var(--c-line); margin-bottom: 16px; }
 .tab { border: 0; background: none; padding: 10px 12px; font: 500 14px/1 var(--font-ui); color: var(--c-muted); cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; }
 .tab--on { color: var(--c-ink); border-bottom-color: var(--c-ink); font-weight: 600; }
+
+/* Разделы страницы машины */
+.car-tabs {
+  display: flex; gap: 6px; margin: 16px 0 14px; padding-bottom: 2px;
+  overflow-x: auto; scrollbar-width: none;
+}
+.car-tabs::-webkit-scrollbar { display: none; }
+.car-tab {
+  flex: none; display: inline-flex; align-items: center; gap: 6px;
+  height: 36px; padding: 0 14px; border: 1px solid transparent; border-radius: 10px;
+  background: transparent; color: var(--c-muted); font: 500 14px/1 var(--font-ui); cursor: pointer; white-space: nowrap;
+}
+.car-tab:hover { color: var(--c-ink); background: var(--c-soft); }
+.car-tab--on, .car-tab--on:hover { color: var(--c-ink); background: var(--c-surface); border-color: var(--c-ink); font-weight: 600; }
+.car-tab__count {
+  min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px;
+  background: var(--c-soft); color: var(--c-ink); font-size: 12px; font-weight: 600; line-height: 20px; text-align: center;
+}
+.car-tab__count--alert { background: #FCE000; color: #21201F; }
+.tab-narrow { max-width: 44rem; }
 
 /* Фильтр периода */
 .period { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-end; margin-bottom: 16px; }

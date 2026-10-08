@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { api, ApiError } from '../api';
 import { useAuth } from '../auth';
 import Plate from '../components/Plate';
@@ -7,6 +7,8 @@ import StatusMark from '../components/StatusMark';
 import Modal from '../components/Modal';
 import MoneyInput from '../components/MoneyInput';
 import CarForm from '../components/CarForm';
+import { CarVisual } from '../components/CarTile';
+import DayCalendar from '../components/DayCalendar';
 import {
   CATEGORY_LABELS, EXPENSE_CATEGORIES, INCOME_CATEGORIES, METHOD_LABELS, PAY_METHODS,
   FUEL_LABELS, SERVICE_TYPES, fmtMoney, fmtNumber, fmtDay, localDayOf, todayLocal,
@@ -309,8 +311,6 @@ function DriverPanel({ hub, canWrite, onChanged }) {
     }
   }
 
-  const history = assignments.filter((a) => a.end_at);
-
   return (
     <div className="panel">
       <h3 className="panel__title">Водитель</h3>
@@ -354,24 +354,115 @@ function DriverPanel({ hub, canWrite, onChanged }) {
         <p className="muted">Сейчас без водителя</p>
       )}
 
-      {history.length > 0 && (
-        <details style={{ marginTop: 12 }}>
-          <summary className="muted small" style={{ cursor: 'pointer' }}>Прошлые водители ({history.length})</summary>
-          <ul className="tx-list">
-            {history.map((a) => (
-              <li key={a.id} className="car-card__row" style={{ padding: '8px 0', borderBottom: '1px solid var(--c-line)' }}>
-                <span>{a.driver_name || 'Удалённый водитель'}</span>
-                <span className="muted">
-                  {fmtDay(localDayOf(a.start_at))} — {fmtDay(localDayOf(a.end_at))} · {fmtNumber(a.mileage_start)} → {fmtNumber(a.mileage_end)} км
-                </span>
-              </li>
-            ))}
-          </ul>
-        </details>
-      )}
-
       {releasing && current && (
         <ReleaseModal car={car} current={current} today={today} onClose={() => setReleasing(false)} onDone={() => { setReleasing(false); onChanged(); }} />
+      )}
+    </div>
+  );
+}
+
+function daysBetween(from, to) {
+  const [y1, m1, d1] = from.split('-').map(Number);
+  const [y2, m2, d2] = to.split('-').map(Number);
+  return Math.max(1, Math.round((Date.UTC(y2, m2 - 1, d2) - Date.UTC(y1, m1 - 1, d1)) / 86400000));
+}
+
+function plural(n, one, few, many) {
+  const m10 = n % 10;
+  const m100 = n % 100;
+  if (m10 === 1 && m100 !== 11) return one;
+  if (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14)) return few;
+  return many;
+}
+
+function assignmentSpan(a, today) {
+  return { from: localDayOf(a.start_at), to: a.end_at ? localDayOf(a.end_at) : today };
+}
+
+function DriverName({ a, linkDrivers }) {
+  const name = a.driver_name || 'Удалённый водитель';
+  return linkDrivers && a.driver_id && a.driver_name
+    ? <Link to={`/drivers/${a.driver_id}`} className="dh__name">{name}</Link>
+    : <span className="dh__name">{name}</span>;
+}
+
+function DriverHistory({ hub, linkDrivers }) {
+  const { assignments, today } = hub;
+  const [picked, setPicked] = useState(today);
+  const [month, setMonth] = useState(today.slice(0, 7));
+
+  const spans = useMemo(
+    () => assignments.map((a) => ({ a, ...assignmentSpan(a, today) })),
+    [assignments, today]
+  );
+  const onDay = spans.filter((s) => s.from <= picked && picked <= s.to);
+
+  const dayClass = (day) => {
+    if (day === picked) return 'cal__day--pick';
+    return spans.some((s) => s.from <= day && day <= s.to) ? 'cal__day--busy' : '';
+  };
+
+  return (
+    <div className="panel">
+      <div className="dh__head">
+        <h3 className="panel__title" style={{ margin: 0 }}>Кто ездил на машине</h3>
+        {assignments.length > 0 && <span className="muted small">{assignments.length} {plural(assignments.length, 'выдача', 'выдачи', 'выдач')}</span>}
+      </div>
+
+      <p className="muted small" style={{ margin: '0 0 12px' }}>Выберите дату — покажем, какой водитель был на машине в этот день. Цветом отмечены дни, когда машина была у водителя.</p>
+      <DayCalendar month={month} onMonth={setMonth} onPick={setPicked} dayClass={dayClass} today={today} max={today} label="Дата" />
+
+      <div className="dh-answer">
+        <div className="dh-answer__date">{fmtDay(picked)}</div>
+        {onDay.length === 0 ? (
+          <div className="muted">Машина стояла без водителя</div>
+        ) : (
+          onDay.map(({ a, from, to }) => (
+            <div key={a.id} className="dh-answer__row">
+              <DriverName a={a} linkDrivers={linkDrivers} />
+              <span className="muted small">
+                {' '}· {from === picked ? 'взял(а) машину в этот день' : to === picked && a.end_at ? 'вернул(а) машину в этот день' : `с ${fmtDay(from)} по ${a.end_at ? fmtDay(to) : 'сей день'}`}
+              </span>
+            </div>
+          ))
+        )}
+      </div>
+
+      {assignments.length === 0 ? (
+        <p className="muted small" style={{ margin: '16px 0 0' }}>Машину ещё никому не выдавали</p>
+      ) : (
+        <>
+          <div className="dh__sub">Все выдачи</div>
+          <ol className="dh">
+            {spans.map(({ a, from, to }) => {
+              const days = daysBetween(from, to);
+              const km = a.mileage_end != null && a.mileage_start != null ? a.mileage_end - a.mileage_start : null;
+              const hit = onDay.some((s) => s.a.id === a.id);
+              return (
+                <li key={a.id} className={`dh__item ${a.end_at ? '' : 'dh__item--now'} ${hit ? 'dh__item--hit' : ''}`}>
+                  <span className="dh__dot" aria-hidden="true" />
+                  <button type="button" className="dh__body" onClick={() => { setPicked(from); setMonth(from.slice(0, 7)); }} title="Показать в календаре">
+                    <div className="dh__top">
+                      <span className="dh__name">{a.driver_name || 'Удалённый водитель'}</span>
+                      {!a.end_at && <span className="badge badge--ok">Сейчас</span>}
+                    </div>
+                    <div className="dh__dates">
+                      {fmtDay(from)} — {a.end_at ? fmtDay(to) : 'по сей день'}
+                      <span className="muted"> · {days} {plural(days, 'день', 'дня', 'дней')}</span>
+                    </div>
+                    <div className="dh__meta">
+                      {a.end_at
+                        ? <>Пробег {fmtNumber(a.mileage_start)} → {fmtNumber(a.mileage_end)} км{km != null && km >= 0 ? ` (+${fmtNumber(km)})` : ''}</>
+                        : <>Выдана с пробегом {fmtNumber(a.mileage_start)} км</>}
+                      {a.created_by_name ? ` · выдал(а) ${a.created_by_name}` : ''}
+                    </div>
+                    {a.note && <div className="dh__note">{a.note}</div>}
+                  </button>
+                </li>
+              );
+            })}
+          </ol>
+        </>
       )}
     </div>
   );
@@ -483,66 +574,84 @@ function RatePanel({ hub, role, onChanged }) {
   );
 }
 
+const MONTHS_GEN_SHORT = ['янв', 'фев', 'мар', 'апр', 'мая', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
+
+function shortDays(list) {
+  return [...list].sort().map((d) => `${Number(d.slice(8, 10))} ${MONTHS_GEN_SHORT[Number(d.slice(5, 7)) - 1]}`).join(', ');
+}
+
 function DaysOffPanel({ hub, onChanged }) {
-  const { car, days_off: days, today } = hub;
-  const [from, setFrom] = useState(today);
-  const [to, setTo] = useState('');
+  const { car, days_off: saved, today } = hub;
+  const savedSet = useMemo(() => new Set(saved), [saved]);
+  const [month, setMonth] = useState(today.slice(0, 7));
+  const [add, setAdd] = useState(() => new Set());
+  const [remove, setRemove] = useState(() => new Set());
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
 
-  async function add(e) {
-    e.preventDefault();
+  function toggle(day) {
+    if (savedSet.has(day)) {
+      const next = new Set(remove);
+      next.has(day) ? next.delete(day) : next.add(day);
+      setRemove(next);
+    } else {
+      const next = new Set(add);
+      next.has(day) ? next.delete(day) : next.add(day);
+      setAdd(next);
+    }
+  }
+
+  function reset() {
+    setAdd(new Set());
+    setRemove(new Set());
+    setError('');
+  }
+
+  async function save() {
     setSaving(true);
     setError('');
     try {
-      await api.post(`/cars/${car.id}/days-off`, { from, to: to || from });
-      setTo('');
+      await api.put(`/cars/${car.id}/days-off`, { add: [...add], remove: [...remove] });
+      reset();
       onChanged();
     } catch (err) {
-      setError(errText(err, 'Не удалось отметить выходной'));
+      setError(errText(err, 'Не удалось сохранить выходные'));
     } finally {
       setSaving(false);
     }
   }
 
-  async function remove(day) {
-    try {
-      await api.delete(`/cars/${car.id}/days-off/${day}`);
-      onChanged();
-    } catch (err) {
-      setError(errText(err, 'Не удалось убрать выходной'));
-    }
-  }
+  const dayClass = (day) => {
+    if (add.has(day)) return 'cal__day--on cal__day--new';
+    if (remove.has(day)) return 'cal__day--removed';
+    return savedSet.has(day) ? 'cal__day--on' : '';
+  };
 
-  const upcoming = days.filter((d) => d >= today);
-  const past = days.filter((d) => d < today);
+  const upcoming = saved.filter((d) => d >= today && !remove.has(d));
+  const dirty = add.size > 0 || remove.size > 0;
 
   return (
     <div className="panel">
       <h3 className="panel__title">Выходные (без начисления)</h3>
-      <form onSubmit={add}>
-        <div className="form-grid">
-          <div className="field">
-            <label className="field__label" htmlFor="do-from">С даты</label>
-            <input id="do-from" className="field__input" type="date" value={from} onChange={(e) => setFrom(e.target.value)} required />
-          </div>
-          <div className="field">
-            <label className="field__label" htmlFor="do-to">По дату (если несколько)</label>
-            <input id="do-to" className="field__input" type="date" value={to} min={from} onChange={(e) => setTo(e.target.value)} />
+      <p className="muted small" style={{ margin: '0 0 12px' }}>
+        Нажимайте на дни, когда машина не работает: например 1, 3, 6 и 21 число. Повторное нажатие снимает выходной.
+      </p>
+      <DayCalendar month={month} onMonth={setMonth} onPick={toggle} dayClass={dayClass} today={today} label="Выходные дни" />
+
+      {dirty ? (
+        <div className="cal-changes">
+          {add.size > 0 && <div><b>Добавить:</b> {shortDays(add)}</div>}
+          {remove.size > 0 && <div><b>Убрать:</b> {shortDays(remove)}</div>}
+          {error && <div className="notice notice--error" style={{ margin: '8px 0 0' }}>{error}</div>}
+          <div className="cal-changes__actions">
+            <button type="button" className="btn btn--sm" onClick={save} disabled={saving}>{saving ? 'Сохраняю…' : 'Сохранить'}</button>
+            <button type="button" className="btn btn--ghost btn--sm" onClick={reset} disabled={saving}>Отменить</button>
           </div>
         </div>
-        {error && <div className="notice notice--error">{error}</div>}
-        <button className="btn btn--quiet btn--sm" type="submit" disabled={saving}>Отметить нерабочий день</button>
-      </form>
-      {(upcoming.length > 0 || past.length > 0) && (
-        <div className="chips" style={{ marginTop: 12 }}>
-          {[...upcoming, ...past.slice(-10)].map((d) => (
-            <span key={d} className={`chip ${d >= today ? '' : 'muted'}`} style={{ cursor: 'default' }}>
-              {fmtDay(d)}
-              <button type="button" className="link-btn" style={{ marginLeft: 6, textDecoration: 'none' }} onClick={() => remove(d)} aria-label={`Убрать ${fmtDay(d)}`}>×</button>
-            </span>
-          ))}
-        </div>
+      ) : (
+        <p className="muted small" style={{ margin: '12px 0 0' }}>
+          {upcoming.length ? `Ближайшие выходные: ${shortDays(upcoming.slice(0, 12))}${upcoming.length > 12 ? '…' : ''}` : 'Выходных впереди нет'}
+        </p>
       )}
     </div>
   );
@@ -763,6 +872,12 @@ export default function CarPage() {
   const [error, setError] = useState('');
   const [editing, setEditing] = useState(false);
   const [confirmingAll, setConfirmingAll] = useState(false);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tabParam = searchParams.get('tab') || 'report';
+
+  function openTab(key) {
+    setSearchParams(key === 'report' ? {} : { tab: key }, { replace: true });
+  }
 
   const load = useCallback(async () => {
     try {
@@ -812,12 +927,25 @@ export default function CarPage() {
 
   const { car } = hub;
   const serviceDue = hub.services.find((s) => s.due === 'OVERDUE') || hub.services.find((s) => s.due);
+  const dueCount = hub.services.filter((s) => s.due).length;
+  const upcomingDaysOff = hub.days_off.filter((d) => d >= hub.today).length;
+
+  const tabs = [
+    { key: 'report', label: 'Отчёт', count: pending.length, alert: true },
+    { key: 'driver', label: 'Водитель', count: hub.assignments.length },
+    canWrite && { key: 'days', label: 'Выходные дни', count: upcomingDaysOff },
+    { key: 'service', label: 'Обслуживание', count: dueCount, alert: true },
+    { key: 'info', label: 'О машине' },
+  ].filter(Boolean);
+  const tab = tabs.some((t) => t.key === tabParam) ? tabParam : 'report';
 
   return (
     <div>
       <Link to={role === 'OWNER' ? '/' : '/cars'} className="back-link">← {role === 'OWNER' ? 'Главная' : 'Автомобили'}</Link>
       <div className="page-head">
-        <div>
+        <div className="car-head">
+          <div className="car-head__visual"><CarVisual car={car} /></div>
+          <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
             <Plate value={car.plate} />
             <h1 className="page-title" style={{ margin: 0 }}>{car.brand} {car.model}</h1>
@@ -828,6 +956,7 @@ export default function CarPage() {
             {serviceDue && <DueBadge state={serviceDue.due} soon={`Скоро: ${serviceDue.label}`} overdue="Пора на обслуживание" />}
             <DueBadge state={car.insurance_due} soon="Страховка скоро кончится" overdue="Страховка просрочена" />
             <DueBadge state={car.inspection_due} soon="Техосмотр скоро" overdue="Техосмотр просрочен" />
+          </div>
           </div>
         </div>
         {canWrite && (
@@ -852,23 +981,79 @@ export default function CarPage() {
         </div>
       )}
 
-      <div className="layout-2" style={{ marginTop: 12 }}>
-        <div>
-          {canWrite && <AddEntry carId={car.id} isAdmin={role === 'ADMIN'} onDone={load} />}
-          <div style={{ marginTop: canWrite ? 12 : 0 }}>
+      <nav className="car-tabs" role="tablist" aria-label="Разделы автомобиля">
+        {tabs.map((t) => (
+          <button
+            key={t.key}
+            type="button"
+            role="tab"
+            aria-selected={tab === t.key}
+            className={`car-tab ${tab === t.key ? 'car-tab--on' : ''}`}
+            onClick={() => openTab(t.key)}
+          >
+            {t.label}
+            {t.count ? <span className={`car-tab__count ${t.alert ? 'car-tab__count--alert' : ''}`}>{t.count}</span> : null}
+          </button>
+        ))}
+      </nav>
+
+      <div role="tabpanel">
+        {tab === 'report' && (
+          canWrite ? (
+            <div className="layout-2">
+              <div>
+                <AddEntry carId={car.id} isAdmin={role === 'ADMIN'} onDone={load} />
+                <div style={{ marginTop: 12 }}>
+                  <TxList carId={car.id} items={hub.transactions} role={role} onChanged={load} />
+                </div>
+              </div>
+              <div>
+                <RatePanel hub={hub} role={role} onChanged={load} />
+              </div>
+            </div>
+          ) : (
             <TxList carId={car.id} items={hub.transactions} role={role} onChanged={load} />
+          )
+        )}
+
+        {tab === 'driver' && (
+          <div className="layout-2">
+            <div>
+              {canWrite ? (
+                <DriverPanel hub={hub} canWrite={canWrite} onChanged={load} />
+              ) : (
+                <div className="panel">
+                  <h3 className="panel__title">Водитель</h3>
+                  <p className="muted" style={{ margin: 0 }}>{hub.current ? `${hub.current.driver_name} · с ${fmtDay(localDayOf(hub.current.start_at))}` : 'Сейчас без водителя'}</p>
+                </div>
+              )}
+            </div>
+            <div>
+              <DriverHistory hub={hub} linkDrivers={role !== 'OWNER'} />
+            </div>
           </div>
-        </div>
-        <div>
-          {canWrite && <DriverPanel hub={hub} canWrite={canWrite} onChanged={load} />}
-          {canWrite && <RatePanel hub={hub} role={role} onChanged={load} />}
-          {canWrite && <DaysOffPanel hub={hub} onChanged={load} />}
-          <ServicePanel hub={hub} canWrite={canWrite} onChanged={load} />
-          <div className="panel">
-            <h3 className="panel__title">О машине</h3>
-            <CarInfo car={car} />
+        )}
+
+        {tab === 'days' && canWrite && (
+          <div className="tab-narrow">
+            <DaysOffPanel hub={hub} onChanged={load} />
           </div>
-        </div>
+        )}
+
+        {tab === 'service' && (
+          <div className="tab-narrow">
+            <ServicePanel hub={hub} canWrite={canWrite} onChanged={load} />
+          </div>
+        )}
+
+        {tab === 'info' && (
+          <div className="tab-narrow">
+            <div className="panel">
+              <h3 className="panel__title">О машине</h3>
+              <CarInfo car={car} />
+            </div>
+          </div>
+        )}
       </div>
 
       {editing && (

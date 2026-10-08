@@ -11,7 +11,7 @@ export async function visibleCars(db, user) {
   const scope = await carScope(db, user);
   const { rows } = await db.query(
     `SELECT c.id, c.plate, c.brand, c.model, c.year, c.color, c.status, c.branch_id, c.owner_id,
-            c.daily_rate, c.mileage, c.insurance_expires, c.inspection_expires,
+            c.daily_rate, c.mileage, c.insurance_expires, c.inspection_expires, c.photo_version,
             o.name AS owner_name, b.name AS branch_name,
             (SELECT u.full_name FROM car_assignments ca
                JOIN drivers d ON d.id = ca.driver_id JOIN users u ON u.id = d.user_id

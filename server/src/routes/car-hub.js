@@ -121,13 +121,14 @@ router.get('/:id/hub', async (req, res) => {
 
     const { rows: assignments } = await pool.query(
       `SELECT ca.id, ca.driver_id, ca.start_at, ca.end_at, ca.mileage_start, ca.mileage_end, ca.note,
-              u.full_name AS driver_name, u.phone AS driver_phone
+              u.full_name AS driver_name, u.phone AS driver_phone, cb.full_name AS created_by_name
        FROM car_assignments ca
        LEFT JOIN drivers d ON d.id = ca.driver_id
        LEFT JOIN users u ON u.id = d.user_id
+       LEFT JOIN users cb ON cb.id = ca.created_by
        WHERE ca.car_id = $1
-       ORDER BY ca.start_at DESC
-       LIMIT 30`,
+       ORDER BY ca.start_at DESC, ca.id DESC
+       LIMIT 100`,
       [carId]
     );
     const current = assignments.find((a) => !a.end_at) || null;
@@ -172,7 +173,7 @@ router.get('/:id/hub', async (req, res) => {
 
     const { rows: daysOff } = await pool.query(
       `SELECT day FROM car_days_off WHERE car_id = $1 AND day >= $2 ORDER BY day`,
-      [carId, addDays(today, -60)]
+      [carId, addDays(today, -400)]
     );
 
     const { rows: services } = await pool.query(
@@ -467,6 +468,34 @@ router.post('/:id/days-off', requireRole('ADMIN', 'DISPATCHER'), async (req, res
   }
 });
 
+// PUT /cars/:id/days-off — отдельные дни из календаря { add: [...], remove: [...] }
+router.put('/:id/days-off', requireRole('ADMIN', 'DISPATCHER'), async (req, res) => {
+  try {
+    const car = await loadCar(req, res, { write: true });
+    if (!car) return;
+    const add = Array.isArray(req.body.add) ? [...new Set(req.body.add)] : [];
+    const remove = Array.isArray(req.body.remove) ? [...new Set(req.body.remove)] : [];
+    if (!add.length && !remove.length) return fail(res, 400, 'BAD_REQUEST', 'Выберите дни', 'days');
+    if (add.length + remove.length > 400) return fail(res, 400, 'BAD_REQUEST', 'Слишком много дней за раз', 'days');
+    if (![...add, ...remove].every(isDay)) return fail(res, 400, 'BAD_REQUEST', 'Неверная дата', 'days');
+
+    for (const day of add) {
+      await pool.query(
+        `INSERT INTO car_days_off (car_id, day, created_by) VALUES ($1, $2, $3)
+         ON CONFLICT (car_id, day) DO NOTHING`,
+        [car.id, day, req.user.id]
+      );
+    }
+    for (const day of remove) {
+      await pool.query('DELETE FROM car_days_off WHERE car_id = $1 AND day = $2', [car.id, day]);
+    }
+    await writeAudit(pool, req.user.id, 'CAR_DAYS_OFF_CHANGED', 'car', car.id, remove.length ? { removed: remove } : null, add.length ? { added: add } : null, req.ip);
+    res.json({ added: add, removed: remove });
+  } catch (err) {
+    serverError(res, 'Ошибка изменения выходных:', err);
+  }
+});
+
 router.delete('/:id/days-off/:day', requireRole('ADMIN', 'DISPATCHER'), async (req, res) => {
   try {
     const car = await loadCar(req, res, { write: true });
@@ -688,6 +717,66 @@ router.delete('/:id/service/:sid', requireRole('ADMIN', 'DISPATCHER'), async (re
     res.json({ id: rows[0].id, deleted: true });
   } catch (err) {
     serverError(res, 'Ошибка удаления обслуживания:', err);
+  }
+});
+
+const PHOTO_PATTERN = /^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/;
+const MAX_PHOTO_BYTES = 1_500_000;
+
+// GET /:id/photo — фото машины (кэшируется по ?v=photo_version)
+router.get('/:id/photo', async (req, res) => {
+  try {
+    const car = await loadCar(req, res);
+    if (!car) return;
+    const { rows } = await pool.query('SELECT mime, data FROM car_photos WHERE car_id = $1', [car.id]);
+    if (!rows.length) return fail(res, 404, 'NOT_FOUND', 'Фото нет');
+    res.set('Content-Type', rows[0].mime);
+    res.set('Cache-Control', 'private, max-age=31536000, immutable');
+    res.send(Buffer.from(rows[0].data, 'base64'));
+  } catch (err) {
+    serverError(res, 'Ошибка получения фото:', err);
+  }
+});
+
+// PUT /:id/photo — загрузить фото { image: 'data:image/webp;base64,...' }
+router.put('/:id/photo', async (req, res) => {
+  try {
+    const car = await loadCar(req, res, { write: true });
+    if (!car) return;
+    const match = PHOTO_PATTERN.exec(String(req.body?.image || ''));
+    if (!match) return fail(res, 400, 'BAD_REQUEST', 'Нужна картинка JPG, PNG или WEBP', 'image');
+    const bytes = Math.floor((match[2].length * 3) / 4);
+    if (bytes > MAX_PHOTO_BYTES) return fail(res, 400, 'BAD_REQUEST', 'Фото слишком большое', 'image');
+
+    await pool.query(
+      `INSERT INTO car_photos (car_id, mime, data, updated_by, updated_at)
+       VALUES ($1, $2, $3, $4, datetime('now'))
+       ON CONFLICT (car_id) DO UPDATE SET mime = excluded.mime, data = excluded.data,
+         updated_by = excluded.updated_by, updated_at = excluded.updated_at`,
+      [car.id, match[1], match[2], req.user.id]
+    );
+    const { rows } = await pool.query(
+      'UPDATE cars SET photo_version = photo_version + 1 WHERE id = $1 RETURNING photo_version',
+      [car.id]
+    );
+    await writeAudit(pool, req.user.id, 'CAR_PHOTO_UPDATED', 'car', car.id, null, { bytes }, req.ip);
+    res.json({ photo_version: rows[0].photo_version });
+  } catch (err) {
+    serverError(res, 'Ошибка загрузки фото:', err);
+  }
+});
+
+// DELETE /:id/photo — убрать фото
+router.delete('/:id/photo', async (req, res) => {
+  try {
+    const car = await loadCar(req, res, { write: true });
+    if (!car) return;
+    await pool.query('DELETE FROM car_photos WHERE car_id = $1', [car.id]);
+    await pool.query('UPDATE cars SET photo_version = 0 WHERE id = $1', [car.id]);
+    await writeAudit(pool, req.user.id, 'CAR_PHOTO_DELETED', 'car', car.id, null, null, req.ip);
+    res.json({ photo_version: 0 });
+  } catch (err) {
+    serverError(res, 'Ошибка удаления фото:', err);
   }
 });
 

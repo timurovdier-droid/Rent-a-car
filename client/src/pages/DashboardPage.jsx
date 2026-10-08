@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api';
 import { useAuth } from '../auth';
-import Plate from '../components/Plate';
 import StatusMark from '../components/StatusMark';
+import CarTile from '../components/CarTile';
+import CarForm from '../components/CarForm';
 import BarChart from '../components/BarChart';
 import MonthFinance from '../components/MonthFinance';
 import { fmtMoney, fmtDay } from '../labels';
@@ -24,26 +25,18 @@ function alertWeight(car) {
     + (car.insurance_due || car.inspection_due ? 2 : 0);
 }
 
-function FleetCard({ car, showRate }) {
+function FleetCard({ car, onEdit }) {
   const alert = alertWeight(car) > 0;
   return (
-    <Link to={`/cars/${car.id}`} className={`car-card ${alert ? 'car-card--alert' : ''}`}>
-      <div className="car-card__top">
-        <Plate value={car.plate} />
+    <CarTile car={car} onEdit={onEdit} alert={alert}>
+      <div className="ct__row">
+        <span className="muted" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{car.driver_name || 'Без водителя'}</span>
         <StatusMark status={car.status} />
       </div>
-      <div>
-        <div className="car-card__name">{car.brand} {car.model}</div>
-        <div className="car-card__meta">{car.driver_name ? car.driver_name : 'Без водителя'}</div>
-      </div>
-      <div>
-        {showRate && (
-          <div className="car-card__row"><span className="muted">Ставка</span><b>{fmtMoney(car.daily_rate)} / день</b></div>
-        )}
-        <div className="car-card__row">
-          <span className="muted">Долг</span>
-          <b style={{ color: car.debt ? 'var(--c-danger)' : 'var(--c-ok)' }}>{car.debt ? `${fmtMoney(car.debt)} сум` : 'нет'}</b>
-        </div>
+      <div className="ct__row"><span className="muted">Ставка</span><b>{fmtMoney(car.daily_rate)} / день</b></div>
+      <div className="ct__row">
+        <span className="muted">Долг</span>
+        <b style={{ color: car.debt ? 'var(--c-danger)' : 'var(--c-ok)' }}>{car.debt ? `${fmtMoney(car.debt)} сум` : 'нет'}</b>
       </div>
       {alert && (
         <div className="badges">
@@ -63,13 +56,23 @@ function FleetCard({ car, showRate }) {
           )}
         </div>
       )}
-    </Link>
+    </CarTile>
   );
 }
 
-function FleetHome({ data }) {
+function useCarEditor(onSaved) {
+  const [editing, setEditing] = useState(null);
+  const open = (car) => api.get(`/cars/${car.id}`).then(setEditing).catch(() => {});
+  const form = editing && (
+    <CarForm car={editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); onSaved(); }} />
+  );
+  return [open, form];
+}
+
+function FleetHome({ data, reload }) {
   const isAdmin = data.role === 'ADMIN';
   const s = data.stats;
+  const [openEdit, editForm] = useCarEditor(reload);
   const cars = [...data.cars].sort((a, b) => alertWeight(b) - alertWeight(a));
   const chartTotal = data.chart.reduce((sum, d) => sum + d.income, 0);
 
@@ -82,8 +85,8 @@ function FleetHome({ data }) {
       {cars.length === 0 ? (
         <div className="empty">Автомобилей пока нет</div>
       ) : (
-        <div className="car-grid">
-          {cars.map((car) => <FleetCard key={car.id} car={car} showRate />)}
+        <div className="car-grid car-grid--tiles">
+          {cars.map((car) => <FleetCard key={car.id} car={car} onEdit={openEdit} />)}
         </div>
       )}
 
@@ -119,6 +122,7 @@ function FleetHome({ data }) {
           <BarChart data={data.chart} series={[{ key: 'income', label: 'Получено', className: 'bar--income' }]} />
         </>
       )}
+      {editForm}
     </>
   );
 }
@@ -130,17 +134,14 @@ function OwnerHome({ data }) {
       {data.cars.length === 0 ? (
         <div className="empty">У вас пока нет автомобилей</div>
       ) : (
-        <div className="car-grid">
+        <div className="car-grid car-grid--tiles">
           {data.cars.map((c) => (
-            <Link key={c.id} to={`/cars/${c.id}`} className="car-card">
-              <div className="car-card__top"><Plate value={c.plate} /><StatusMark status={c.status} /></div>
-              <div className="car-card__name">{c.brand} {c.model}</div>
-              <div>
-                <div className="car-card__row"><span className="muted">Доход</span><b>{fmtMoney(c.income)}</b></div>
-                <div className="car-card__row"><span className="muted">Расходы</span><b>{fmtMoney(c.expenses)}</b></div>
-                <div className="car-card__row"><span className="muted">Прибыль</span><b>{fmtMoney(c.profit)}</b></div>
-              </div>
-            </Link>
+            <CarTile key={c.id} car={c}>
+              <div className="ct__row"><span className="muted">Статус</span><StatusMark status={c.status} /></div>
+              <div className="ct__row"><span className="muted">Доход</span><b>{fmtMoney(c.income)}</b></div>
+              <div className="ct__row"><span className="muted">Расходы</span><b>{fmtMoney(c.expenses)}</b></div>
+              <div className="ct__row"><span className="muted">Прибыль</span><b>{fmtMoney(c.profit)}</b></div>
+            </CarTile>
           ))}
         </div>
       )}
@@ -155,9 +156,11 @@ export default function DashboardPage() {
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
 
-  useEffect(() => {
+  const load = useCallback(() => {
     api.get('/dashboard').then(setData).catch(() => setError('Не удалось загрузить данные'));
   }, []);
+
+  useEffect(() => { load(); }, [load]);
 
   if (error) return <div className="notice notice--error">{error}</div>;
   if (!data) return <div className="muted">Загрузка…</div>;
@@ -166,7 +169,7 @@ export default function DashboardPage() {
     <div>
       <h1 className="page-title">Здравствуйте{user?.full_name ? `, ${user.full_name}` : ''}</h1>
       <p className="page-sub">{fmtDay(data.today)} · {data.role === 'OWNER' ? 'ваши машины и доход' : 'нажмите на машину, чтобы записать деньги'}</p>
-      {(data.role === 'ADMIN' || data.role === 'DISPATCHER') && <FleetHome data={data} />}
+      {(data.role === 'ADMIN' || data.role === 'DISPATCHER') && <FleetHome data={data} reload={load} />}
       {data.role === 'OWNER' && <OwnerHome data={data} />}
       {data.role === 'DRIVER' && <div className="empty">Личный кабинет водителя появится позже</div>}
     </div>

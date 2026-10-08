@@ -5,7 +5,10 @@ import { useAuth } from '../auth';
 import Plate from '../components/Plate';
 import StatusMark from '../components/StatusMark';
 import CarForm from '../components/CarForm';
+import CarTile from '../components/CarTile';
 import { fmtMoney, fmtNumber } from '../labels';
+
+const VIEW_KEY = 'rac-cars-view';
 
 export default function CarsPage() {
   const { user } = useAuth();
@@ -16,7 +19,11 @@ export default function CarsPage() {
   const [query, setQuery] = useState('');
   const [status, setStatus] = useState('ALL');
   const [creating, setCreating] = useState(false);
+  const [editing, setEditing] = useState(null);
+  const [view, setView] = useState(() => localStorage.getItem(VIEW_KEY) || 'cards');
   const isAdmin = user?.role === 'ADMIN';
+  const canEdit = isAdmin || user?.role === 'DISPATCHER';
+  const isOwner = user?.role === 'OWNER';
 
   const fetchCars = useCallback(async () => {
     try {
@@ -29,6 +36,11 @@ export default function CarsPage() {
   }, []);
 
   useEffect(() => { fetchCars(); }, [fetchCars]);
+
+  function switchView(v) {
+    setView(v);
+    localStorage.setItem(VIEW_KEY, v);
+  }
 
   const shown = useMemo(() => {
     const q = query.trim().toLowerCase().replace(/\s+/g, '');
@@ -54,7 +66,7 @@ export default function CarsPage() {
     <div>
       <div className="page-head">
         <div>
-          <h1 className="page-title">{user?.role === 'OWNER' ? 'Мои автомобили' : 'Автомобили'}</h1>
+          <h1 className="page-title">{isOwner ? 'Мои автомобили' : 'Автомобили'}</h1>
           <p className="page-sub">Откройте машину, чтобы записать доход или расход, выдать водителю или отметить ТО</p>
         </div>
         {isAdmin && <button className="btn" onClick={() => setCreating(true)}>+ Добавить автомобиль</button>}
@@ -75,63 +87,71 @@ export default function CarsPage() {
             </button>
           ))}
         </div>
+        <div className="chips" style={{ marginLeft: 'auto' }}>
+          {[['cards', 'Карточки'], ['table', 'Таблица']].map(([v, l]) => (
+            <button key={v} type="button" className={`chip ${view === v ? 'chip--on' : ''}`} onClick={() => switchView(v)}>{l}</button>
+          ))}
+        </div>
       </div>
 
       {shown.length === 0 ? (
         <div className="empty">{cars.length === 0 ? (isAdmin ? 'Автомобилей пока нет. Добавьте первый.' : 'Автомобилей пока нет') : 'Ничего не найдено'}</div>
-      ) : (
-        <>
-          <div className="table-wrap table--queue">
-            <table className="table">
-              <thead>
-                <tr>
-                  <th className="table__th">Номер</th>
-                  <th className="table__th">Машина</th>
-                  <th className="table__th">Водитель</th>
-                  {user?.role !== 'OWNER' && <th className="table__th table__num">Ставка / день</th>}
-                  <th className="table__th table__num">Пробег</th>
-                  <th className="table__th">Статус</th>
+      ) : view === 'table' ? (
+        <div className="table-wrap">
+          <table className="table">
+            <thead>
+              <tr>
+                <th className="table__th">Номер</th>
+                <th className="table__th">Машина</th>
+                <th className="table__th">Водитель</th>
+                {!isOwner && <th className="table__th table__num">Ставка / день</th>}
+                <th className="table__th table__num">Пробег</th>
+                <th className="table__th">Статус</th>
+              </tr>
+            </thead>
+            <tbody>
+              {shown.map((c) => (
+                <tr key={c.id} className="table__row" style={{ cursor: 'pointer' }} onClick={() => navigate(`/cars/${c.id}`)}>
+                  <td className="table__td"><Plate value={c.plate} /></td>
+                  <td className="table__td">
+                    <div style={{ fontWeight: 500 }}>{c.brand} {c.model}</div>
+                    <div className="muted small">{[c.year, c.color, c.branch_name].filter(Boolean).join(' · ')}</div>
+                  </td>
+                  <td className="table__td">{c.driver_name || <span className="muted">—</span>}</td>
+                  {!isOwner && <td className="table__td table__num">{fmtMoney(c.daily_rate)}</td>}
+                  <td className="table__td table__num">{c.mileage != null ? `${fmtNumber(c.mileage)} км` : '—'}</td>
+                  <td className="table__td"><StatusMark status={c.status} /></td>
                 </tr>
-              </thead>
-              <tbody>
-                {shown.map((c) => (
-                  <tr key={c.id} className="table__row" style={{ cursor: 'pointer' }} onClick={() => navigate(`/cars/${c.id}`)}>
-                    <td className="table__td"><Plate value={c.plate} /></td>
-                    <td className="table__td">
-                      <div style={{ fontWeight: 500 }}>{c.brand} {c.model}</div>
-                      <div className="muted small">{[c.year, c.color, c.branch_name].filter(Boolean).join(' · ')}</div>
-                    </td>
-                    <td className="table__td">{c.driver_name || <span className="muted">—</span>}</td>
-                    {user?.role !== 'OWNER' && <td className="table__td table__num">{fmtMoney(c.daily_rate)}</td>}
-                    <td className="table__td table__num">{c.mileage != null ? `${fmtNumber(c.mileage)} км` : '—'}</td>
-                    <td className="table__td"><StatusMark status={c.status} /></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          <div className="queue"><div className="car-grid">
-            {shown.map((c) => (
-              <div key={c.id} className="car-card" onClick={() => navigate(`/cars/${c.id}`)}>
-                <div className="car-card__top">
-                  <Plate value={c.plate} />
-                  <StatusMark status={c.status} />
-                </div>
-                <div>
-                  <div className="car-card__name">{c.brand} {c.model}</div>
-                  <div className="car-card__meta">{c.driver_name ? `Водитель: ${c.driver_name}` : 'Без водителя'}</div>
-                </div>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <div className="car-grid car-grid--tiles">
+          {shown.map((c) => (
+            <CarTile key={c.id} car={c} onEdit={canEdit ? setEditing : undefined}>
+              <div className="ct__row">
+                <span className="muted" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.driver_name || 'Без водителя'}</span>
+                <StatusMark status={c.status} />
               </div>
-            ))}
-          </div></div>
-        </>
+              {!isOwner && <div className="ct__row"><span className="muted">Ставка</span><b>{fmtMoney(c.daily_rate)} / день</b></div>}
+              <div className="ct__row"><span className="muted">Пробег</span><b>{c.mileage != null ? `${fmtNumber(c.mileage)} км` : '—'}</b></div>
+            </CarTile>
+          ))}
+        </div>
       )}
 
       {creating && (
         <CarForm
           onClose={() => setCreating(false)}
           onSaved={(car) => { setCreating(false); navigate(`/cars/${car.id}`); }}
+        />
+      )}
+      {editing && (
+        <CarForm
+          car={editing}
+          onClose={() => setEditing(null)}
+          onSaved={() => { setEditing(null); fetchCars(); }}
         />
       )}
     </div>

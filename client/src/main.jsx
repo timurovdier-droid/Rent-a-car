@@ -9,6 +9,9 @@ import './styles/components.css';
 import './styles/theme-dark.css';
 
 import App from './App.jsx';
+import { startTranslator } from './i18n';
+
+startTranslator();
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
