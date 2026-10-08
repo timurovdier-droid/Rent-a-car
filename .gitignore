@@ -1,0 +1,8 @@
+node_modules
+.env
+.env.local
+*.db
+client/dist
+.vercel
+.env*
+server/client/

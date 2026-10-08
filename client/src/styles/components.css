@@ -1,0 +1,85 @@
+/* Кнопки */
+.btn {
+  min-height: 44px; padding: 0 1.25rem;
+  border: 2px solid var(--c-primary); border-radius: var(--r-control);
+  background: var(--c-primary); color: var(--c-on-primary);
+  font: 600 var(--fs-m) / 1 var(--font-ui); cursor: pointer;
+}
+.btn--quiet  { background: transparent; color: var(--c-primary); }
+.btn--danger { background: var(--c-danger-solid); border-color: var(--c-danger-solid); color: #fff; }
+.btn:disabled { opacity: .5; cursor: not-allowed; }
+
+/* Поля формы (16 px, чтобы iOS не увеличивал страницу) */
+.field { display: grid; gap: .375rem; max-width: 28rem; margin-bottom: var(--sp-3); }
+.field__label { font-size: var(--fs-s); font-weight: 500; }
+.field__input {
+  min-height: 44px; padding: 0 .75rem;
+  font: inherit; font-size: 1rem; color: var(--c-ink);
+  background: var(--c-surface);
+  border: 1px solid var(--c-line-strong); border-radius: var(--r-control);
+}
+.field__error { color: var(--c-danger); font-size: var(--fs-s); }
+
+/* Таблица */
+.table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; line-height: 1.35; }
+.table__th {
+  padding: .5rem .75rem; text-align: left;
+  font-size: var(--fs-s); font-weight: 600; color: var(--c-muted);
+  border-bottom: 2px solid var(--c-ink);
+}
+.table__td { padding: .75rem; vertical-align: middle; border-bottom: 1px solid var(--c-line); }
+.table__row:hover { background: var(--c-row-hover); }
+.table__num { text-align: right; white-space: nowrap; }
+
+/* Очередь на телефоне: список вместо таблицы */
+.queue { list-style: none; margin: 0; padding: 0; }
+.queue__row {
+  display: grid; grid-template-columns: 1fr auto; gap: var(--sp-1) var(--sp-3);
+  padding: var(--sp-3) 0; border-bottom: 1px solid var(--c-line);
+}
+@media (min-width: 640px)  { .queue { display: none; } }
+@media (max-width: 639px)  { .table--queue { display: none; } }
+
+/* Суммы */
+.amount { font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.amount--hero { font-size: var(--fs-3xl); line-height: 1.1; }
+
+/* Номерной знак */
+.plate {
+  display: inline-flex; align-items: stretch; vertical-align: middle;
+  background: var(--plate-bg); color: var(--plate-ink);
+  border: 2px solid var(--plate-ink); border-radius: 6px; overflow: hidden;
+  font-family: var(--font-plate); font-weight: 700; font-size: 1.125rem;
+  line-height: 1; letter-spacing: .04em; text-transform: uppercase; white-space: nowrap;
+}
+.plate__strip {
+  display: flex; align-items: flex-end; padding: 0 .4rem .25rem;
+  background: var(--plate-strip); color: #fff; font-size: .625rem; letter-spacing: .02em;
+}
+.plate__text { padding: .4rem .7rem; }
+.plate--l { font-size: 1.75rem; }
+
+/* Статус: маркер + слово */
+.status { display: inline-flex; align-items: center; gap: .5rem; font-size: var(--fs-s); font-weight: 500; white-space: nowrap; }
+.status__mark { --mark: var(--c-muted); flex: none; box-sizing: border-box; width: .75rem; height: .75rem; border: 2px solid var(--mark); }
+.status--wait   .status__mark { --mark: var(--c-signal); background: linear-gradient(90deg, var(--mark) 50%, transparent 50%); }
+.status--done   .status__mark { --mark: var(--c-ok);     background: var(--mark); }
+.status--bad    .status__mark { --mark: var(--c-danger);  background: linear-gradient(to top right, transparent 44%, var(--mark) 44% 56%, transparent 56%); }
+.status--fixed  .status__mark { background: var(--mark); }
+
+/* Диалог (нативный <dialog>) */
+.dialog {
+  width: min(32rem, calc(100vw - 2rem)); padding: var(--sp-4);
+  background: var(--c-surface); color: var(--c-ink);
+  border: 1px solid var(--c-line); border-radius: var(--r-panel);
+  box-shadow: 0 8px 32px rgb(20 38 63 / .28);
+}
+.dialog::backdrop { background: rgb(20 38 63 / .5); }
+
+/* Подсветка строки после действия: единственная заметная анимация */
+@keyframes settle {
+  from { background-color: color-mix(in srgb, var(--c-signal) 35%, transparent); }
+  to   { background-color: transparent; }
+}
+.row--changed { animation: settle 1.2s ease-out; }
+@media (prefers-reduced-motion: reduce) { .row--changed { animation: none; } }

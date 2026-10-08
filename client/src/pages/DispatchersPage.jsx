@@ -1,0 +1,171 @@
+import { useState, useEffect } from 'react';
+import { api, ApiError } from '../api';
+
+export default function DispatchersPage() {
+  const [dispatchers, setDispatchers] = useState([]);
+  const [branches, setBranches] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [showForm, setShowForm] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState('');
+  const [form, setForm] = useState({ full_name: '', phone: '', login: '', branch_id: '' });
+
+  async function fetchDispatchers() {
+    try {
+      setLoading(true);
+      const data = await api.get('/dispatchers');
+      setDispatchers(data);
+    } catch (err) {
+      setError('Не удалось загрузить список диспетчеров');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    fetchDispatchers();
+    api.get('/branches/active').then(setBranches).catch(() => setBranches([]));
+  }, []);
+
+  async function handleCreate(e) {
+    e.preventDefault();
+    setFormError('');
+    setSaving(true);
+    try {
+      const created = await api.post('/dispatchers', {
+        full_name: form.full_name,
+        phone: form.phone,
+        login: form.login,
+        branch_id: Number(form.branch_id),
+      });
+      setShowForm(false);
+      setForm({ full_name: '', phone: '', login: '', branch_id: '' });
+      await fetchDispatchers();
+      window.alert(`Диспетчер создан.\n\nВременный пароль (показывается один раз):\n${created.tempPassword}`);
+    } catch (err) {
+      setFormError(err instanceof ApiError ? err.message : 'Не удалось создать диспетчера');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleResetPassword(id, fullName) {
+    if (!window.confirm(`Сбросить пароль для диспетчера "${fullName}"?`)) return;
+
+    try {
+      const { tempPassword } = await api.post(`/dispatchers/${id}/reset-password`);
+      alert(`Временный пароль для ${fullName}:\n\n${tempPassword}\n\nСкопируйте его и передайте диспетчеру. Он будет действовать 72 часа.`);
+    } catch (err) {
+      alert('Ошибка при сбросе пароля: ' + (err.message || 'Неизвестная ошибка'));
+    }
+  }
+
+  async function handleArchive(id, fullName) {
+    const reason = window.prompt(`Укажите причину архивации диспетчера "${fullName}":`);
+    if (!reason) return;
+
+    try {
+      await api.post(`/dispatchers/${id}/archive`, { reason });
+      alert('Диспетчер архивирован');
+      fetchDispatchers();
+    } catch (err) {
+      alert('Ошибка при архивации: ' + (err.message || 'Неизвестная ошибка'));
+    }
+  }
+
+  if (loading) return <div>Загрузка...</div>;
+  if (error) return <div className="field__error">{error}</div>;
+
+  return (
+    <div>
+      <h1 className="page-title">Диспетчеры</h1>
+      <p className="page-sub">Управление учётными записями диспетчеров</p>
+
+      <div style={{ marginBottom: 'var(--sp-4)' }}>
+        <button className="btn" type="button" onClick={() => setShowForm((v) => !v)}>
+          {showForm ? 'Закрыть форму' : 'Добавить диспетчера'}
+        </button>
+      </div>
+
+      {showForm && (
+        <form className="card" onSubmit={handleCreate} style={{ maxWidth: '32rem', marginBottom: 'var(--sp-4)' }}>
+          <div className="field">
+            <label className="field__label">ФИО</label>
+            <input className="field__input" required value={form.full_name} onChange={(e) => setForm({ ...form, full_name: e.target.value })} />
+          </div>
+          <div className="field">
+            <label className="field__label">Телефон</label>
+            <input className="field__input" required placeholder="+998901234567" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
+          </div>
+          <div className="field">
+            <label className="field__label">Логин</label>
+            <input className="field__input" required value={form.login} onChange={(e) => setForm({ ...form, login: e.target.value })} />
+          </div>
+          <div className="field">
+            <label className="field__label">Филиал</label>
+            <select className="field__input" required value={form.branch_id} onChange={(e) => setForm({ ...form, branch_id: e.target.value })}>
+              <option value="">Выберите филиал</option>
+              {branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+            </select>
+          </div>
+          {formError && <p className="field__error">{formError}</p>}
+          <button className="btn" type="submit" disabled={saving}>{saving ? 'Сохранение...' : 'Создать'}</button>
+        </form>
+      )}
+
+      <div className="table-wrap">
+        <table className="table">
+          <thead>
+            <tr>
+              <th className="table__th">ФИО</th>
+              <th className="table__th">Логин</th>
+              <th className="table__th">Телефон</th>
+              <th className="table__th">Статус</th>
+              <th className="table__th">Действия</th>
+            </tr>
+          </thead>
+          <tbody>
+            {dispatchers.length === 0 ? (
+              <tr>
+                <td colSpan="5" className="table__td" style={{ textAlign: 'center', color: 'var(--c-muted)' }}>
+                  Диспетчеров пока нет
+                </td>
+              </tr>
+            ) : (
+              dispatchers.map((d) => (
+                <tr key={d.id} className="table__row">
+                  <td className="table__td">{d.full_name}</td>
+                  <td className="table__td">{d.login}</td>
+                  <td className="table__td">{d.phone}</td>
+                  <td className="table__td">
+                    <span className={`status ${d.status === 'ACTIVE' ? 'status--done' : 'status--wait'}`}>
+                      <span className="status__mark"></span>
+                      {d.status === 'ACTIVE' ? 'Активен' : d.status}
+                    </span>
+                  </td>
+                  <td className="table__td">
+                    <button 
+                      className="btn btn--quiet" 
+                      style={{ marginRight: 'var(--sp-2)', fontSize: 'var(--fs-s)', minHeight: '32px' }}
+                      onClick={() => handleResetPassword(d.id, d.full_name)}
+                    >
+                      Сбросить пароль
+                    </button>
+                    <button 
+                      className="btn btn--danger" 
+                      style={{ fontSize: 'var(--fs-s)', minHeight: '32px' }}
+                      onClick={() => handleArchive(d.id, d.full_name)}
+                    >
+                      Архивировать
+                    </button>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
