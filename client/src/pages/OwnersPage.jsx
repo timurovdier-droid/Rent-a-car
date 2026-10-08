@@ -1,294 +1,169 @@
 import { useState, useEffect, useCallback } from 'react';
 import { api, ApiError } from '../api';
-import StatusMark from '../components/StatusMark';
+import Modal from '../components/Modal';
+import { initials } from '../labels';
+
+const EMPTY = { name: '', contact_person: '', phone: '', email: '', bank_details: '' };
+
+function OwnerForm({ owner, onClose, onSaved }) {
+  const [form, setForm] = useState(owner ? {
+    name: owner.name || '',
+    contact_person: owner.contact_person || '',
+    phone: owner.phone || '',
+    email: owner.email || '',
+    bank_details: owner.bank_details || '',
+  } : EMPTY);
+  const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
+  const set = (key) => (e) => setForm({ ...form, [key]: e.target.value });
+
+  async function submit(e) {
+    e.preventDefault();
+    setSaving(true);
+    setError('');
+    try {
+      if (owner) await api.patch(`/owners/${owner.id}`, form);
+      else await api.post('/owners', form);
+      onSaved();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Не удалось сохранить');
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Modal title={owner ? 'Изменить арендодателя' : 'Новый арендодатель'} onClose={onClose}>
+      <form onSubmit={submit}>
+        <div className="field">
+          <label className="field__label" htmlFor="of-name">Название или ФИО *</label>
+          <input id="of-name" className="field__input" value={form.name} onChange={set('name')} required placeholder='ООО "Автопарк" или Иванов И.И.' autoFocus />
+        </div>
+        <div className="field">
+          <label className="field__label" htmlFor="of-contact">Контактное лицо</label>
+          <input id="of-contact" className="field__input" value={form.contact_person} onChange={set('contact_person')} />
+        </div>
+        <div className="field">
+          <label className="field__label" htmlFor="of-phone">Телефон *</label>
+          <input id="of-phone" className="field__input" type="tel" value={form.phone} onChange={set('phone')} required placeholder="+998901234567" />
+        </div>
+        <div className="field">
+          <label className="field__label" htmlFor="of-email">Email</label>
+          <input id="of-email" className="field__input" type="email" value={form.email} onChange={set('email')} />
+        </div>
+        <div className="field">
+          <label className="field__label" htmlFor="of-bank">Реквизиты</label>
+          <textarea id="of-bank" className="field__input" rows="3" style={{ paddingTop: 8 }} value={form.bank_details} onChange={set('bank_details')} placeholder="ИНН, счёт, банк" />
+        </div>
+        {error && <div className="notice notice--error">{error}</div>}
+        <div className="form-actions">
+          <button className="btn" type="submit" disabled={saving}>{saving ? 'Сохраняю…' : owner ? 'Сохранить' : 'Добавить'}</button>
+          <button className="btn btn--quiet" type="button" onClick={onClose}>Отмена</button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
 
 export default function OwnersPage() {
   const [owners, setOwners] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [editing, setEditing] = useState(null);
 
-  const [showDialog, setShowDialog] = useState(false);
-  const [editingOwner, setEditingOwner] = useState(null);
-  const [formData, setFormData] = useState({
-    name: '',
-    contact_person: '',
-    phone: '',
-    email: '',
-    bank_details: '',
-  });
-  const [dialogError, setDialogError] = useState('');
-  const [saving, setSaving] = useState(false);
-
-  const fetchOwners = useCallback(async () => {
+  const load = useCallback(async () => {
     try {
-      setLoading(true);
-      const data = await api.get('/owners');
-      setOwners(data);
-    } catch (err) {
+      setOwners(await api.get('/owners'));
+      setError('');
+    } catch {
       setError('Не удалось загрузить арендодателей');
     } finally {
       setLoading(false);
     }
   }, []);
 
-  useEffect(() => {
-    fetchOwners();
-  }, [fetchOwners]);
+  useEffect(() => { load(); }, [load]);
 
-  function openCreateDialog() {
-    setEditingOwner(null);
-    setFormData({
-      name: '',
-      contact_person: '',
-      phone: '',
-      email: '',
-      bank_details: '',
-    });
-    setDialogError('');
-    setShowDialog(true);
-  }
-
-  function openEditDialog(owner) {
-    setEditingOwner(owner);
-    setFormData({
-      name: owner.name || '',
-      contact_person: owner.contact_person || '',
-      phone: owner.phone || '',
-      email: owner.email || '',
-      bank_details: owner.bank_details || '',
-    });
-    setDialogError('');
-    setShowDialog(true);
-  }
-
-  async function handleSave(e) {
-    e.preventDefault();
-    setDialogError('');
-    setSaving(true);
-    try {
-      const body = {
-        name: formData.name,
-        contact_person: formData.contact_person || undefined,
-        phone: formData.phone,
-        email: formData.email || undefined,
-        bank_details: formData.bank_details || undefined,
-      };
-
-      if (editingOwner) {
-        await api.patch(`/owners/${editingOwner.id}`, body);
-      } else {
-        await api.post('/owners', body);
-      }
-      setShowDialog(false);
-      fetchOwners();
-    } catch (err) {
-      setDialogError(err instanceof ApiError ? err.message : 'Ошибка сохранения');
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function handleArchive(owner) {
-    if (!window.confirm(`Архивировать арендодателя "${owner.name}"?`)) return;
+  async function archive(owner) {
+    if (!window.confirm(`Убрать «${owner.name}» в архив?`)) return;
     try {
       await api.post(`/owners/${owner.id}/archive`);
-      fetchOwners();
+      load();
     } catch (err) {
-      alert('Ошибка: ' + (err.message || 'Неизвестная ошибка'));
+      setError(err instanceof ApiError ? err.message : 'Не получилось');
     }
   }
 
-  if (loading) return <div>Загрузка...</div>;
-  if (error) return <div className="field__error">{error}</div>;
+  const active = owners.filter((o) => o.status !== 'ARCHIVED');
+  const archived = owners.filter((o) => o.status === 'ARCHIVED');
+  const totalCars = active.reduce((s, o) => s + Number(o.active_cars_count || 0), 0);
 
   return (
     <div>
-      <h1 className="page-title">Арендодатели</h1>
-      <p className="page-sub">
-        {owners.length > 0 ? `${owners.length} арендодателей` : 'Арендодателей пока нет'}
-      </p>
-
-      <div style={{ marginBottom: 'var(--sp-4)' }}>
-        <button className="btn" onClick={openCreateDialog}>
-          Добавить арендодателя
-        </button>
+      <div className="page-head">
+        <div>
+          <h1 className="page-title">Арендодатели</h1>
+          <p className="page-sub">{active.length} арендодателей · {totalCars} машин в парке</p>
+        </div>
+        <button className="btn" onClick={() => setEditing('new')}>+ Добавить арендодателя</button>
       </div>
 
-      {owners.length === 0 ? (
-        <p style={{ color: 'var(--c-muted)' }}>Арендодателей нет. Добавьте первого.</p>
+      {error && <div className="notice notice--error">{error}</div>}
+      {loading ? <div className="muted">Загрузка…</div> : active.length === 0 ? (
+        <div className="empty">Арендодателей пока нет. Добавьте первого.</div>
       ) : (
-        <>
-          <div className="table-wrap">
-            <table className="table">
-              <thead>
-                <tr>
-                  <th className="table__th">Название / ФИО</th>
-                  <th className="table__th">Контактное лицо</th>
-                  <th className="table__th">Телефон</th>
-                  <th className="table__th">Статус</th>
-                  <th className="table__th">Действия</th>
-                </tr>
-              </thead>
-              <tbody>
-                {owners.map((o) => (
-                  <tr key={o.id} className="table__row">
-                    <td className="table__td" style={{ fontWeight: 500 }}>{o.name}</td>
-                    <td className="table__td">{o.contact_person || '—'}</td>
-                    <td className="table__td">{o.phone}</td>
-                    <td className="table__td">
-                      <StatusMark status={o.status} />
-                    </td>
-                    <td className="table__td">
-                      <div style={{ display: 'flex', gap: 'var(--sp-1)' }}>
-                        <button
-                          className="btn btn--quiet"
-                          style={{ fontSize: 'var(--fs-s)', minHeight: '32px' }}
-                          onClick={() => openEditDialog(o)}
-                        >
-                          Изменить
-                        </button>
-                        {o.status === 'ACTIVE' && (
-                          <button
-                            className="btn btn--danger"
-                            style={{ fontSize: 'var(--fs-s)', minHeight: '32px' }}
-                            onClick={() => handleArchive(o)}
-                          >
-                            Архивировать
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          <ul className="queue">
-            {owners.map((o) => (
-              <li key={o.id} className="queue__row">
-                <div>
-                  <div style={{ fontWeight: 500 }}>{o.name}</div>
-                  <div style={{ fontSize: 'var(--fs-s)', color: 'var(--c-muted)' }}>
-                    {o.phone}
-                  </div>
-                  <div style={{ marginTop: 'var(--sp-1)' }}>
-                    <StatusMark status={o.status} />
+        <div className="person-grid">
+          {active.map((o) => {
+            const cars = Number(o.active_cars_count || 0);
+            return (
+              <div key={o.id} className="person">
+                <div className="person__head">
+                  <div className="avatar">{initials(o.name)}</div>
+                  <div style={{ minWidth: 0 }}>
+                    <div className="person__name">{o.name}</div>
+                    <div className="person__sub">{o.contact_person || 'контакт не указан'}</div>
                   </div>
                 </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--sp-1)' }}>
-                  <button
-                    className="btn btn--quiet"
-                    style={{ fontSize: 'var(--fs-s)', minHeight: '32px' }}
-                    onClick={() => openEditDialog(o)}
-                  >
-                    Изменить
-                  </button>
-                  {o.status === 'ACTIVE' && (
-                    <button
-                      className="btn btn--danger"
-                      style={{ fontSize: 'var(--fs-s)', minHeight: '32px' }}
-                      onClick={() => handleArchive(o)}
-                    >
-                      Архив
-                    </button>
-                  )}
+                <div className="badges">
+                  <span className={`badge ${cars ? 'badge--wait' : 'badge--muted'}`}>{cars ? `${cars} ${cars === 1 ? 'машина' : cars < 5 ? 'машины' : 'машин'}` : 'Нет машин'}</span>
                 </div>
-              </li>
-            ))}
-          </ul>
-        </>
+                <dl className="person__facts">
+                  <div><dt>Телефон</dt><dd>{o.phone ? <a href={`tel:${o.phone}`} style={{ color: 'inherit' }}>{o.phone}</a> : '—'}</dd></div>
+                  <div><dt>Email</dt><dd>{o.email || '—'}</dd></div>
+                  {o.bank_details && <div style={{ gridColumn: '1 / -1' }}><dt>Реквизиты</dt><dd className="small">{o.bank_details}</dd></div>}
+                </dl>
+                <div className="person__actions">
+                  <button className="btn btn--quiet btn--sm" onClick={() => setEditing(o)}>Изменить</button>
+                  {!cars && <button className="btn btn--ghost btn--sm" onClick={() => archive(o)}>В архив</button>}
+                </div>
+              </div>
+            );
+          })}
+        </div>
       )}
 
-      <dialog
-        className="dialog"
-        open={showDialog}
-        onCancel={() => setShowDialog(false)}
-        onClick={(e) => { if (e.target === e.currentTarget) setShowDialog(false); }}
-      >
-        <h2 style={{ marginTop: 0 }} className="page-title">
-          {editingOwner ? 'Редактирование арендодателя' : 'Новый арендодатель'}
-        </h2>
-
-        <form onSubmit={handleSave}>
-          <div className="field">
-            <label className="field__label" htmlFor="name">Название организации или ФИО *</label>
-            <input
-              id="name"
-              className="field__input"
-              type="text"
-              value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              required
-              placeholder='ООО "Автопарк" или Иванов И.И.'
-            />
+      {archived.length > 0 && (
+        <details style={{ marginTop: 20 }}>
+          <summary className="muted" style={{ cursor: 'pointer' }}>Архив ({archived.length})</summary>
+          <div className="person-grid" style={{ marginTop: 12 }}>
+            {archived.map((o) => (
+              <div key={o.id} className="person">
+                <div className="person__head">
+                  <div className="avatar avatar--muted">{initials(o.name)}</div>
+                  <div><div className="person__name">{o.name}</div><div className="person__sub">{o.phone}</div></div>
+                </div>
+              </div>
+            ))}
           </div>
+        </details>
+      )}
 
-          <div className="field">
-            <label className="field__label" htmlFor="contact_person">Контактное лицо</label>
-            <input
-              id="contact_person"
-              className="field__input"
-              type="text"
-              value={formData.contact_person}
-              onChange={(e) => setFormData({ ...formData, contact_person: e.target.value })}
-              placeholder="Иванов Иван Иванович"
-            />
-          </div>
-
-          <div className="field">
-            <label className="field__label" htmlFor="phone">Телефон *</label>
-            <input
-              id="phone"
-              className="field__input"
-              type="tel"
-              value={formData.phone}
-              onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-              required
-              placeholder="+998901234567"
-            />
-          </div>
-
-          <div className="field">
-            <label className="field__label" htmlFor="email">Email</label>
-            <input
-              id="email"
-              className="field__input"
-              type="email"
-              value={formData.email}
-              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-              placeholder="info@example.com"
-            />
-          </div>
-
-          <div className="field">
-            <label className="field__label" htmlFor="bank_details">Банковские реквизиты</label>
-            <textarea
-              id="bank_details"
-              className="field__input"
-              rows="3"
-              value={formData.bank_details}
-              onChange={(e) => setFormData({ ...formData, bank_details: e.target.value })}
-              placeholder="ИНН, расчетный счет, банк"
-            />
-          </div>
-
-          {dialogError && <p className="field__error">{dialogError}</p>}
-
-          <div style={{ display: 'flex', gap: 'var(--sp-2)', marginTop: 'var(--sp-3)' }}>
-            <button
-              className="btn btn--quiet"
-              type="button"
-              onClick={() => setShowDialog(false)}
-            >
-              Отмена
-            </button>
-            <button className="btn" type="submit" disabled={saving}>
-              {saving ? 'Сохранение...' : editingOwner ? 'Сохранить' : 'Создать'}
-            </button>
-          </div>
-        </form>
-      </dialog>
+      {editing && (
+        <OwnerForm
+          owner={editing === 'new' ? null : editing}
+          onClose={() => setEditing(null)}
+          onSaved={() => { setEditing(null); load(); }}
+        />
+      )}
     </div>
   );
 }

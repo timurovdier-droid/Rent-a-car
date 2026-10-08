@@ -174,11 +174,87 @@ CREATE TABLE IF NOT EXISTS password_resets (
 );
 
 INSERT INTO settings (key, value) VALUES
-  ('company_name', 'Qween'),
+  ('company_name', 'RENT A CAR GTA'),
   ('currency', 'UZS'),
   ('timezone', 'Asia/Tashkent'),
   ('min_payment_amount', '1000'),
   ('max_failed_attempts', '5'),
   ('lock_duration_minutes', '30')
+ON CONFLICT (key) DO NOTHING;
+`;
+
+export const SCHEMA_VERSION = 2;
+
+export const SCHEMA_V2_COLUMNS = {
+  cars: {
+    daily_rate: 'INTEGER NOT NULL DEFAULT 0',
+    mileage: 'INTEGER',
+    fuel_type: 'TEXT',
+    insurance_expires: 'TEXT',
+    inspection_expires: 'TEXT',
+  },
+  drivers: {
+    deposit: 'INTEGER NOT NULL DEFAULT 0',
+  },
+  service_records: {
+    due_mileage: 'INTEGER',
+    done_mileage: 'INTEGER',
+    comment: 'TEXT',
+  },
+};
+
+export const SCHEMA_V2_TABLES = `
+CREATE TABLE IF NOT EXISTS car_transactions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  car_id INTEGER NOT NULL,
+  kind TEXT NOT NULL,
+  category TEXT NOT NULL,
+  amount INTEGER NOT NULL,
+  method TEXT,
+  tx_date TEXT NOT NULL,
+  comment TEXT,
+  status TEXT NOT NULL DEFAULT 'PENDING',
+  created_by INTEGER,
+  confirmed_by INTEGER,
+  confirmed_at TEXT,
+  service_record_id INTEGER,
+  legacy_payment_id INTEGER UNIQUE,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_car_tx_car ON car_transactions (car_id, tx_date);
+CREATE INDEX IF NOT EXISTS idx_car_tx_status ON car_transactions (status);
+
+CREATE TABLE IF NOT EXISTS car_days_off (
+  car_id INTEGER NOT NULL,
+  day TEXT NOT NULL,
+  created_by INTEGER,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (car_id, day)
+);
+
+CREATE TABLE IF NOT EXISTS car_rate_history (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  car_id INTEGER NOT NULL,
+  rate INTEGER NOT NULL,
+  valid_from TEXT NOT NULL,
+  created_by INTEGER,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_car_rate_car ON car_rate_history (car_id, valid_from);
+
+CREATE TABLE IF NOT EXISTS driver_deposit_history (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  driver_id INTEGER NOT NULL,
+  old_value INTEGER,
+  new_value INTEGER NOT NULL,
+  reason TEXT,
+  changed_by INTEGER,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+INSERT INTO settings (key, value) VALUES
+  ('remind_days', '7'),
+  ('remind_km', '1000')
 ON CONFLICT (key) DO NOTHING;
 `;

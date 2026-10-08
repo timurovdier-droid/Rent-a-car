@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api, ApiError } from '../api';
 import { useAuth } from '../auth';
+import ThemeToggle from '../components/ThemeToggle';
 
 export default function LoginPage() {
   const [login, setLogin] = useState('');
@@ -37,8 +38,13 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="main" style={{ maxWidth: '28rem', margin: '4rem auto' }}>
-      <h1 className="page-title">Вход в Qween</h1>
+    <main className="login">
+      <div className="login__corner">
+        <img src="/logo.png" alt="GTA" className="brand-logo" width="84" height="22" />
+        <ThemeToggle className="theme-toggle--icon" />
+      </div>
+      <div className="login__card">
+      <h1 className="page-title">RENT A CAR GTA</h1>
       <p className="page-sub">Введите логин и пароль</p>
 
       <form onSubmit={handleSubmit}>
@@ -75,9 +81,10 @@ export default function LoginPage() {
         </button>
       </form>
 
-      <p style={{ marginTop: '2rem', color: 'var(--c-muted)', fontSize: 'var(--fs-s)' }}>
+      <p style={{ marginTop: '1.5rem', color: 'var(--c-muted)', fontSize: 'var(--fs-s)' }}>
         Забыли пароль? Обратитесь к администратору: он выдаст временный пароль.
       </p>
+      </div>
     </main>
   );
 }

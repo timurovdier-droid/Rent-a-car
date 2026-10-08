@@ -113,7 +113,7 @@ router.post('/:id/archive', async (req, res) => {
 
       // Проверяем наличие активных автомобилей
       const { rows: cars } = await client.query(
-        `SELECT COUNT(*) FROM cars WHERE owner_id = $1 AND archived_at IS NULL`,
+        `SELECT COUNT(*) AS count FROM cars WHERE owner_id = $1 AND archived_at IS NULL`,
         [ownerId]
       );
       if (Number(cars[0].count) > 0) {

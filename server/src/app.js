@@ -6,6 +6,7 @@ import { initDb } from './db.js';
 import authRouter from './routes/auth.js';
 import dispatchersRouter from './routes/dispatchers.js';
 import carsRouter from './routes/cars.js';
+import carHubRouter from './routes/car-hub.js';
 import driversRouter from './routes/drivers.js';
 import paymentsRouter from './routes/payments.js';
 import auditRouter from './routes/audit.js';
@@ -50,6 +51,7 @@ app.use(async (req, res, next) => {
 // Подключаем маршруты
 app.use('/api/v1/auth', authRouter);
 app.use('/api/v1/dispatchers', dispatchersRouter);
+app.use('/api/v1/cars', carHubRouter);
 app.use('/api/v1/cars', carsRouter);
 app.use('/api/v1/drivers', driversRouter);
 app.use('/api/v1/payments', paymentsRouter);

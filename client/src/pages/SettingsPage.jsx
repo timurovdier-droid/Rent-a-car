@@ -8,6 +8,8 @@ const FIELDS = [
   { key: 'min_payment_amount', label: 'Минимальная сумма платежа', type: 'number', suffix: 'сум' },
   { key: 'max_failed_attempts', label: 'Максимум неудачных попыток входа', type: 'number' },
   { key: 'lock_duration_minutes', label: 'Длительность блокировки', type: 'number', suffix: 'мин' },
+  { key: 'remind_days', label: 'Напоминать о документах и ТО за', type: 'number', suffix: 'дней' },
+  { key: 'remind_km', label: 'Напоминать о ТО за', type: 'number', suffix: 'км' },
 ];
 
 export default function SettingsPage() {

@@ -1,43 +1,52 @@
 :root {
-  color-scheme: light dark;
-  --c-bg: #F1F3F5;        --c-surface: #FFFFFF;
-  --c-ink: #14263F;       --c-muted: #55617A;
-  --c-line: #CBD2DB;      --c-line-strong: #7C8799;
-  --c-row-hover: #E6EAEF;
-  --c-primary: #1B4F9C;   --c-on-primary: #FFFFFF;
-  --c-signal: #F0B400;
-  --c-ok: #1F7A4D;
-  --c-danger: #B42318;    --c-danger-solid: #B42318;
-  --c-focus: #1B4F9C;
-  --plate-bg: #FFFFFF;  --plate-ink: #14263F;  --plate-strip: #1B4F9C;
-  --font-ui: "Golos Text", "Segoe UI", system-ui, sans-serif;
-  --font-plate: "Roboto Condensed", "Arial Narrow", sans-serif;
-  --fs-s: .875rem;  --fs-m: 1rem;  --fs-l: 1.1875rem;
-  --fs-xl: 1.4375rem;  --fs-2xl: 1.75rem;  --fs-3xl: 2.125rem;
-  --sp-1: .25rem;  --sp-2: .5rem;  --sp-3: 1rem;
-  --sp-4: 1.5rem;  --sp-5: 2rem;   --sp-6: 3rem;
-  --r-control: 4px;  --r-panel: 8px;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --c-bg: #101B2B;        --c-surface: #182640;
-    --c-ink: #E6EBF2;       --c-muted: #9AA7BC;
-    --c-line: #2C3D58;      --c-line-strong: #5E7090;
-    --c-row-hover: #1A2A44;
-    --c-primary: #7FB0F5;   --c-on-primary: #0B1424;
-    --c-ok: #5BC896;
-    --c-danger: #FF8A80;    --c-danger-solid: #C8372D;
-    --c-focus: #F0B400;
-  }
+  color-scheme: light;
+  --c-bg: #F2F3F5;
+  --c-surface: #FFFFFF;
+  --c-ink: #21201F;
+  --c-muted: #8A8784;
+  --c-line: #E8E8E8;
+  --c-line-strong: #D2D0CC;
+  --c-row-hover: #F7F7F5;
+  --c-soft: #F0F1F3;
+  --c-primary: #FCE000;
+  --c-on-primary: #21201F;
+  --c-signal: #C48A00;
+  --c-ok: #0B7A43;
+  --c-danger: #C42B1C;
+  --c-danger-solid: #E5453A;
+  --c-focus: #FCE000;
+  --c-nav: #F2F3F5;
+  --c-active: #FFFFFF;
+  --plate-bg: #FFFFFF;
+  --plate-ink: #21201F;
+  --plate-strip: #21201F;
+  --font-ui: system-ui, "Segoe UI", Roboto, sans-serif;
+  --font-plate: "Arial Narrow", "Roboto Condensed", sans-serif;
+  --fs-s: .8125rem;
+  --fs-m: .875rem;
+  --fs-l: 1.125rem;
+  --fs-xl: 1.375rem;
+  --fs-2xl: 1.5rem;
+  --fs-3xl: 1.75rem;
+  --sp-1: .25rem;
+  --sp-2: .5rem;
+  --sp-3: .75rem;
+  --sp-4: 1rem;
+  --sp-5: 1.5rem;
+  --sp-6: 2rem;
+  --r-control: 10px;
+  --r-panel: 16px;
 }
 
 html { height: 100%; }
 body {
-  margin: 0; min-height: 100%;
-  background: var(--c-bg); color: var(--c-ink);
-  font: 400 var(--fs-m) / 1.5 var(--font-ui);
+  margin: 0;
+  transition: background-color .2s, color .2s;
+  min-height: 100%;
+  background: var(--c-bg);
+  color: var(--c-ink);
+  font: 400 var(--fs-m) / 1.45 var(--font-ui);
   -webkit-text-size-adjust: 100%;
 }
 
-:focus-visible { outline: 3px solid var(--c-focus); outline-offset: 2px; }
+:focus-visible { outline: 2px solid var(--c-focus); outline-offset: 2px; }

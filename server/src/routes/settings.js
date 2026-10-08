@@ -3,6 +3,7 @@ import { pool } from '../db.js';
 import { authenticate } from '../middleware/auth.js';
 import { requireRole } from '../middleware/rbac.js';
 import { writeAudit } from '../middleware/audit.js';
+import { forgetReminderSettings } from '../carMoney.js';
 
 const router = Router();
 
@@ -10,12 +11,14 @@ router.use(authenticate, requireRole('ADMIN'));
 
 // Значения по умолчанию (используются, если запись отсутствует в БД)
 const DEFAULTS = {
-  company_name: 'Qween',
+  company_name: 'RENT A CAR GTA',
   min_payment_amount: '1000',
   lock_duration_minutes: '30',
   max_failed_attempts: '5',
   currency: 'UZS',
   timezone: 'Asia/Tashkent',
+  remind_days: '7',
+  remind_km: '1000',
 };
 
 // GET / — Получить все настройки
@@ -78,6 +81,7 @@ router.patch('/', async (req, res) => {
         oldSettings, { ...oldSettings, ...updates }, req.ip);
 
       await client.query('COMMIT');
+      forgetReminderSettings();
 
       // Возвращаем обновлённые настройки
       const { rows } = await client.query('SELECT key, value FROM settings');

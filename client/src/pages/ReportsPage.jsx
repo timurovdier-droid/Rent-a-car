@@ -1,321 +1,211 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { api } from '../api';
 import Plate from '../components/Plate';
-import Money from '../components/Money';
+import PeriodPicker, { defaultPeriod } from '../components/PeriodPicker';
+import { fmtMoney, fmtDay, downloadCsv } from '../labels';
 
 const TABS = [
-  { key: 'revenue', label: 'Выручка по дням' },
-  { key: 'by-branch', label: 'По филиалам' },
-  { key: 'by-owner', label: 'По арендодателям' },
-  { key: 'top-cars', label: 'Топ автомобилей' },
-  { key: 'top-drivers', label: 'Топ водителей' },
+  ['cars', 'По машинам'],
+  ['owners', 'По арендодателям'],
+  ['debts', 'Долги'],
+  ['days', 'По дням'],
 ];
 
+function Num({ value, tone }) {
+  const color = tone === 'debt' && value ? 'var(--c-danger)' : tone === 'profit' && value < 0 ? 'var(--c-danger)' : undefined;
+  return <td className="table__td table__num" style={{ color, fontWeight: tone ? 600 : undefined }}>{fmtMoney(value)}</td>;
+}
+
 export default function ReportsPage() {
-  const [activeTab, setActiveTab] = useState('revenue');
-  const [from, setFrom] = useState(() => {
-    const d = new Date();
-    d.setDate(d.getDate() - 30);
-    return d.toISOString().slice(0, 10);
-  });
-  const [to, setTo] = useState(() => new Date().toISOString().slice(0, 10));
+  const navigate = useNavigate();
+  const [tab, setTab] = useState('cars');
+  const [period, setPeriod] = useState(defaultPeriod);
   const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const fetchData = useCallback(async () => {
-    if (!from || !to) {
-      setError('Укажите период');
-      return;
-    }
-    setLoading(true);
-    setError('');
-    try {
-      const qs = `from=${from}&to=${to}`;
-      const result = await api.get(`/reports/${activeTab}?${qs}`);
-      setData(result);
-    } catch (err) {
-      setError('Не удалось загрузить отчёт');
-      setData(null);
-    } finally {
-      setLoading(false);
-    }
-  }, [activeTab, from, to]);
-
   useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+    setData(null);
+    setError('');
+    api.get(`/finance/overview?from=${period.from}&to=${period.to}`)
+      .then(setData)
+      .catch(() => setError('Не удалось загрузить отчёт'));
+  }, [period]);
 
-  function handleTabChange(key) {
-    setActiveTab(key);
-  }
+  const suffix = `${period.from}_${period.to}`;
+  const debts = (data?.cars || []).filter((c) => c.debt > 0).sort((a, b) => b.debt - a.debt);
+  const sum = (list, key) => list.reduce((s, r) => s + (Number(r[key]) || 0), 0);
 
-  // Максимальное значение для визуализации бара
-  function getMaxValue(items, field) {
-    if (!items || items.length === 0) return 1;
-    return Math.max(...items.map(i => Number(i[field]) || 0), 1);
+  function exportCurrent() {
+    if (!data) return;
+    if (tab === 'cars') {
+      downloadCsv(`машины_${suffix}.csv`,
+        ['Госномер', 'Машина', 'Арендодатель', 'Водитель', 'Начислено', 'Доход', 'Расходы', 'Прибыль', 'Долг сейчас'],
+        data.cars.map((c) => [c.plate, `${c.brand} ${c.model}`, c.owner_name || '', c.driver_name || '', c.accrued, c.income, c.expenses, c.profit, c.debt]));
+    } else if (tab === 'owners') {
+      downloadCsv(`арендодатели_${suffix}.csv`,
+        ['Арендодатель', 'Машин', 'Доход', 'Расходы', 'Прибыль'],
+        data.owners.map((o) => [o.owner_name, o.cars, o.income, o.expenses, o.profit]));
+    } else if (tab === 'debts') {
+      downloadCsv(`долги_${todayName()}.csv`,
+        ['Госномер', 'Машина', 'Водитель', 'Начислено всего', 'Получено всего', 'Долг'],
+        debts.map((c) => [c.plate, `${c.brand} ${c.model}`, c.driver_name || '', c.accrued_all, c.received_all, c.debt]));
+    } else {
+      downloadCsv(`по_дням_${suffix}.csv`,
+        ['Дата', 'Доход', 'Расход', 'Итог'],
+        data.chart.map((d) => [fmtDay(d.day), d.income, d.expense, d.income - d.expense]));
+    }
   }
 
   return (
     <div>
-      <h1 className="page-title">Отчёты</h1>
-      <p className="page-sub">Аналитика по выручке, филиалам, арендодателям и лучшим сотрудникам</p>
-
-      {/* Фильтр периода */}
-      <form
-        onSubmit={(e) => { e.preventDefault(); fetchData(); }}
-        style={{ display: 'flex', gap: 'var(--sp-2)', flexWrap: 'wrap', alignItems: 'flex-end', marginBottom: 'var(--sp-4)', maxWidth: '40rem' }}
-      >
-        <div className="field" style={{ margin: 0, flex: 1, minWidth: '10rem' }}>
-          <label className="field__label" htmlFor="from">С даты</label>
-          <input
-            id="from"
-            className="field__input"
-            type="date"
-            value={from}
-            onChange={(e) => setFrom(e.target.value)}
-            required
-          />
+      <div className="page-head">
+        <div>
+          <h1 className="page-title">Отчёты</h1>
+          <p className="page-sub">Доход, расходы, прибыль и долги по каждой машине</p>
         </div>
-        <div className="field" style={{ margin: 0, flex: 1, minWidth: '10rem' }}>
-          <label className="field__label" htmlFor="to">По дату</label>
-          <input
-            id="to"
-            className="field__input"
-            type="date"
-            value={to}
-            onChange={(e) => setTo(e.target.value)}
-            required
-          />
-        </div>
-        <button className="btn" type="submit" style={{ minHeight: '40px' }}>
-          Применить
-        </button>
-      </form>
+        <button className="btn btn--quiet" onClick={exportCurrent} disabled={!data}>Скачать в Excel</button>
+      </div>
 
-      {/* Табы */}
-      <div style={{ display: 'flex', gap: 'var(--sp-1)', flexWrap: 'wrap', marginBottom: 'var(--sp-4)', borderBottom: '1px solid var(--c-border)', paddingBottom: 'var(--sp-2)' }}>
-        {TABS.map((tab) => (
-          <button
-            key={tab.key}
-            className={`btn ${activeTab === tab.key ? '' : 'btn--quiet'}`}
-            style={{ fontSize: 'var(--fs-s)', minHeight: '36px' }}
-            onClick={() => handleTabChange(tab.key)}
-          >
-            {tab.label}
+      <PeriodPicker value={period} onChange={setPeriod} />
+
+      <div className="tabs">
+        {TABS.map(([key, label]) => (
+          <button key={key} className={`tab ${tab === key ? 'tab--on' : ''}`} onClick={() => setTab(key)}>
+            {label}{key === 'debts' && debts.length ? ` · ${debts.length}` : ''}
           </button>
         ))}
       </div>
 
-      {error && <div className="field__error">{error}</div>}
-      {loading && <div>Загрузка...</div>}
+      {error && <div className="notice notice--error">{error}</div>}
+      {!data && !error && <div className="muted">Загрузка…</div>}
 
-      {!loading && !error && data && (
-        <>
-          {/* Выручка по дням */}
-          {activeTab === 'revenue' && (
-            <>
-              {data.length === 0 ? (
-                <p style={{ color: 'var(--c-muted)' }}>Нет подтверждённых платежей за выбранный период</p>
-              ) : (
-                <>
-                  {/* Простой визуальный график */}
-                  <div style={{ display: 'flex', alignItems: 'flex-end', gap: '2px', height: '120px', marginBottom: 'var(--sp-4)', padding: 'var(--sp-2)', background: 'var(--c-bg-soft)', borderRadius: 'var(--radius)' }}>
-                    {data.map((row, i) => {
-                      const max = getMaxValue(data, 'total_amount');
-                      const height = (Number(row.total_amount) / max) * 100;
-                      return (
-                        <div
-                          key={i}
-                          title={`${row.day}: ${Number(row.total_amount).toLocaleString('ru-RU')} сум`}
-                          style={{
-                            flex: 1,
-                            height: `${height}%`,
-                            background: 'var(--c-primary)',
-                            borderRadius: '2px 2px 0 0',
-                            minHeight: '2px',
-                          }}
-                        />
-                      );
-                    })}
-                  </div>
+      {data && tab === 'cars' && (
+        <div className="table-wrap">
+          <table className="table">
+            <thead>
+              <tr>
+                <th className="table__th">Машина</th>
+                <th className="table__th">Водитель</th>
+                <th className="table__th table__num">Начислено</th>
+                <th className="table__th table__num">Доход</th>
+                <th className="table__th table__num">Расходы</th>
+                <th className="table__th table__num">Прибыль</th>
+                <th className="table__th table__num">Долг сейчас</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.cars.map((c) => (
+                <tr key={c.car_id} className="table__row" style={{ cursor: 'pointer' }} onClick={() => navigate(`/cars/${c.car_id}`)}>
+                  <td className="table__td"><Plate value={c.plate} /> <span className="muted small">{c.brand} {c.model}</span></td>
+                  <td className="table__td">{c.driver_name || <span className="muted">—</span>}</td>
+                  <Num value={c.accrued} />
+                  <Num value={c.income} />
+                  <Num value={c.expenses} />
+                  <Num value={c.profit} tone="profit" />
+                  <Num value={c.debt} tone="debt" />
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr>
+                <td className="table__td" colSpan={2}><b>Итого</b></td>
+                <Num value={sum(data.cars, 'accrued')} tone="sum" />
+                <Num value={sum(data.cars, 'income')} tone="sum" />
+                <Num value={sum(data.cars, 'expenses')} tone="sum" />
+                <Num value={sum(data.cars, 'profit')} tone="profit" />
+                <Num value={sum(data.cars, 'debt')} tone="debt" />
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      )}
 
-                  <div className="table-wrap">
-                    <table className="table">
-                      <thead>
-                        <tr>
-                          <th className="table__th">Дата</th>
-                          <th className="table__th table__num">Платежей</th>
-                          <th className="table__th table__num">Сумма</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {data.map((row, i) => (
-                          <tr key={i} className="table__row">
-                            <td className="table__td">{new Date(row.day).toLocaleDateString('ru-RU')}</td>
-                            <td className="table__td table__num">{row.payments_count}</td>
-                            <td className="table__td table__num">
-                              <Money value={row.total_amount} />
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                      <tfoot>
-                        <tr style={{ background: 'var(--c-bg-soft)', fontWeight: 600 }}>
-                          <td className="table__td">Итого</td>
-                          <td className="table__td table__num">
-                            {data.reduce((s, r) => s + Number(r.payments_count), 0)}
-                          </td>
-                          <td className="table__td table__num">
-                            <Money value={data.reduce((s, r) => s + Number(r.total_amount), 0)} />
-                          </td>
-                        </tr>
-                      </tfoot>
-                    </table>
-                  </div>
-                </>
-              )}
-            </>
-          )}
+      {data && tab === 'owners' && (
+        <div className="table-wrap">
+          <table className="table">
+            <thead>
+              <tr>
+                <th className="table__th">Арендодатель</th>
+                <th className="table__th table__num">Машин</th>
+                <th className="table__th table__num">Доход</th>
+                <th className="table__th table__num">Расходы</th>
+                <th className="table__th table__num">Прибыль</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.owners.map((o) => (
+                <tr key={o.owner_id || 0} className="table__row">
+                  <td className="table__td">{o.owner_name}</td>
+                  <td className="table__td table__num">{o.cars}</td>
+                  <Num value={o.income} />
+                  <Num value={o.expenses} />
+                  <Num value={o.profit} tone="profit" />
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
-          {/* По филиалам */}
-          {activeTab === 'by-branch' && (
-            data.length === 0 ? (
-              <p style={{ color: 'var(--c-muted)' }}>Нет данных за выбранный период</p>
-            ) : (
-              <div className="table-wrap">
-                <table className="table">
-                  <thead>
-                    <tr>
-                      <th className="table__th">Филиал</th>
-                      <th className="table__th table__num">Платежей</th>
-                      <th className="table__th table__num">Сумма</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {data.map((row) => (
-                      <tr key={row.branch_id} className="table__row">
-                        <td className="table__td">{row.branch_name}</td>
-                        <td className="table__td table__num">{row.payments_count}</td>
-                        <td className="table__td table__num">
-                          <Money value={row.total_amount} />
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )
-          )}
+      {data && tab === 'debts' && (
+        debts.length === 0 ? <div className="empty">Долгов нет — все водители рассчитались</div> : (
+          <div className="table-wrap">
+            <p className="muted small" style={{ marginTop: 0 }}>Долг считается за всё время: начислено по ставке минус подтверждённые поступления.</p>
+            <table className="table">
+              <thead>
+                <tr>
+                  <th className="table__th">Машина</th>
+                  <th className="table__th">Водитель сейчас</th>
+                  <th className="table__th table__num">Начислено</th>
+                  <th className="table__th table__num">Получено</th>
+                  <th className="table__th table__num">Долг</th>
+                </tr>
+              </thead>
+              <tbody>
+                {debts.map((c) => (
+                  <tr key={c.car_id} className="table__row" style={{ cursor: 'pointer' }} onClick={() => navigate(`/cars/${c.car_id}`)}>
+                    <td className="table__td"><Plate value={c.plate} /> <span className="muted small">{c.brand} {c.model}</span></td>
+                    <td className="table__td">{c.driver_name || <span className="muted">—</span>}</td>
+                    <Num value={c.accrued_all} />
+                    <Num value={c.received_all} />
+                    <Num value={c.debt} tone="debt" />
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )
+      )}
 
-          {/* По арендодателям */}
-          {activeTab === 'by-owner' && (
-            data.length === 0 ? (
-              <p style={{ color: 'var(--c-muted)' }}>Нет данных за выбранный период</p>
-            ) : (
-              <div className="table-wrap">
-                <table className="table">
-                  <thead>
-                    <tr>
-                      <th className="table__th">Арендодатель</th>
-                      <th className="table__th">Телефон</th>
-                      <th className="table__th table__num">Авто</th>
-                      <th className="table__th table__num">Платежей</th>
-                      <th className="table__th table__num">Сумма</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {data.map((row) => (
-                      <tr key={row.owner_id} className="table__row">
-                        <td className="table__td">{row.owner_name}</td>
-                        <td className="table__td">{row.phone}</td>
-                        <td className="table__td table__num">{row.cars_count}</td>
-                        <td className="table__td table__num">{row.payments_count}</td>
-                        <td className="table__td table__num">
-                          <Money value={row.total_amount} />
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )
-          )}
-
-          {/* Топ автомобилей */}
-          {activeTab === 'top-cars' && (
-            data.length === 0 ? (
-              <p style={{ color: 'var(--c-muted)' }}>Нет данных за выбранный период</p>
-            ) : (
-              <div className="table-wrap">
-                <table className="table">
-                  <thead>
-                    <tr>
-                      <th className="table__th">#</th>
-                      <th className="table__th">Автомобиль</th>
-                      <th className="table__th">Арендодатель</th>
-                      <th className="table__th table__num">Платежей</th>
-                      <th className="table__th table__num">Сумма</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {data.map((row, i) => (
-                      <tr key={row.car_id} className="table__row">
-                        <td className="table__td" style={{ fontWeight: 600, color: 'var(--c-muted)' }}>{i + 1}</td>
-                        <td className="table__td">
-                          <Plate value={row.plate} />
-                          <div style={{ fontSize: 'var(--fs-s)', color: 'var(--c-muted)', marginTop: 'var(--sp-1)' }}>
-                            {row.brand} {row.model}
-                          </div>
-                        </td>
-                        <td className="table__td">{row.owner_name}</td>
-                        <td className="table__td table__num">{row.payments_count}</td>
-                        <td className="table__td table__num">
-                          <Money value={row.total_amount} />
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )
-          )}
-
-          {/* Топ водителей */}
-          {activeTab === 'top-drivers' && (
-            data.length === 0 ? (
-              <p style={{ color: 'var(--c-muted)' }}>Нет данных за выбранный период</p>
-            ) : (
-              <div className="table-wrap">
-                <table className="table">
-                  <thead>
-                    <tr>
-                      <th className="table__th">#</th>
-                      <th className="table__th">Водитель</th>
-                      <th className="table__th">Телефон</th>
-                      <th className="table__th table__num">Платежей</th>
-                      <th className="table__th table__num">Сумма</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {data.map((row, i) => (
-                      <tr key={row.driver_id} className="table__row">
-                        <td className="table__td" style={{ fontWeight: 600, color: 'var(--c-muted)' }}>{i + 1}</td>
-                        <td className="table__td">{row.full_name}</td>
-                        <td className="table__td">{row.phone}</td>
-                        <td className="table__td table__num">{row.payments_count}</td>
-                        <td className="table__td table__num">
-                          <Money value={row.total_amount} />
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )
-          )}
-        </>
+      {data && tab === 'days' && (
+        <div className="table-wrap">
+          <table className="table">
+            <thead>
+              <tr>
+                <th className="table__th">Дата</th>
+                <th className="table__th table__num">Доход</th>
+                <th className="table__th table__num">Расход</th>
+                <th className="table__th table__num">Итог</th>
+              </tr>
+            </thead>
+            <tbody>
+              {[...data.chart].reverse().map((d) => (
+                <tr key={d.day} className="table__row">
+                  <td className="table__td">{fmtDay(d.day)}</td>
+                  <Num value={d.income} />
+                  <Num value={d.expense} />
+                  <Num value={d.income - d.expense} tone="profit" />
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   );
+}
+
+function todayName() {
+  return new Date().toISOString().slice(0, 10);
 }

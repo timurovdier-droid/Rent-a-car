@@ -2,6 +2,29 @@ import jwt from 'jsonwebtoken';
 import { pool } from '../db.js';
 import { config } from '../config.js';
 
+const authCache = new Map();
+const AUTH_CACHE_MS = 20000;
+
+function recallUser(id, tokenVersion) {
+  const hit = authCache.get(`${id}:${tokenVersion}`);
+  if (!hit || hit.exp < Date.now()) {
+    if (hit) authCache.delete(`${id}:${tokenVersion}`);
+    return null;
+  }
+  return { ...hit.user };
+}
+
+function rememberUser(user) {
+  authCache.set(`${user.id}:${user.token_version}`, {
+    user: { ...user },
+    exp: Date.now() + AUTH_CACHE_MS,
+  });
+  if (authCache.size > 200) {
+    const first = authCache.keys().next().value;
+    authCache.delete(first);
+  }
+}
+
 export async function authenticate(req, res, next) {
   try {
     const token = req.cookies?.token;
@@ -14,6 +37,12 @@ export async function authenticate(req, res, next) {
       payload = jwt.verify(token, config.jwt.secret);
     } catch (err) {
       return res.status(401).json({ error: { code: 'UNAUTHORIZED', message: 'Недействительный токен' } });
+    }
+
+    const cached = recallUser(Number(payload.sub), Number(payload.token_version || 0));
+    if (cached) {
+      req.user = cached;
+      return next();
     }
 
     // Проверяем актуальность токена (token_version) и статус пользователя
@@ -35,7 +64,7 @@ export async function authenticate(req, res, next) {
     if (user.driver_id != null) user.driver_id = Number(user.driver_id);
     if (user.branch_id != null) user.branch_id = Number(user.branch_id);
 
-    if (!['ACTIVE', 'INVITED'].includes(user.status)) {
+    if (!['ACTIVE', 'INVITED'].includes(user.status) || user.role === 'DRIVER') {
       return res.status(403).json({ error: { code: 'ACCOUNT_DISABLED', message: 'Учётная запись заблокирована или архивирована' } });
     }
 
@@ -44,6 +73,7 @@ export async function authenticate(req, res, next) {
     }
 
     req.user = user;
+    rememberUser(user);
     next();
   } catch (err) {
     console.error('Ошибка middleware authenticate:', err);

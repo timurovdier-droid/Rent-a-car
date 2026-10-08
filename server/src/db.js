@@ -1,7 +1,7 @@
 import { createClient } from '@libsql/client';
 import bcrypt from 'bcryptjs';
 import { config } from './config.js';
-import { SCHEMA } from './schema.js';
+import { SCHEMA, SCHEMA_VERSION, SCHEMA_V2_COLUMNS, SCHEMA_V2_TABLES } from './schema.js';
 
 let client;
 let ready;
@@ -187,15 +187,55 @@ async function seedIfEmpty(db) {
   `);
 }
 
+async function upgradeToV2(db) {
+  for (const [table, columns] of Object.entries(SCHEMA_V2_COLUMNS)) {
+    const info = await db.execute(`SELECT name FROM pragma_table_info('${table}')`);
+    const existing = new Set(info.rows.map((row) => row.name));
+    for (const [column, type] of Object.entries(columns)) {
+      if (!existing.has(column)) {
+        await db.execute(`ALTER TABLE ${table} ADD COLUMN ${column} ${type}`);
+      }
+    }
+  }
+  await db.executeMultiple(SCHEMA_V2_TABLES);
+  await db.executeMultiple(`
+    INSERT OR IGNORE INTO car_transactions
+      (car_id, kind, category, amount, method, tx_date, comment, status, created_by, confirmed_by, confirmed_at, legacy_payment_id, created_at)
+    SELECT dr.car_id, 'INCOME', 'RENT', COALESCE(p.amount_admin, p.amount_dispatcher, p.amount_declared),
+           UPPER(COALESCE(p.method, p.payment_method, 'CASH')), date(p.created_at, '+5 hours'),
+           'Перенесено из очереди платежей', 'CONFIRMED', p.dispatcher_id, p.admin_id,
+           COALESCE(p.confirmed_at, p.created_at), p.id, p.created_at
+    FROM payments p
+    JOIN daily_reports dr ON dr.id = p.daily_report_id
+    WHERE p.status = 'ADMIN_CONFIRMED';
+
+    UPDATE cars SET status = 'FREE'
+    WHERE status = 'SERVICE'
+      AND NOT EXISTS (SELECT 1 FROM car_assignments ca WHERE ca.car_id = cars.id AND ca.end_at IS NULL);
+
+    UPDATE cars SET mileage = (
+      SELECT MAX(COALESCE(ca.mileage_end, ca.mileage_start)) FROM car_assignments ca WHERE ca.car_id = cars.id
+    ) WHERE mileage IS NULL;
+
+    INSERT INTO settings (key, value) VALUES ('schema_version', '${SCHEMA_VERSION}')
+    ON CONFLICT (key) DO UPDATE SET value = excluded.value;
+  `);
+}
+
 async function migrate() {
   const db = getClient();
-  await db.executeMultiple(SCHEMA);
-  try {
+  const info = await db.execute("SELECT name FROM pragma_table_info('car_assignments')");
+  const columns = info.rows.map((row) => row.name);
+  if (columns.length === 0) {
+    await db.executeMultiple(SCHEMA);
+  } else if (!columns.includes('mileage_end')) {
     await db.execute('ALTER TABLE car_assignments ADD COLUMN mileage_end INTEGER');
-  } catch (err) {
-    if (!/duplicate column/i.test(err.message || '')) throw err;
   }
   await seedIfEmpty(db);
+  const version = await db.execute("SELECT value FROM settings WHERE key = 'schema_version'");
+  if (Number(version.rows[0]?.value || 0) < SCHEMA_VERSION) {
+    await upgradeToV2(db);
+  }
   console.log(`База Qween готова (${config.tursoUrl.startsWith('file:') ? 'локальный файл' : 'Turso'})`);
 }
 

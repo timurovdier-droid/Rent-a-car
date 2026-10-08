@@ -3,45 +3,60 @@ import { pool } from '../db.js';
 import { authenticate } from '../middleware/auth.js';
 import { requireRole } from '../middleware/rbac.js';
 import { writeAudit } from '../middleware/audit.js';
+import { carScope, isDay } from '../carMoney.js';
 
 const router = Router();
+
+const FUEL_TYPES = ['PETROL', 'GAS', 'METHANE', 'PROPANE', 'DIESEL', 'ELECTRIC', 'HYBRID'];
+
+// Общие поля машины для создания и изменения. Возвращает { values } или { error }.
+function readCarFields(body) {
+  const values = {};
+  const text = (v) => (v === null || v === undefined ? null : String(v).trim() || null);
+  if (body.plate !== undefined) values.plate = String(body.plate).toUpperCase().replace(/\s+/g, '');
+  if (body.brand !== undefined) values.brand = text(body.brand);
+  if (body.model !== undefined) values.model = text(body.model);
+  if (body.year !== undefined) values.year = body.year ? Number(body.year) : null;
+  if (body.color !== undefined) values.color = text(body.color);
+  if (body.vin !== undefined) values.vin = text(body.vin)?.toUpperCase() ?? null;
+  if (body.mileage !== undefined) {
+    const n = body.mileage === '' || body.mileage === null ? null : Number(body.mileage);
+    if (n !== null && (!Number.isFinite(n) || n < 0)) return { error: ['Неверный пробег', 'mileage'] };
+    values.mileage = n === null ? null : Math.round(n);
+  }
+  if (body.fuel_type !== undefined) {
+    if (body.fuel_type && !FUEL_TYPES.includes(body.fuel_type)) return { error: ['Неизвестный тип топлива', 'fuel_type'] };
+    values.fuel_type = body.fuel_type || null;
+  }
+  for (const key of ['insurance_expires', 'inspection_expires']) {
+    if (body[key] !== undefined) {
+      if (body[key] && !isDay(body[key])) return { error: ['Неверная дата', key] };
+      values[key] = body[key] || null;
+    }
+  }
+  return { values };
+}
 
 router.use(authenticate);
 
 // GET / — Список автомобилей
 router.get('/', async (req, res) => {
   try {
-    let query = `
-      SELECT c.id, c.plate, c.brand, c.model, c.year, c.status, c.branch_id, c.owner_id,
-             o.name AS owner_name, b.name AS branch_name
+    const scope = await carScope(pool, req.user);
+    const query = `
+      SELECT c.id, c.plate, c.brand, c.model, c.year, c.color, c.vin, c.status, c.branch_id, c.owner_id,
+             c.daily_rate, c.mileage, c.fuel_type, c.insurance_expires, c.inspection_expires,
+             o.name AS owner_name, b.name AS branch_name,
+             (SELECT u.full_name FROM car_assignments ca
+                JOIN drivers d ON d.id = ca.driver_id JOIN users u ON u.id = d.user_id
+              WHERE ca.car_id = c.id AND ca.end_at IS NULL LIMIT 1) AS driver_name
       FROM cars c
       LEFT JOIN owners o ON c.owner_id = o.id
       LEFT JOIN branches b ON c.branch_id = b.id
-      WHERE c.archived_at IS NULL
+      WHERE c.archived_at IS NULL ${scope.sql}
+      ORDER BY c.plate
     `;
-    const params = [];
-    let idx = 1;
-
-    // Диспетчер видит только свой филиал
-    if (req.user.role === 'DISPATCHER' && req.user.branch_id) {
-      params.push(req.user.branch_id);
-      query += ` AND c.branch_id = $${idx++}`;
-    }
-
-    // Арендодатель видит только свои автомобили
-    if (req.user.role === 'OWNER') {
-      const { rows: owners } = await pool.query(
-        'SELECT id FROM owners WHERE user_id = $1',
-        [req.user.id]
-      );
-      if (owners.length === 0) return res.json([]);
-      params.push(owners[0].id);
-      query += ` AND c.owner_id = $${idx++}`;
-    }
-
-    query += ' ORDER BY c.plate';
-
-    const { rows } = await pool.query(query, params);
+    const { rows } = await pool.query(query, scope.params);
     res.json(rows);
   } catch (err) {
     console.error('Ошибка получения списка автомобилей:', err);
@@ -71,33 +86,41 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// POST / — Создание автомобиля (ADMIN, DISPATCHER)
-router.post('/', requireRole('ADMIN', 'DISPATCHER'), async (req, res) => {
+// POST / — Создание автомобиля (только ADMIN)
+router.post('/', requireRole('ADMIN'), async (req, res) => {
   try {
-    const { plate, brand, model, year, owner_id, branch_id } = req.body;
-
-    if (!plate || !brand || !model) {
-      return res.status(400).json({ error: { code: 'BAD_REQUEST', message: 'Укажите plate, brand и model' } });
+    const parsed = readCarFields(req.body);
+    if (parsed.error) {
+      return res.status(400).json({ error: { code: 'BAD_REQUEST', message: parsed.error[0], field: parsed.error[1] } });
     }
-
-    // Нормализуем номер
-    const normalizedPlate = plate.toUpperCase().replace(/\s+/g, '');
-
-    // Диспетчер может создавать авто только в своём филиале
-    const finalBranchId = req.user.role === 'DISPATCHER' ? req.user.branch_id : branch_id;
-
-    if (!finalBranchId) {
-      return res.status(400).json({ error: { code: 'BAD_REQUEST', message: 'Укажите branch_id' } });
+    const v = parsed.values;
+    if (!v.plate || !v.brand || !v.model) {
+      return res.status(400).json({ error: { code: 'BAD_REQUEST', message: 'Укажите госномер, марку и модель' } });
+    }
+    const branchId = req.body.branch_id ? Number(req.body.branch_id) : null;
+    if (!branchId) {
+      return res.status(400).json({ error: { code: 'BAD_REQUEST', message: 'Выберите филиал', field: 'branch_id' } });
+    }
+    const rate = req.body.daily_rate ? Math.round(Number(req.body.daily_rate)) : 0;
+    if (!Number.isFinite(rate) || rate < 0) {
+      return res.status(400).json({ error: { code: 'BAD_REQUEST', message: 'Неверная ставка', field: 'daily_rate' } });
     }
 
     const { rows } = await pool.query(
-      `INSERT INTO cars (plate, brand, model, year, owner_id, branch_id, status)
-       VALUES ($1, $2, $3, $4, $5, $6, 'FREE')
-       RETURNING id, plate, brand, model, year, status, branch_id, owner_id`,
-      [normalizedPlate, brand, model, year || null, owner_id || null, finalBranchId]
+      `INSERT INTO cars (plate, brand, model, year, color, vin, mileage, fuel_type, insurance_expires, inspection_expires,
+                         owner_id, branch_id, daily_rate, status)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 'FREE')
+       RETURNING *`,
+      [v.plate, v.brand, v.model, v.year ?? null, v.color ?? null, v.vin ?? null, v.mileage ?? null,
+        v.fuel_type ?? null, v.insurance_expires ?? null, v.inspection_expires ?? null,
+        req.body.owner_id ? Number(req.body.owner_id) : null, branchId, rate]
     );
 
     const car = rows[0];
+    await pool.query(
+      `INSERT INTO car_rate_history (car_id, rate, valid_from, created_by) VALUES ($1, $2, '2000-01-01', $3)`,
+      [car.id, rate, req.user.id]
+    );
     await writeAudit(pool, req.user.id, 'CAR_CREATED', 'car', car.id, null, car, req.ip);
 
     res.status(201).json(car);
@@ -114,34 +137,34 @@ router.post('/', requireRole('ADMIN', 'DISPATCHER'), async (req, res) => {
 router.patch('/:id', requireRole('ADMIN', 'DISPATCHER'), async (req, res) => {
   try {
     const carId = parseInt(req.params.id, 10);
-    const { plate, brand, model, year, owner_id, branch_id } = req.body;
-
-    const updates = [];
-    const params = [];
-
-    if (plate !== undefined) {
-      params.push(plate.toUpperCase().replace(/\s+/g, ''));
-      updates.push(`plate = $${params.length}`);
+    const parsed = readCarFields(req.body);
+    if (parsed.error) {
+      return res.status(400).json({ error: { code: 'BAD_REQUEST', message: parsed.error[0], field: parsed.error[1] } });
     }
-    if (brand !== undefined) { params.push(brand); updates.push(`brand = $${params.length}`); }
-    if (model !== undefined) { params.push(model); updates.push(`model = $${params.length}`); }
-    if (year !== undefined) { params.push(year); updates.push(`year = $${params.length}`); }
-    if (owner_id !== undefined) { params.push(owner_id); updates.push(`owner_id = $${params.length}`); }
-    if (branch_id !== undefined && req.user.role === 'ADMIN') {
-      params.push(branch_id);
-      updates.push(`branch_id = $${params.length}`);
+    const values = parsed.values;
+    if (values.plate === '' || values.brand === null || values.model === null) {
+      return res.status(400).json({ error: { code: 'BAD_REQUEST', message: 'Госномер, марка и модель обязательны' } });
+    }
+    if (req.user.role === 'ADMIN') {
+      if (req.body.owner_id !== undefined) values.owner_id = req.body.owner_id ? Number(req.body.owner_id) : null;
+      if (req.body.branch_id) values.branch_id = Number(req.body.branch_id);
     }
 
-    if (updates.length === 0) {
+    const keys = Object.keys(values);
+    if (keys.length === 0) {
       return res.status(400).json({ error: { code: 'BAD_REQUEST', message: 'Нет данных для обновления' } });
     }
-
+    const params = keys.map((k) => values[k]);
+    const updates = keys.map((k, i) => `${k} = $${i + 1}`);
     params.push(carId);
+    let where = `id = $${params.length} AND archived_at IS NULL`;
+    if (req.user.role === 'DISPATCHER' && req.user.branch_id) {
+      params.push(req.user.branch_id);
+      where += ` AND branch_id = $${params.length}`;
+    }
 
     const { rows } = await pool.query(
-      `UPDATE cars SET ${updates.join(', ')}
-       WHERE id = $${params.length} AND archived_at IS NULL
-       RETURNING id, plate, brand, model, year, status, branch_id, owner_id`,
+      `UPDATE cars SET ${updates.join(', ')} WHERE ${where} RETURNING *`,
       params
     );
 
@@ -160,8 +183,8 @@ router.patch('/:id', requireRole('ADMIN', 'DISPATCHER'), async (req, res) => {
   }
 });
 
-// POST /:id/archive — Архивация автомобиля (ADMIN, DISPATCHER)
-router.post('/:id/archive', requireRole('ADMIN', 'DISPATCHER'), async (req, res) => {
+// POST /:id/archive — Архивация автомобиля (только ADMIN)
+router.post('/:id/archive', requireRole('ADMIN'), async (req, res) => {
   try {
     const carId = parseInt(req.params.id, 10);
 

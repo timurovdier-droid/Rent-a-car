@@ -1,5 +1,6 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth';
+import ThemeToggle from './ThemeToggle';
 
 export default function Layout() {
   const { user, logout } = useAuth();
@@ -23,10 +24,6 @@ export default function Layout() {
   if (user?.role === 'DISPATCHER') {
     menuItems.push(
       { to: '/', label: 'Главная', end: true },
-      { to: '/payments-queue', label: 'Очередь платежей' },
-      { to: '/assignments', label: 'Назначения' },
-      { to: '/daily-reports', label: 'Дневные отчёты' },
-      { to: '/service', label: 'Обслуживание' },
       { to: '/cars', label: 'Автомобили' },
       { to: '/drivers', label: 'Водители' },
     );
@@ -37,10 +34,6 @@ export default function Layout() {
       { to: '/', label: 'Главная', end: true },
       { to: '/notifications', label: 'Уведомления' },
       { to: '/branches', label: 'Филиалы' },
-      { to: '/payments-queue', label: 'Очередь платежей' },
-      { to: '/assignments', label: 'Назначения' },
-      { to: '/daily-reports', label: 'Дневные отчёты' },
-      { to: '/service', label: 'Обслуживание' },
       { to: '/cars', label: 'Автомобили' },
       { to: '/drivers', label: 'Водители' },
       { to: '/owners', label: 'Арендодатели' },
@@ -63,26 +56,23 @@ export default function Layout() {
   return (
     <div className="shell">
       <aside className="nav">
-        <div style={{ padding: 'var(--sp-3)', borderBottom: '1px solid var(--c-border)' }}>
-          <div style={{ fontWeight: 600, fontSize: 'var(--fs-l)' }}>Qween</div>
-          <NavLink
-            to="/profile"
-            style={{ textDecoration: 'none', color: 'inherit' }}
-            title="Перейти в профиль"
-          >
-            <div style={{ fontSize: 'var(--fs-s)', marginTop: 'var(--sp-1)', fontWeight: 500 }}>
-              {user?.full_name}
-            </div>
+        <div className="nav__brand">
+          <NavLink to="/" className="nav__logo" aria-label="RENT A CAR GTA — на главную">
+            <img src="/logo.png" alt="GTA" className="brand-logo" width="88" height="23" />
+            <span className="nav__logo-text">Rent a car</span>
           </NavLink>
-          <div style={{ fontSize: 'var(--fs-s)', color: 'var(--c-muted)' }}>
-            {user?.role === 'DRIVER' && 'Водитель'}
-            {user?.role === 'DISPATCHER' && 'Диспетчер'}
-            {user?.role === 'ADMIN' && 'Администратор'}
-            {user?.role === 'OWNER' && 'Арендодатель'}
-          </div>
+          <NavLink className="nav__user" to="/profile" title="Перейти в профиль">
+            <span className="nav__name">{user?.full_name}</span>
+            <span className="nav__role">
+              {user?.role === 'DRIVER' && 'Водитель'}
+              {user?.role === 'DISPATCHER' && 'Диспетчер'}
+              {user?.role === 'ADMIN' && 'Администратор'}
+              {user?.role === 'OWNER' && 'Арендодатель'}
+            </span>
+          </NavLink>
         </div>
 
-        <nav style={{ flex: 1, padding: 'var(--sp-2) 0', overflowY: 'auto' }}>
+        <nav className="nav__menu">
           {menuItems.map((item) => (
             <NavLink
               key={item.to}
@@ -97,12 +87,9 @@ export default function Layout() {
           ))}
         </nav>
 
-        <div style={{ padding: 'var(--sp-3)', borderTop: '1px solid var(--c-border)' }}>
-          <button
-            className="btn btn--quiet"
-            onClick={handleLogout}
-            style={{ width: '100%' }}
-          >
+        <div className="nav__foot">
+          <ThemeToggle />
+          <button className="btn btn--quiet nav__logout" onClick={handleLogout}>
             Выйти
           </button>
         </div>

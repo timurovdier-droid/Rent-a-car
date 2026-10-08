@@ -7,6 +7,8 @@ import DashboardPage from './pages/DashboardPage';
 import CarsPage from './pages/CarsPage';
 import DispatchersPage from './pages/DispatchersPage';
 import DriversPage from './pages/DriversPage';
+import DriverPage from './pages/DriverPage';
+import CarPage from './pages/CarPage';
 import PayRentPage from './pages/PayRentPage';
 import PaymentsQueuePage from './pages/PaymentsQueuePage';
 import AuditPage from './pages/AuditPage';
@@ -99,9 +101,19 @@ export default function App() {
             element={<Guard roles={['DISPATCHER', 'ADMIN', 'OWNER']}><CarsPage /></Guard>} 
           />
           
+          <Route
+            path="/cars/:id"
+            element={<Guard roles={['DISPATCHER', 'ADMIN', 'OWNER']}><CarPage /></Guard>}
+          />
+
           <Route 
             path="/drivers" 
             element={<Guard roles={['DISPATCHER', 'ADMIN']}><DriversPage /></Guard>} 
+          />
+
+          <Route
+            path="/drivers/:id"
+            element={<Guard roles={['DISPATCHER', 'ADMIN']}><DriverPage /></Guard>}
           />
           
           <Route 

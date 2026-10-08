@@ -6,6 +6,7 @@ import { BrowserRouter } from 'react-router-dom';
 import './styles/tokens.css';
 import './styles/layout.css';
 import './styles/components.css';
+import './styles/theme-dark.css';
 
 import App from './App.jsx';
 

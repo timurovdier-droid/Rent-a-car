@@ -1,0 +1,125 @@
+import { useEffect, useState } from 'react';
+import { api, ApiError } from '../api';
+import { useAuth } from '../auth';
+import Modal from './Modal';
+import MoneyInput from './MoneyInput';
+
+export default function DriverForm({ driver, onClose, onSaved }) {
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'ADMIN';
+  const [branches, setBranches] = useState([]);
+  const [form, setForm] = useState({
+    full_name: driver?.full_name || '',
+    phone: driver?.phone || '',
+    passport: driver?.passport || '',
+    license_no: driver?.license_no || '',
+    license_expires: driver?.license_expires ? String(driver.license_expires).slice(0, 10) : '',
+    login: driver?.login || '',
+    password: '',
+    deposit: '',
+    branch_id: driver?.branch_id ? String(driver.branch_id) : '',
+  });
+  const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!isAdmin) return;
+    api.get('/branches/active').then((list) => {
+      setBranches(list);
+      if (!driver && list.length === 1) setForm((f) => ({ ...f, branch_id: f.branch_id || String(list[0].id) }));
+    }).catch(() => setBranches([]));
+  }, [isAdmin, driver]);
+
+  const set = (key) => (e) => setForm({ ...form, [key]: e.target.value });
+
+  async function submit(e) {
+    e.preventDefault();
+    setSaving(true);
+    setError('');
+    try {
+      const body = {
+        full_name: form.full_name,
+        phone: form.phone || null,
+        passport: form.passport,
+        license_no: form.license_no,
+        license_expires: form.license_expires || null,
+        login: form.login,
+      };
+      if (form.password) body.password = form.password;
+      if (isAdmin) body.branch_id = form.branch_id || null;
+      let saved;
+      if (driver) {
+        await api.patch(`/drivers/${driver.id}`, body);
+        saved = { id: driver.id };
+      } else {
+        body.deposit = form.deposit || 0;
+        saved = await api.post('/drivers', body);
+      }
+      onSaved(saved);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Не удалось сохранить');
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Modal title={driver ? 'Изменить водителя' : 'Новый водитель'} onClose={onClose} wide>
+      <form onSubmit={submit}>
+        <div className="field">
+          <label className="field__label" htmlFor="df-name">ФИО *</label>
+          <input id="df-name" className="field__input" value={form.full_name} onChange={set('full_name')} required placeholder="Иванов Иван Иванович" autoFocus />
+        </div>
+        <div className="form-grid">
+          <div className="field">
+            <label className="field__label" htmlFor="df-phone">Телефон</label>
+            <input id="df-phone" className="field__input" type="tel" value={form.phone} onChange={set('phone')} placeholder="+998901234567" />
+          </div>
+          <div className="field">
+            <label className="field__label" htmlFor="df-passport">Паспорт</label>
+            <input id="df-passport" className="field__input" value={form.passport} onChange={set('passport')} placeholder="AA1234567" />
+          </div>
+          <div className="field">
+            <label className="field__label" htmlFor="df-license">Водительское удостоверение</label>
+            <input id="df-license" className="field__input" value={form.license_no} onChange={set('license_no')} placeholder="AF 1234567" />
+          </div>
+          <div className="field">
+            <label className="field__label" htmlFor="df-license-date">ВУ действует до</label>
+            <input id="df-license-date" className="field__input" type="date" value={form.license_expires} onChange={set('license_expires')} />
+          </div>
+          <div className="field">
+            <label className="field__label" htmlFor="df-login">Логин *</label>
+            <input id="df-login" className="field__input" value={form.login} onChange={set('login')} required autoComplete="off" />
+          </div>
+          <div className="field">
+            <label className="field__label" htmlFor="df-password">{driver ? 'Новый пароль' : 'Пароль *'}</label>
+            <input
+              id="df-password" className="field__input" type="text" value={form.password} onChange={set('password')}
+              required={!driver} minLength={6} autoComplete="new-password" placeholder={driver ? 'оставьте пустым, если не меняете' : 'минимум 6 символов'}
+            />
+          </div>
+          {!driver && (
+            <div className="field">
+              <label className="field__label" htmlFor="df-deposit">Депозит</label>
+              <MoneyInput id="df-deposit" value={form.deposit} onChange={(v) => setForm({ ...form, deposit: v })} />
+            </div>
+          )}
+          {isAdmin && (
+            <div className="field">
+              <label className="field__label" htmlFor="df-branch">Филиал</label>
+              <select id="df-branch" className="field__input" value={form.branch_id} onChange={set('branch_id')}>
+                <option value="">— не указан —</option>
+                {branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+              </select>
+            </div>
+          )}
+        </div>
+        <p className="muted small" style={{ marginTop: 0 }}>Логин и пароль сохраняются заранее — вход для водителей включим позже.</p>
+        {error && <div className="notice notice--error">{error}</div>}
+        <div className="form-actions">
+          <button className="btn" type="submit" disabled={saving}>{saving ? 'Сохраняю…' : driver ? 'Сохранить' : 'Добавить водителя'}</button>
+          <button className="btn btn--quiet" type="button" onClick={onClose}>Отмена</button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
