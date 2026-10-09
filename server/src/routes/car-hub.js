@@ -19,6 +19,7 @@ import {
   serviceDue,
   documentDue,
   ownerIdForUser,
+  carDailyLedger,
 } from '../carMoney.js';
 
 const router = Router();
@@ -53,6 +54,10 @@ function toInt(value) {
 async function loadCar(req, res, { write = false } = {}) {
   const id = parseInt(req.params.id, 10);
   const { user } = req;
+  if (!Number.isFinite(id)) {
+    fail(res, 404, 'NOT_FOUND', 'Автомобиль не найден');
+    return null;
+  }
   if (user.role === 'DRIVER') {
     fail(res, 403, 'FORBIDDEN', 'Недостаточно прав');
     return null;
@@ -108,6 +113,26 @@ function summaryForRole(role, totals) {
   }
   return { income: totals.income_all, expenses: totals.expenses, profit: totals.income_all - totals.expenses };
 }
+
+// GET /cars/:id/ledger?from&to — таблица по дням: начислено, наличные, перевод, долг
+router.get('/:id/ledger', async (req, res) => {
+  try {
+    const car = await loadCar(req, res);
+    if (!car) return;
+    const today = localToday();
+    const to = isDay(req.query.to) ? req.query.to : today;
+    const from = isDay(req.query.from) ? req.query.from : addDays(to, -29);
+    if (from > to) return fail(res, 400, 'BAD_REQUEST', 'Дата «с» позже даты «по»', 'from');
+    if (daysBetween(from, to).length > 366) return fail(res, 400, 'BAD_REQUEST', 'Не больше года за раз', 'from');
+    const ledger = await carDailyLedger(pool, car.id, from, to);
+    res.json({
+      car: { id: car.id, plate: car.plate, brand: car.brand, model: car.model },
+      ...ledger,
+    });
+  } catch (err) {
+    serverError(res, 'Ошибка таблицы по дням:', err);
+  }
+});
 
 // GET /cars/:id/hub — всё по машине одним запросом
 router.get('/:id/hub', async (req, res) => {
@@ -198,18 +223,13 @@ router.get('/:id/hub', async (req, res) => {
       ));
     }
     if (user.role === 'ADMIN' || user.role === 'DISPATCHER') {
-      const params = [];
-      let sql = `
-        SELECT d.id, u.full_name, u.phone, d.deposit, d.branch_id
-        FROM drivers d JOIN users u ON u.id = d.user_id
-        WHERE d.archived_at IS NULL
-          AND NOT EXISTS (SELECT 1 FROM car_assignments ca WHERE ca.driver_id = d.id AND ca.end_at IS NULL)`;
-      if (car.branch_id) {
-        params.push(car.branch_id);
-        sql += ` AND (d.branch_id = $1 OR d.branch_id IS NULL)`;
-      }
-      sql += ' ORDER BY u.full_name';
-      ({ rows: freeDrivers } = await pool.query(sql, params));
+      ({ rows: freeDrivers } = await pool.query(
+        `SELECT d.id, u.full_name, u.phone, d.deposit, d.branch_id
+         FROM drivers d JOIN users u ON u.id = d.user_id
+         WHERE d.archived_at IS NULL
+           AND NOT EXISTS (SELECT 1 FROM car_assignments ca WHERE ca.driver_id = d.id AND ca.end_at IS NULL)
+         ORDER BY u.full_name`
+      ));
     }
 
     res.json({
@@ -515,7 +535,7 @@ function stampFor(day) {
 
 // POST /cars/:id/assign — выдать машину водителю
 router.post('/:id/assign', requireRole('ADMIN', 'DISPATCHER'), async (req, res) => {
-  const car = await loadCar(req, res, { write: true }).catch((err) => serverError(res, 'Ошибка:', err));
+  const car = await loadCar(req, res, { write: true }).catch((err) => { serverError(res, 'Ошибка:', err); return null; });
   if (!car) return;
   const driverId = parseInt(req.body.driver_id, 10);
   const day = req.body.date || localToday();
@@ -567,7 +587,7 @@ router.post('/:id/assign', requireRole('ADMIN', 'DISPATCHER'), async (req, res) 
 
 // POST /cars/:id/release — принять машину у водителя
 router.post('/:id/release', requireRole('ADMIN', 'DISPATCHER'), async (req, res) => {
-  const car = await loadCar(req, res, { write: true }).catch((err) => serverError(res, 'Ошибка:', err));
+  const car = await loadCar(req, res, { write: true }).catch((err) => { serverError(res, 'Ошибка:', err); return null; });
   if (!car) return;
   const day = req.body.date || localToday();
   const mileage = toInt(req.body.mileage);

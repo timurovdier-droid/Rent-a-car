@@ -3,13 +3,12 @@ import { api, ApiError } from '../api';
 
 export default function DispatchersPage() {
   const [dispatchers, setDispatchers] = useState([]);
-  const [branches, setBranches] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState('');
-  const [form, setForm] = useState({ full_name: '', phone: '', login: '', branch_id: '' });
+  const [form, setForm] = useState({ full_name: '', phone: '', login: '' });
 
   async function fetchDispatchers() {
     try {
@@ -25,7 +24,6 @@ export default function DispatchersPage() {
 
   useEffect(() => {
     fetchDispatchers();
-    api.get('/branches/active').then(setBranches).catch(() => setBranches([]));
   }, []);
 
   async function handleCreate(e) {
@@ -37,10 +35,9 @@ export default function DispatchersPage() {
         full_name: form.full_name,
         phone: form.phone,
         login: form.login,
-        branch_id: Number(form.branch_id),
       });
       setShowForm(false);
-      setForm({ full_name: '', phone: '', login: '', branch_id: '' });
+      setForm({ full_name: '', phone: '', login: '' });
       await fetchDispatchers();
       window.alert(`Диспетчер создан.\n\nВременный пароль (показывается один раз):\n${created.tempPassword}`);
     } catch (err) {
@@ -102,13 +99,6 @@ export default function DispatchersPage() {
             <label className="field__label">Логин</label>
             <input className="field__input" required value={form.login} onChange={(e) => setForm({ ...form, login: e.target.value })} />
           </div>
-          <div className="field">
-            <label className="field__label">Филиал</label>
-            <select className="field__input" required value={form.branch_id} onChange={(e) => setForm({ ...form, branch_id: e.target.value })}>
-              <option value="">Выберите филиал</option>
-              {branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
-            </select>
-          </div>
           {formError && <p className="field__error">{formError}</p>}
           <button className="btn" type="submit" disabled={saving}>{saving ? 'Сохранение...' : 'Создать'}</button>
         </form>
@@ -141,7 +131,7 @@ export default function DispatchersPage() {
                   <td className="table__td">
                     <span className={`status ${d.status === 'ACTIVE' ? 'status--done' : 'status--wait'}`}>
                       <span className="status__mark"></span>
-                      {d.status === 'ACTIVE' ? 'Активен' : d.status}
+                      {{ ACTIVE: 'Активен', INVITED: 'Ещё не входил', LOCKED: 'Заблокирован' }[d.status] || d.status}
                     </span>
                   </td>
                   <td className="table__td">

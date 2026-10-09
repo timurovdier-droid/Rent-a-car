@@ -1,13 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { api, ApiError } from '../api';
-import { useAuth } from '../auth';
 import Modal from './Modal';
 import MoneyInput from './MoneyInput';
 
 export default function DriverForm({ driver, onClose, onSaved }) {
-  const { user } = useAuth();
-  const isAdmin = user?.role === 'ADMIN';
-  const [branches, setBranches] = useState([]);
   const [form, setForm] = useState({
     full_name: driver?.full_name || '',
     phone: driver?.phone || '',
@@ -17,18 +13,9 @@ export default function DriverForm({ driver, onClose, onSaved }) {
     login: driver?.login || '',
     password: '',
     deposit: '',
-    branch_id: driver?.branch_id ? String(driver.branch_id) : '',
   });
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
-
-  useEffect(() => {
-    if (!isAdmin) return;
-    api.get('/branches/active').then((list) => {
-      setBranches(list);
-      if (!driver && list.length === 1) setForm((f) => ({ ...f, branch_id: f.branch_id || String(list[0].id) }));
-    }).catch(() => setBranches([]));
-  }, [isAdmin, driver]);
 
   const set = (key) => (e) => setForm({ ...form, [key]: e.target.value });
 
@@ -46,7 +33,6 @@ export default function DriverForm({ driver, onClose, onSaved }) {
         login: form.login,
       };
       if (form.password) body.password = form.password;
-      if (isAdmin) body.branch_id = form.branch_id || null;
       let saved;
       if (driver) {
         await api.patch(`/drivers/${driver.id}`, body);
@@ -103,17 +89,8 @@ export default function DriverForm({ driver, onClose, onSaved }) {
               <MoneyInput id="df-deposit" value={form.deposit} onChange={(v) => setForm({ ...form, deposit: v })} />
             </div>
           )}
-          {isAdmin && (
-            <div className="field">
-              <label className="field__label" htmlFor="df-branch">Филиал</label>
-              <select id="df-branch" className="field__input" value={form.branch_id} onChange={set('branch_id')}>
-                <option value="">— не указан —</option>
-                {branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
-              </select>
-            </div>
-          )}
         </div>
-        <p className="muted small" style={{ marginTop: 0 }}>Логин и пароль сохраняются заранее — вход для водителей включим позже.</p>
+        <p className="muted small" style={{ marginTop: 0 }}>По этому логину и паролю водитель входит в свой кабинет «Моя аренда».</p>
         {error && <div className="notice notice--error">{error}</div>}
         <div className="form-actions">
           <button className="btn" type="submit" disabled={saving}>{saving ? 'Сохраняю…' : driver ? 'Сохранить' : 'Добавить водителя'}</button>

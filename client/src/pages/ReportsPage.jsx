@@ -1,12 +1,16 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { api } from '../api';
 import Plate from '../components/Plate';
 import PeriodPicker, { defaultPeriod } from '../components/PeriodPicker';
+import CarLedger from '../components/CarLedger';
+import DriverLedger, { DriverDebtList } from '../components/DriverLedger';
 import { fmtMoney, fmtDay, downloadCsv } from '../labels';
 
 const TABS = [
   ['cars', 'По машинам'],
+  ['car', 'По машине'],
+  ['drivers', 'По водителям'],
   ['owners', 'По арендодателям'],
   ['debts', 'Долги'],
   ['days', 'По дням'],
@@ -19,10 +23,40 @@ function Num({ value, tone }) {
 
 export default function ReportsPage() {
   const navigate = useNavigate();
-  const [tab, setTab] = useState('cars');
+  const [params, setParams] = useSearchParams();
+  const tab = TABS.some(([key]) => key === params.get('tab')) ? params.get('tab') : 'cars';
+  const carId = params.get('car') || '';
+  const driverId = params.get('driver') || '';
+  const ownTab = tab === 'car' || tab === 'drivers';
   const [period, setPeriod] = useState(defaultPeriod);
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
+  const [carList, setCarList] = useState(null);
+
+  function setTab(key) {
+    const next = new URLSearchParams(params);
+    next.set('tab', key);
+    setParams(next, { replace: true });
+  }
+
+  function setCarId(id) {
+    const next = new URLSearchParams(params);
+    if (id) next.set('car', id); else next.delete('car');
+    setParams(next, { replace: true });
+  }
+
+  function setDriverId(id) {
+    const next = new URLSearchParams(params);
+    if (id) next.set('driver', id); else next.delete('driver');
+    setParams(next);
+  }
+
+  useEffect(() => {
+    if (tab !== 'car' || carList) return;
+    api.get('/cars')
+      .then((list) => setCarList(list.filter((c) => !c.archived_at)))
+      .catch(() => setCarList([]));
+  }, [tab, carList]);
 
   useEffect(() => {
     setData(null);
@@ -64,7 +98,9 @@ export default function ReportsPage() {
           <h1 className="page-title">Отчёты</h1>
           <p className="page-sub">Доход, расходы, прибыль и долги по каждой машине</p>
         </div>
-        <button className="btn btn--quiet" onClick={exportCurrent} disabled={!data}>Скачать в Excel</button>
+        {!ownTab && (
+          <button className="btn btn--quiet" onClick={exportCurrent} disabled={!data}>Скачать в Excel</button>
+        )}
       </div>
 
       <PeriodPicker value={period} onChange={setPeriod} />
@@ -77,8 +113,49 @@ export default function ReportsPage() {
         ))}
       </div>
 
-      {error && <div className="notice notice--error">{error}</div>}
-      {!data && !error && <div className="muted">Загрузка…</div>}
+      {tab === 'car' && (
+        <div className="ledger-pick">
+          <div className="field">
+            <label className="field__label" htmlFor="ledger-car">Машина</label>
+            <select
+              id="ledger-car"
+              className="field__input"
+              value={carId}
+              onChange={(e) => setCarId(e.target.value)}
+              disabled={!carList}
+            >
+              <option value="">{carList ? 'Выберите машину' : 'Загрузка…'}</option>
+              {(carList || []).map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.plate} · {c.brand} {c.model}{c.driver_name ? ` · ${c.driver_name}` : ''}
+                </option>
+              ))}
+            </select>
+          </div>
+          {carId && (
+            <button type="button" className="btn btn--quiet" onClick={() => navigate(`/cars/${carId}`)}>
+              Открыть машину
+            </button>
+          )}
+        </div>
+      )}
+      {tab === 'car' && (carId
+        ? <CarLedger carId={carId} period={period} />
+        : <div className="empty">Выберите машину — покажу по дням, сколько водитель отдал наличными и переводом и в какие дни есть долг</div>)}
+
+      {tab === 'drivers' && !driverId && <DriverDebtList period={period} onPick={(id) => setDriverId(String(id))} />}
+      {tab === 'drivers' && driverId && (
+        <div>
+          <div className="ledger-pick">
+            <button type="button" className="btn btn--quiet" onClick={() => setDriverId('')}>← Все водители</button>
+            <button type="button" className="btn btn--ghost" onClick={() => navigate(`/drivers/${driverId}`)}>Карточка водителя</button>
+          </div>
+          <DriverLedger driverId={driverId} period={period} showName canPay />
+        </div>
+      )}
+
+      {!ownTab && error && <div className="notice notice--error">{error}</div>}
+      {!ownTab && !data && !error && <div className="muted">Загрузка…</div>}
 
       {data && tab === 'cars' && (
         <div className="table-wrap">

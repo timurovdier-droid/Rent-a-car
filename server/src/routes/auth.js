@@ -87,10 +87,6 @@ router.post('/login', async (req, res) => {
       return res.status(401).json({ error: { code: 'UNAUTHORIZED', message: 'Неверный логин или пароль' } });
     }
 
-    if (user.role === 'DRIVER') {
-      return res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Вход для водителей пока отключён' } });
-    }
-
     await pool.query(
       `UPDATE users SET failed_login_attempts = 0, locked_until = NULL, last_login_at = datetime('now') WHERE id = $1`,
       [user.id]

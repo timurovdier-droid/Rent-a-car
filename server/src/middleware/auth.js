@@ -25,6 +25,19 @@ function rememberUser(user) {
   }
 }
 
+// Водитель видит только свой кабинет: всё остальное API для него закрыто, даже если роут забыл проверить роль.
+const DRIVER_PATHS = ['/api/v1/auth/', '/api/v1/me/'];
+
+function driverMayOpen(req) {
+  if (req.user.role !== 'DRIVER') return true;
+  const path = (req.originalUrl || '').split('?')[0];
+  return DRIVER_PATHS.some((p) => path.startsWith(p));
+}
+
+function forbidDriver(res) {
+  return res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Доступно только в кабинете водителя' } });
+}
+
 export async function authenticate(req, res, next) {
   try {
     const token = req.cookies?.token;
@@ -42,6 +55,7 @@ export async function authenticate(req, res, next) {
     const cached = recallUser(Number(payload.sub), Number(payload.token_version || 0));
     if (cached) {
       req.user = cached;
+      if (!driverMayOpen(req)) return forbidDriver(res);
       return next();
     }
 
@@ -49,7 +63,7 @@ export async function authenticate(req, res, next) {
     const { rows } = await pool.query(
       `SELECT u.id, u.role, u.full_name, u.login, u.status, u.must_change_password, u.token_version,
               (SELECT id FROM drivers WHERE user_id = u.id) AS driver_id,
-              (SELECT branch_id FROM user_branches WHERE user_id = u.id LIMIT 1) AS branch_id
+              NULL AS branch_id
        FROM users u WHERE u.id = $1`,
       [payload.sub]
     );
@@ -64,7 +78,7 @@ export async function authenticate(req, res, next) {
     if (user.driver_id != null) user.driver_id = Number(user.driver_id);
     if (user.branch_id != null) user.branch_id = Number(user.branch_id);
 
-    if (!['ACTIVE', 'INVITED'].includes(user.status) || user.role === 'DRIVER') {
+    if (!['ACTIVE', 'INVITED'].includes(user.status)) {
       return res.status(403).json({ error: { code: 'ACCOUNT_DISABLED', message: 'Учётная запись заблокирована или архивирована' } });
     }
 
@@ -74,6 +88,7 @@ export async function authenticate(req, res, next) {
 
     req.user = user;
     rememberUser(user);
+    if (!driverMayOpen(req)) return forbidDriver(res);
     next();
   } catch (err) {
     console.error('Ошибка middleware authenticate:', err);

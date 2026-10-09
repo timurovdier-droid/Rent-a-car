@@ -3,7 +3,7 @@ import { pool } from '../db.js';
 import { authenticate } from '../middleware/auth.js';
 import { requireRole } from '../middleware/rbac.js';
 import { writeAudit } from '../middleware/audit.js';
-import { carScope, isDay } from '../carMoney.js';
+import { carScope, defaultBranchId, isDay } from '../carMoney.js';
 
 const router = Router();
 
@@ -39,21 +39,22 @@ function readCarFields(body) {
 
 router.use(authenticate);
 
-// GET / — Список автомобилей
+// GET / — Список автомобилей (?archived=1 — архив)
 router.get('/', async (req, res) => {
   try {
     const scope = await carScope(pool, req.user);
+    const archived = req.query.archived === '1';
     const query = `
       SELECT c.id, c.plate, c.brand, c.model, c.year, c.color, c.vin, c.status, c.branch_id, c.owner_id,
              c.daily_rate, c.mileage, c.fuel_type, c.insurance_expires, c.inspection_expires, c.photo_version,
-             o.name AS owner_name, b.name AS branch_name,
+             c.archived_at, o.name AS owner_name, b.name AS branch_name,
              (SELECT u.full_name FROM car_assignments ca
                 JOIN drivers d ON d.id = ca.driver_id JOIN users u ON u.id = d.user_id
               WHERE ca.car_id = c.id AND ca.end_at IS NULL LIMIT 1) AS driver_name
       FROM cars c
       LEFT JOIN owners o ON c.owner_id = o.id
       LEFT JOIN branches b ON c.branch_id = b.id
-      WHERE c.archived_at IS NULL ${scope.sql}
+      WHERE c.archived_at IS ${archived ? 'NOT NULL' : 'NULL'} ${scope.sql}
       ORDER BY c.plate
     `;
     const { rows } = await pool.query(query, scope.params);
@@ -97,10 +98,7 @@ router.post('/', requireRole('ADMIN'), async (req, res) => {
     if (!v.plate || !v.brand || !v.model) {
       return res.status(400).json({ error: { code: 'BAD_REQUEST', message: 'Укажите госномер, марку и модель' } });
     }
-    const branchId = req.body.branch_id ? Number(req.body.branch_id) : null;
-    if (!branchId) {
-      return res.status(400).json({ error: { code: 'BAD_REQUEST', message: 'Выберите филиал', field: 'branch_id' } });
-    }
+    const branchId = await defaultBranchId(pool);
     const rate = req.body.daily_rate ? Math.round(Number(req.body.daily_rate)) : 0;
     if (!Number.isFinite(rate) || rate < 0) {
       return res.status(400).json({ error: { code: 'BAD_REQUEST', message: 'Неверная ставка', field: 'daily_rate' } });
@@ -145,9 +143,8 @@ router.patch('/:id', requireRole('ADMIN', 'DISPATCHER'), async (req, res) => {
     if (values.plate === '' || values.brand === null || values.model === null) {
       return res.status(400).json({ error: { code: 'BAD_REQUEST', message: 'Госномер, марка и модель обязательны' } });
     }
-    if (req.user.role === 'ADMIN') {
-      if (req.body.owner_id !== undefined) values.owner_id = req.body.owner_id ? Number(req.body.owner_id) : null;
-      if (req.body.branch_id) values.branch_id = Number(req.body.branch_id);
+    if (req.user.role === 'ADMIN' && req.body.owner_id !== undefined) {
+      values.owner_id = req.body.owner_id ? Number(req.body.owner_id) : null;
     }
 
     const keys = Object.keys(values);
@@ -229,6 +226,68 @@ router.post('/:id/archive', requireRole('ADMIN'), async (req, res) => {
     }
   } catch (err) {
     console.error('Ошибка архивации автомобиля:', err);
+    res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Внутренняя ошибка сервера' } });
+  }
+});
+
+// POST /:id/restore — Вернуть автомобиль из архива (только ADMIN)
+router.post('/:id/restore', requireRole('ADMIN'), async (req, res) => {
+  try {
+    const carId = parseInt(req.params.id, 10);
+    const { rows } = await pool.query(
+      `UPDATE cars SET archived_at = NULL, status = 'FREE'
+       WHERE id = $1 AND archived_at IS NOT NULL
+       RETURNING id, plate, status`,
+      [carId]
+    );
+    if (rows.length === 0) {
+      return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Автомобиль не найден в архиве' } });
+    }
+    await writeAudit(pool, req.user.id, 'CAR_RESTORED', 'car', carId, null, rows[0], req.ip);
+    res.json(rows[0]);
+  } catch (err) {
+    console.error('Ошибка восстановления автомобиля:', err);
+    res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Внутренняя ошибка сервера' } });
+  }
+});
+
+// DELETE /:id — Полное удаление автомобиля вместе с его историей (только ADMIN)
+router.delete('/:id', requireRole('ADMIN'), async (req, res) => {
+  try {
+    const carId = parseInt(req.params.id, 10);
+    const { rows: cars } = await pool.query('SELECT id, plate, brand, model FROM cars WHERE id = $1', [carId]);
+    if (cars.length === 0) {
+      return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Автомобиль не найден' } });
+    }
+    const { rows: active } = await pool.query(
+      'SELECT id FROM car_assignments WHERE car_id = $1 AND end_at IS NULL', [carId]
+    );
+    if (active.length > 0) {
+      return res.status(409).json({ error: { code: 'CONFLICT', message: 'Сначала примите машину у водителя' } });
+    }
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query(
+        'DELETE FROM payments WHERE daily_report_id IN (SELECT id FROM daily_reports WHERE car_id = $1)', [carId]
+      );
+      for (const table of ['daily_reports', 'car_photos', 'car_transactions', 'car_days_off',
+        'car_rate_history', 'service_records', 'car_assignments']) {
+        await client.query(`DELETE FROM ${table} WHERE car_id = $1`, [carId]);
+      }
+      await client.query('DELETE FROM cars WHERE id = $1', [carId]);
+      await writeAudit(client, req.user.id, 'CAR_DELETED', 'car', carId, cars[0], null, req.ip);
+      await client.query('COMMIT');
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
+    }
+    res.json({ id: carId, deleted: true });
+  } catch (err) {
+    console.error('Ошибка удаления автомобиля:', err);
     res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Внутренняя ошибка сервера' } });
   }
 });

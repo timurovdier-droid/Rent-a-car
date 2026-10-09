@@ -85,15 +85,6 @@ export default function ProfilePage() {
           </div>
         </div>
 
-        {user.branch_name && (
-          <div style={{ marginBottom: 'var(--sp-3)' }}>
-            <div style={{ fontSize: 'var(--fs-s)', color: 'var(--c-muted)', marginBottom: 'var(--sp-1)' }}>
-              Филиал
-            </div>
-            <div style={{ fontWeight: 500 }}>{user.branch_name}</div>
-          </div>
-        )}
-
         <div>
           <div style={{ fontSize: 'var(--fs-s)', color: 'var(--c-muted)', marginBottom: 'var(--sp-1)' }}>
             Дата регистрации

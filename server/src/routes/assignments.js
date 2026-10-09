@@ -133,12 +133,6 @@ router.post('/', async (req, res) => {
         return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Водитель не найден или уже занят' } });
       }
 
-      // Проверяем, что филиалы совпадают
-      if (cars[0].branch_id !== drivers[0].branch_id) {
-        await client.query('ROLLBACK');
-        return res.status(409).json({ error: { code: 'CONFLICT', message: 'Автомобиль и водитель должны быть в одном филиале' } });
-      }
-
       // Создаём назначение
       const { rows: assignments } = await client.query(
         `INSERT INTO car_assignments (car_id, driver_id, mileage_start, note, created_by)

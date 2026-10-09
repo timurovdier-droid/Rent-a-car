@@ -4,7 +4,7 @@ import { pool } from '../db.js';
 import { authenticate } from '../middleware/auth.js';
 import { requireRole } from '../middleware/rbac.js';
 import { writeAudit } from '../middleware/audit.js';
-import { isDay } from '../carMoney.js';
+import { isDay, localToday, addDays, daysBetween, defaultBranchId, driverLedgerRows, ledgerTotals, rentStatus } from '../carMoney.js';
 
 const router = Router();
 
@@ -60,6 +60,55 @@ router.get('/', async (req, res) => {
   }
 });
 
+function readPeriod(req, res) {
+  const today = localToday();
+  const to = isDay(req.query.to) && req.query.to <= today ? req.query.to : today;
+  const from = isDay(req.query.from) ? req.query.from : addDays(to, -29);
+  if (from > to) {
+    fail(res, 400, 'BAD_REQUEST', 'Дата «с» позже даты «по»', 'from');
+    return null;
+  }
+  if (daysBetween(from, to).length > 366) {
+    fail(res, 400, 'BAD_REQUEST', 'Не больше года за раз', 'from');
+    return null;
+  }
+  return { from, to };
+}
+
+// GET /debts?from&to — сводка по водителям: начислено, наличные, перевод, долг за период
+router.get('/debts', async (req, res) => {
+  try {
+    const period = readPeriod(req, res);
+    if (!period) return;
+    const params = [];
+    const { rows: drivers } = await pool.query(
+      `SELECT d.id, u.full_name, u.phone, d.archived_at
+       FROM drivers d JOIN users u ON u.id = d.user_id
+       WHERE 1 = 1${branchFilter(req.user, 'd', params)}`,
+      params
+    );
+    const rows = await driverLedgerRows(pool, drivers.map((d) => d.id), period.from, period.to);
+    const list = drivers
+      .map((d) => {
+        const own = rows.filter((r) => r.driver_id === Number(d.id));
+        if (!own.length) return null;
+        return {
+          driver_id: Number(d.id),
+          full_name: d.full_name,
+          phone: d.phone,
+          archived: Boolean(d.archived_at),
+          cars: [...new Set(own.map((r) => r.plate))],
+          ...ledgerTotals(own),
+        };
+      })
+      .filter(Boolean)
+      .sort((a, b) => b.debt - a.debt || a.full_name.localeCompare(b.full_name));
+    res.json({ ...period, drivers: list });
+  } catch (err) {
+    serverError(res, 'Ошибка сводки по водителям:', err);
+  }
+});
+
 async function loadDriver(req, res) {
   const params = [parseInt(req.params.id, 10)];
   const query = `${DRIVER_SELECT} WHERE d.id = $1${branchFilter(req.user, 'd', params)}`;
@@ -95,12 +144,40 @@ router.get('/:id', async (req, res) => {
   }
 });
 
+// GET /:id/rent-status — по какое число закрыта аренда, с какого числа долг, календарь дней
+router.get('/:id/rent-status', async (req, res) => {
+  try {
+    const driver = await loadDriver(req, res);
+    if (!driver) return;
+    const status = await rentStatus(pool, driver.id);
+    res.json({ driver: { id: driver.id, full_name: driver.full_name, phone: driver.phone }, status });
+  } catch (err) {
+    serverError(res, 'Ошибка статуса аренды:', err);
+  }
+});
+
+// GET /:id/ledger?from&to — по дням: на какой машине, сколько начислено, оплачено и долг
+router.get('/:id/ledger', async (req, res) => {
+  try {
+    const driver = await loadDriver(req, res);
+    if (!driver) return;
+    const period = readPeriod(req, res);
+    if (!period) return;
+    const rows = await driverLedgerRows(pool, [driver.id], period.from, period.to);
+    res.json({
+      driver: { id: driver.id, full_name: driver.full_name, phone: driver.phone },
+      ...period,
+      rows,
+      totals: ledgerTotals(rows),
+    });
+  } catch (err) {
+    serverError(res, 'Ошибка отчёта по водителю:', err);
+  }
+});
+
 // POST / — Создание водителя (админ и диспетчер)
 router.post('/', async (req, res) => {
   const { full_name, phone, login, password, passport, license_no, license_expires } = req.body;
-  const branchId = req.user.role === 'DISPATCHER' && req.user.branch_id
-    ? req.user.branch_id
-    : (req.body.branch_id ? Number(req.body.branch_id) : null);
   const deposit = readMoney(req.body.deposit);
 
   if (!full_name || !String(full_name).trim()) return fail(res, 400, 'BAD_REQUEST', 'Укажите ФИО', 'full_name');
@@ -113,6 +190,7 @@ router.post('/', async (req, res) => {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
+    const branchId = await defaultBranchId(client);
     const hash = await bcrypt.hash(String(password), 10);
     const { rows: users } = await client.query(
       `INSERT INTO users (role, full_name, phone, login, password_hash, status, must_change_password)
@@ -203,6 +281,35 @@ router.patch('/:id', async (req, res) => {
   } catch (err) {
     if (err.code === '23505') return fail(res, 409, 'CONFLICT', 'Такой логин или телефон уже занят');
     serverError(res, 'Ошибка редактирования водителя:', err);
+  }
+});
+
+// PUT /:id/password — задать водителю новый пароль для входа (старые сессии закрываются)
+router.put('/:id/password', async (req, res) => {
+  try {
+    const driver = await loadDriver(req, res);
+    if (!driver) return;
+    const password = String(req.body?.password || '');
+    const login = req.body?.login !== undefined ? String(req.body.login).trim() : null;
+    if (password.length < 6) return fail(res, 400, 'BAD_REQUEST', 'Пароль — минимум 6 символов', 'password');
+    if (login !== null && !login) return fail(res, 400, 'BAD_REQUEST', 'Укажите логин', 'login');
+
+    const hash = await bcrypt.hash(password, 10);
+    const sets = ['password_hash = $1', 'must_change_password = 1', 'token_version = token_version + 1',
+      'failed_login_attempts = 0', 'locked_until = NULL'];
+    const params = [hash];
+    if (login !== null) {
+      params.push(login);
+      sets.push(`login = $${params.length}`);
+    }
+    params.push(driver.user_id);
+    await pool.query(`UPDATE users SET ${sets.join(', ')} WHERE id = $${params.length}`, params);
+    await writeAudit(pool, req.user.id, 'DRIVER_PASSWORD_SET', 'driver', driver.id, null,
+      { login: login ?? driver.login }, req.ip);
+    res.json({ id: driver.id, login: login ?? driver.login });
+  } catch (err) {
+    if (err.code === '23505') return fail(res, 409, 'CONFLICT', 'Такой логин уже занят');
+    serverError(res, 'Ошибка смены пароля водителя:', err);
   }
 });
 

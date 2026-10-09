@@ -242,9 +242,6 @@ export default function ServicePage() {
                   <div style={{ marginTop: 'var(--sp-1)', fontWeight: 500 }}>
                     {formatType(r.type)}
                   </div>
-                  <div style={{ fontSize: 'var(--fs-s)', color: 'var(--c-muted)' }}>
-                    {r.branch_name}
-                  </div>
                 </div>
                 <div style={{ textAlign: 'right' }}>
                   <Money value={r.cost} />

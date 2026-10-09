@@ -57,6 +57,11 @@ export default function DriversPage() {
   }, [drivers, query]);
 
   async function act(d, action) {
+    if (action !== 'restore' && d.car_plate) {
+      setError(`Сначала примите у ${d.full_name} машину ${d.car_plate} — на странице машины, вкладка «Водитель»`);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
     const texts = {
       archive: `Убрать ${d.full_name} в архив?`,
       restore: `Вернуть ${d.full_name} из архива?`,
@@ -132,12 +137,12 @@ export default function DriversPage() {
                     <div><dt>Депозит</dt><dd>{fmtMoney(d.deposit)} сум</dd></div>
                     <div><dt>ВУ</dt><dd>{d.license_no || '—'}</dd></div>
                   </dl>
-                  {archived && (
-                    <div className="person__actions" onClick={(e) => e.stopPropagation()}>
-                      <button className="btn btn--quiet btn--sm" onClick={() => act(d, 'restore')}>Вернуть</button>
-                      {isAdmin && <button className="btn btn--danger btn--sm" onClick={() => act(d, 'delete')}>Удалить навсегда</button>}
-                    </div>
-                  )}
+                  <div className="person__actions" onClick={(e) => e.stopPropagation()}>
+                    {archived
+                      ? <button className="btn btn--quiet btn--sm" onClick={() => act(d, 'restore')}>Вернуть</button>
+                      : <button className="btn btn--ghost btn--sm" onClick={() => act(d, 'archive')}>В архив</button>}
+                    {isAdmin && <button className="btn btn--danger btn--sm" onClick={() => act(d, 'delete')}>Удалить навсегда</button>}
+                  </div>
                 </div>
               ))}
             </div>

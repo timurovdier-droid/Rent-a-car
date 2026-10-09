@@ -115,7 +115,7 @@ export default function DailyReportsPage() {
       <p className="page-sub">
         {user?.role === 'DRIVER'
           ? 'Ваши отчёты за смену'
-          : 'Отчёты водителей филиала'}
+          : 'Отчёты водителей'}
       </p>
 
       {/* Панель действий и фильтров */}

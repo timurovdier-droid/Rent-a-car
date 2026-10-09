@@ -9,7 +9,8 @@ import DispatchersPage from './pages/DispatchersPage';
 import DriversPage from './pages/DriversPage';
 import DriverPage from './pages/DriverPage';
 import CarPage from './pages/CarPage';
-import PayRentPage from './pages/PayRentPage';
+import DriverHomePage from './pages/DriverHomePage';
+import DriverReportPage from './pages/DriverReportPage';
 import PaymentsQueuePage from './pages/PaymentsQueuePage';
 import AuditPage from './pages/AuditPage';
 import OwnersPage from './pages/OwnersPage';
@@ -20,8 +21,10 @@ import ServicePage from './pages/ServicePage';
 import NotificationsPage from './pages/NotificationsPage';
 import ReportsPage from './pages/ReportsPage';
 import SettingsPage from './pages/SettingsPage';
-import BranchesPage from './pages/BranchesPage';
 import ProfilePage from './pages/ProfilePage';
+import { lazy, Suspense } from 'react';
+
+const HelpPage = lazy(() => import('./pages/HelpPage'));
 
 function Guard({ roles, children }) {
   const { user, loading } = useAuth();
@@ -36,6 +39,11 @@ function Guard({ roles, children }) {
   return children;
 }
 
+function HomeRoute() {
+  const { user } = useAuth();
+  return user?.role === 'DRIVER' ? <DriverHomePage /> : <DashboardPage />;
+}
+
 export default function App() {
   return (
     <AuthProvider>
@@ -44,16 +52,16 @@ export default function App() {
         <Route path="/change-password" element={<ChangePasswordPage />} />
         
         <Route element={<Guard><Layout /></Guard>}>
-          <Route path="/" element={<DashboardPage />} />
+          <Route path="/" element={<HomeRoute />} />
           
+          <Route
+            path="/driver-report"
+            element={<Guard roles={['DISPATCHER', 'ADMIN']}><DriverReportPage /></Guard>}
+          />
+
           <Route 
             path="/profile" 
             element={<Guard><ProfilePage /></Guard>} 
-          />
-          
-          <Route 
-            path="/pay-rent" 
-            element={<Guard roles={['DRIVER']}><PayRentPage /></Guard>} 
           />
           
           <Route 
@@ -68,7 +76,7 @@ export default function App() {
           
           <Route 
             path="/daily-reports" 
-            element={<Guard roles={['DRIVER', 'DISPATCHER', 'ADMIN']}><DailyReportsPage /></Guard>} 
+            element={<Guard roles={['DISPATCHER', 'ADMIN']}><DailyReportsPage /></Guard>} 
           />
           
           <Route 
@@ -89,11 +97,6 @@ export default function App() {
           <Route 
             path="/settings" 
             element={<Guard roles={['ADMIN']}><SettingsPage /></Guard>} 
-          />
-          
-          <Route 
-            path="/branches" 
-            element={<Guard roles={['ADMIN']}><BranchesPage /></Guard>} 
           />
           
           <Route 
@@ -131,11 +134,17 @@ export default function App() {
             element={<Guard roles={['ADMIN']}><DispatchersPage /></Guard>} 
           />
           
+          <Route
+            path="/help"
+            element={<Guard roles={['ADMIN', 'DISPATCHER', 'OWNER']}><Suspense fallback={null}><HelpPage /></Suspense></Guard>}
+          />
+
           <Route 
             path="/audit" 
             element={<Guard roles={['ADMIN']}><AuditPage /></Guard>} 
           />
         </Route>
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </AuthProvider>
   );

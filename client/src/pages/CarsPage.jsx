@@ -1,14 +1,94 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { api } from '../api';
+import { api, ApiError } from '../api';
 import { useAuth } from '../auth';
 import Plate from '../components/Plate';
 import StatusMark from '../components/StatusMark';
 import CarForm from '../components/CarForm';
 import CarTile from '../components/CarTile';
-import { fmtMoney, fmtNumber } from '../labels';
+import { fmtMoney, fmtNumber, fmtDay } from '../labels';
 
 const VIEW_KEY = 'rac-cars-view';
+
+function ArchivedCars({ query }) {
+  const [cars, setCars] = useState(null);
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(null);
+
+  const load = useCallback(async () => {
+    try {
+      setCars(await api.get('/cars?archived=1'));
+      setError('');
+    } catch {
+      setError('Не удалось загрузить архив');
+    }
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  async function act(car, action) {
+    const name = `${car.brand} ${car.model} ${car.plate}`;
+    const text = action === 'delete'
+      ? `Удалить ${name} навсегда вместе со всеми доходами, расходами и историей? Это действие нельзя отменить.`
+      : `Вернуть ${name} из архива?`;
+    if (!window.confirm(text)) return;
+    setBusy(car.id);
+    try {
+      if (action === 'delete') await api.delete(`/cars/${car.id}`);
+      else await api.post(`/cars/${car.id}/restore`);
+      await load();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Не получилось');
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  if (!cars) return error ? <div className="notice notice--error">{error}</div> : <div className="muted">Загрузка…</div>;
+  const q = query.trim().toLowerCase().replace(/\s+/g, '');
+  const shown = q
+    ? cars.filter((c) => [c.plate, c.brand, c.model].filter(Boolean)
+      .some((v) => String(v).toLowerCase().replace(/\s+/g, '').includes(q)))
+    : cars;
+
+  return (
+    <>
+      {error && <div className="notice notice--error">{error}</div>}
+      {shown.length === 0 ? (
+        <div className="empty">{cars.length ? 'Ничего не найдено' : 'В архиве машин нет'}</div>
+      ) : (
+        <div className="table-wrap">
+          <table className="table">
+            <thead>
+              <tr>
+                <th className="table__th">Номер</th>
+                <th className="table__th">Машина</th>
+                <th className="table__th">В архиве с</th>
+                <th className="table__th" />
+              </tr>
+            </thead>
+            <tbody>
+              {shown.map((c) => (
+                <tr key={c.id} className="table__row">
+                  <td className="table__td"><Plate value={c.plate} /></td>
+                  <td className="table__td">
+                    <div style={{ fontWeight: 500 }}>{c.brand} {c.model}</div>
+                    <div className="muted small">{[c.year, c.color].filter(Boolean).join(' · ')}</div>
+                  </td>
+                  <td className="table__td">{c.archived_at ? fmtDay(String(c.archived_at).slice(0, 10)) : '—'}</td>
+                  <td className="table__td" style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                    <button className="btn btn--quiet btn--sm" disabled={busy === c.id} onClick={() => act(c, 'restore')}>Вернуть</button>{' '}
+                    <button className="btn btn--danger btn--sm" disabled={busy === c.id} onClick={() => act(c, 'delete')}>Удалить навсегда</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </>
+  );
+}
 
 export default function CarsPage() {
   const { user } = useAuth();
@@ -24,6 +104,7 @@ export default function CarsPage() {
   const isAdmin = user?.role === 'ADMIN';
   const canEdit = isAdmin || user?.role === 'DISPATCHER';
   const isOwner = user?.role === 'OWNER';
+  const archive = status === 'ARCHIVE';
 
   const fetchCars = useCallback(async () => {
     try {
@@ -86,15 +167,22 @@ export default function CarsPage() {
               {l} · {counts[v]}
             </button>
           ))}
+          {isAdmin && (
+            <button type="button" className={`chip ${archive ? 'chip--on' : ''}`} onClick={() => setStatus('ARCHIVE')}>Архив</button>
+          )}
         </div>
-        <div className="chips" style={{ marginLeft: 'auto' }}>
-          {[['cards', 'Карточки'], ['table', 'Таблица']].map(([v, l]) => (
-            <button key={v} type="button" className={`chip ${view === v ? 'chip--on' : ''}`} onClick={() => switchView(v)}>{l}</button>
-          ))}
-        </div>
+        {!archive && (
+          <div className="chips" style={{ marginLeft: 'auto' }}>
+            {[['cards', 'Карточки'], ['table', 'Таблица']].map(([v, l]) => (
+              <button key={v} type="button" className={`chip ${view === v ? 'chip--on' : ''}`} onClick={() => switchView(v)}>{l}</button>
+            ))}
+          </div>
+        )}
       </div>
 
-      {shown.length === 0 ? (
+      {archive ? (
+        <ArchivedCars query={query} />
+      ) : shown.length === 0 ? (
         <div className="empty">{cars.length === 0 ? (isAdmin ? 'Автомобилей пока нет. Добавьте первый.' : 'Автомобилей пока нет') : 'Ничего не найдено'}</div>
       ) : view === 'table' ? (
         <div className="table-wrap">
@@ -115,7 +203,7 @@ export default function CarsPage() {
                   <td className="table__td"><Plate value={c.plate} /></td>
                   <td className="table__td">
                     <div style={{ fontWeight: 500 }}>{c.brand} {c.model}</div>
-                    <div className="muted small">{[c.year, c.color, c.branch_name].filter(Boolean).join(' · ')}</div>
+                    <div className="muted small">{[c.year, c.color].filter(Boolean).join(' · ')}</div>
                   </td>
                   <td className="table__td">{c.driver_name || <span className="muted">—</span>}</td>
                   {!isOwner && <td className="table__td table__num">{fmtMoney(c.daily_rate)}</td>}

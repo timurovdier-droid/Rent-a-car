@@ -40,7 +40,6 @@ function initial(car) {
     insurance_expires: car?.insurance_expires ? String(car.insurance_expires).slice(0, 10) : '',
     inspection_expires: car?.inspection_expires ? String(car.inspection_expires).slice(0, 10) : '',
     owner_id: car?.owner_id ? String(car.owner_id) : '',
-    branch_id: car?.branch_id ? String(car.branch_id) : '',
     daily_rate: '',
   };
 }
@@ -50,7 +49,6 @@ export default function CarForm({ car, onClose, onSaved }) {
   const isAdmin = user?.role === 'ADMIN';
   const [form, setForm] = useState(() => initial(car));
   const [owners, setOwners] = useState([]);
-  const [branches, setBranches] = useState([]);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
   const [photo, setPhoto] = useState({ data: null, remove: false });
@@ -69,11 +67,7 @@ export default function CarForm({ car, onClose, onSaved }) {
   useEffect(() => {
     if (!isAdmin) return;
     api.get('/owners/active').then(setOwners).catch(() => setOwners([]));
-    api.get('/branches/active').then((list) => {
-      setBranches(list);
-      if (!car && list.length === 1) setForm((f) => ({ ...f, branch_id: f.branch_id || String(list[0].id) }));
-    }).catch(() => setBranches([]));
-  }, [isAdmin, car]);
+  }, [isAdmin]);
 
   const set = (key) => (e) => setForm({ ...form, [key]: e.target.value });
 
@@ -94,10 +88,7 @@ export default function CarForm({ car, onClose, onSaved }) {
         insurance_expires: form.insurance_expires || null,
         inspection_expires: form.inspection_expires || null,
       };
-      if (isAdmin) {
-        body.owner_id = form.owner_id || null;
-        body.branch_id = form.branch_id || null;
-      }
+      if (isAdmin) body.owner_id = form.owner_id || null;
       let saved;
       if (car) {
         saved = await api.patch(`/cars/${car.id}`, body);
@@ -211,13 +202,6 @@ export default function CarForm({ car, onClose, onSaved }) {
                 <select id="cf-owner" className="field__input" value={form.owner_id} onChange={set('owner_id')}>
                   <option value="">Не указан</option>
                   {owners.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
-                </select>
-              </div>
-              <div className="field">
-                <label className="field__label" htmlFor="cf-branch">Филиал *</label>
-                <select id="cf-branch" className="field__input" value={form.branch_id} onChange={set('branch_id')} required>
-                  <option value="">Выберите</option>
-                  {branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
                 </select>
               </div>
               {!car && (

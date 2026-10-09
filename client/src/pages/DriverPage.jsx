@@ -6,6 +6,8 @@ import Plate from '../components/Plate';
 import Modal from '../components/Modal';
 import MoneyInput from '../components/MoneyInput';
 import DriverForm from '../components/DriverForm';
+import DriverLedger from '../components/DriverLedger';
+import DriverRentStatus from '../components/RentStatus';
 import { fmtMoney, fmtNumber, fmtDay, fmtDateTime, localDayOf, initials } from '../labels';
 
 const errText = (err, fallback) => (err instanceof ApiError ? err.message : fallback);
@@ -51,6 +53,78 @@ function DepositModal({ driver, onClose, onDone }) {
   );
 }
 
+function makePassword() {
+  const letters = 'abcdefghjkmnpqrstuvwxyz';
+  const digits = '23456789';
+  const pick = (set, n) => Array.from(crypto.getRandomValues(new Uint32Array(n)), (v) => set[v % set.length]).join('');
+  return `${pick(letters, 4)}${pick(digits, 4)}`;
+}
+
+function PasswordModal({ driver, onClose, onDone }) {
+  const [login, setLogin] = useState(driver.login || '');
+  const [password, setPassword] = useState(makePassword);
+  const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(null);
+
+  async function submit(e) {
+    e.preventDefault();
+    setSaving(true);
+    setError('');
+    try {
+      const res = await api.put(`/drivers/${driver.id}/password`, { login: login.trim(), password });
+      setSaved({ login: res.login, password });
+      onDone();
+    } catch (err) {
+      setError(errText(err, 'Не удалось задать пароль'));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (saved) {
+    return (
+      <Modal title="Пароль задан" onClose={onClose}>
+        <p className="muted" style={{ marginTop: 0 }}>Передайте водителю. При первом входе сайт попросит его придумать свой пароль.</p>
+        <dl className="kv">
+          <div><dt>Сайт</dt><dd>{window.location.origin}</dd></div>
+          <div><dt>Логин</dt><dd><b>{saved.login}</b></dd></div>
+          <div><dt>Пароль</dt><dd><b>{saved.password}</b></dd></div>
+        </dl>
+        <div className="form-actions">
+          <button className="btn" type="button" onClick={onClose}>Готово</button>
+        </div>
+      </Modal>
+    );
+  }
+
+  return (
+    <Modal title="Вход в кабинет водителя" onClose={onClose}>
+      <form onSubmit={submit}>
+        <p className="muted" style={{ marginTop: 0 }}>
+          В кабинете водитель видит свою машину, долг по аренде и оплаты по дням. Если долг есть, сайт напоминает ему каждый час.
+        </p>
+        <div className="field">
+          <label className="field__label" htmlFor="pw-login">Логин</label>
+          <input id="pw-login" className="field__input" value={login} onChange={(e) => setLogin(e.target.value)} required autoComplete="off" />
+        </div>
+        <div className="field">
+          <label className="field__label" htmlFor="pw-value">Временный пароль</label>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <input id="pw-value" className="field__input" value={password} onChange={(e) => setPassword(e.target.value)} minLength={6} required autoComplete="off" />
+            <button className="btn btn--quiet" type="button" onClick={() => setPassword(makePassword())}>Другой</button>
+          </div>
+        </div>
+        {error && <div className="notice notice--error">{error}</div>}
+        <div className="form-actions">
+          <button className="btn" type="submit" disabled={saving}>{saving ? 'Сохраняю…' : 'Задать пароль'}</button>
+          <button className="btn btn--quiet" type="button" onClick={onClose}>Отмена</button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
 export default function DriverPage() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -60,6 +134,8 @@ export default function DriverPage() {
   const [error, setError] = useState('');
   const [editing, setEditing] = useState(false);
   const [depositOpen, setDepositOpen] = useState(false);
+  const [passwordOpen, setPasswordOpen] = useState(false);
+  const [ledgerVersion, setLedgerVersion] = useState(0);
 
   const load = useCallback(async () => {
     try {
@@ -73,8 +149,12 @@ export default function DriverPage() {
   useEffect(() => { load(); }, [load]);
 
   async function act(action) {
+    if (action !== 'restore' && driver.car_id) {
+      setError(`Сначала примите у водителя машину ${driver.car_plate} — это делается на странице машины, вкладка «Водитель»`);
+      return;
+    }
     const texts = {
-      archive: `Убрать ${driver.full_name} в архив?`,
+      archive: `Убрать ${driver.full_name} в архив? Его можно будет вернуть на странице «Водители» → «Архив».`,
       restore: `Вернуть ${driver.full_name} из архива?`,
       delete: `Удалить ${driver.full_name} навсегда? Это действие нельзя отменить.`,
     };
@@ -121,9 +201,9 @@ export default function DriverPage() {
         </div>
         <div className="form-actions">
           {!archived && <button className="btn btn--quiet" onClick={() => setEditing(true)}>Изменить данные</button>}
-          {!archived && !driver.car_id && <button className="btn btn--ghost" onClick={() => act('archive')}>В архив</button>}
+          {!archived && <button className="btn btn--ghost" onClick={() => act('archive')}>В архив</button>}
           {archived && <button className="btn btn--quiet" onClick={() => act('restore')}>Вернуть из архива</button>}
-          {isAdmin && !driver.car_id && <button className="btn btn--danger" onClick={() => act('delete')}>Удалить</button>}
+          {isAdmin && <button className="btn btn--danger" onClick={() => act('delete')}>Удалить</button>}
         </div>
       </div>
 
@@ -138,10 +218,19 @@ export default function DriverPage() {
               <div><dt>Паспорт</dt><dd>{driver.passport || '—'}</dd></div>
               <div><dt>Водительское удостоверение</dt><dd>{driver.license_no || '—'}</dd></div>
               <div><dt>ВУ действует до</dt><dd>{fmtDay(driver.license_expires)}</dd></div>
-              <div><dt>Логин</dt><dd>{driver.login}</dd></div>
-              <div><dt>Филиал</dt><dd>{driver.branch_name || '—'}</dd></div>
               <div><dt>Добавлен</dt><dd>{fmtDateTime(driver.created_at)}</dd></div>
             </dl>
+          </div>
+          <div className="panel">
+            <h3 className="panel__title">Вход в кабинет водителя</h3>
+            <dl className="kv">
+              <div><dt>Логин</dt><dd>{driver.login || '—'}</dd></div>
+            </dl>
+            {!archived && (
+              <button className="btn btn--quiet btn--sm" style={{ marginTop: 10 }} onClick={() => setPasswordOpen(true)}>
+                Задать пароль
+              </button>
+            )}
           </div>
           <div className="panel">
             <h3 className="panel__title">Машины</h3>
@@ -188,7 +277,17 @@ export default function DriverPage() {
         </div>
       </div>
 
+      <div style={{ marginTop: 16 }}>
+        <DriverRentStatus driverId={driver.id} version={ledgerVersion} />
+      </div>
+
+      <div className="panel" style={{ marginTop: 16 }}>
+        <h3 className="panel__title">Оплаты и долг по дням</h3>
+        <DriverLedger driverId={driver.id} canPay={!archived} onChanged={() => setLedgerVersion((v) => v + 1)} />
+      </div>
+
       {editing && <DriverForm driver={driver} onClose={() => setEditing(false)} onSaved={() => { setEditing(false); load(); }} />}
+      {passwordOpen && <PasswordModal driver={driver} onClose={() => setPasswordOpen(false)} onDone={load} />}
       {depositOpen && <DepositModal driver={driver} onClose={() => setDepositOpen(false)} onDone={() => { setDepositOpen(false); load(); }} />}
     </div>
   );

@@ -134,7 +134,6 @@ export default function AssignmentsPage() {
                 <tr>
                   <th className="table__th">Автомобиль</th>
                   <th className="table__th">Водитель</th>
-                  <th className="table__th">Филиал</th>
                   <th className="table__th table__num">Пробег (начало)</th>
                   <th className="table__th">Начало</th>
                   <th className="table__th">Действия</th>
@@ -155,7 +154,6 @@ export default function AssignmentsPage() {
                         {a.driver_phone}
                       </div>
                     </td>
-                    <td className="table__td">{a.branch_name}</td>
                     <td className="table__td table__num">{a.mileage_start}</td>
                     <td className="table__td" style={{ fontSize: 'var(--fs-s)', whiteSpace: 'nowrap' }}>
                       {new Date(a.start_at).toLocaleString('ru-RU')}
@@ -183,7 +181,7 @@ export default function AssignmentsPage() {
                   <Plate value={a.plate} />
                   <div style={{ marginTop: 'var(--sp-1)', fontWeight: 500 }}>{a.driver_name}</div>
                   <div style={{ fontSize: 'var(--fs-s)', color: 'var(--c-muted)' }}>
-                    {a.branch_name} · пробег: {a.mileage_start}
+                    {`Пробег: ${a.mileage_start ?? '—'}`}
                   </div>
                 </div>
                 <button
@@ -207,7 +205,7 @@ export default function AssignmentsPage() {
         onClick={(e) => { if (e.target === e.currentTarget) setShowCreate(false); }}
       >
         <h2 style={{ marginTop: 0 }} className="page-title">Новое назначение</h2>
-        <p className="page-sub">Выберите свободный автомобиль и водителя из одного филиала</p>
+        <p className="page-sub">Выберите свободный автомобиль и водителя</p>
 
         <form onSubmit={handleCreate}>
           <div className="field">

@@ -9,6 +9,7 @@ import MoneyInput from '../components/MoneyInput';
 import CarForm from '../components/CarForm';
 import { CarVisual } from '../components/CarTile';
 import DayCalendar from '../components/DayCalendar';
+import CarLedger from '../components/CarLedger';
 import {
   CATEGORY_LABELS, EXPENSE_CATEGORIES, INCOME_CATEGORIES, METHOD_LABELS, PAY_METHODS,
   FUEL_LABELS, SERVICE_TYPES, fmtMoney, fmtNumber, fmtDay, localDayOf, todayLocal,
@@ -845,7 +846,6 @@ function CarInfo({ car }) {
   return (
     <dl className="kv">
       <div><dt>Арендодатель</dt><dd>{car.owner_name || '—'}</dd></div>
-      <div><dt>Филиал</dt><dd>{car.branch_name || '—'}</dd></div>
       <div><dt>Год / цвет</dt><dd>{[car.year, car.color].filter(Boolean).join(' · ') || '—'}</dd></div>
       <div><dt>VIN</dt><dd>{car.vin || '—'}</dd></div>
       <div><dt>Топливо</dt><dd>{FUEL_LABELS[car.fuel_type] || '—'}</dd></div>
@@ -874,6 +874,7 @@ export default function CarPage() {
   const [confirmingAll, setConfirmingAll] = useState(false);
   const [searchParams, setSearchParams] = useSearchParams();
   const tabParam = searchParams.get('tab') || 'report';
+  const reportView = searchParams.get('view') === 'days' ? 'days' : 'ops';
 
   function openTab(key) {
     setSearchParams(key === 'report' ? {} : { tab: key }, { replace: true });
@@ -905,13 +906,21 @@ export default function CarPage() {
     }
   }
 
-  async function archive() {
-    if (!window.confirm(`Убрать автомобиль ${hub.car.plate} в архив?`)) return;
+  async function removeCar(action) {
+    if (hub.current) {
+      setError(`Сначала примите машину у водителя ${hub.current.driver_name} (вкладка «Водитель»)`);
+      return;
+    }
+    const text = action === 'delete'
+      ? `Удалить автомобиль ${hub.car.plate} навсегда вместе со всеми доходами, расходами и историей? Это действие нельзя отменить.`
+      : `Убрать автомобиль ${hub.car.plate} в архив? Его можно будет вернуть на странице «Автомобили» → «Архив».`;
+    if (!window.confirm(text)) return;
     try {
-      await api.post(`/cars/${id}/archive`);
+      if (action === 'delete') await api.delete(`/cars/${id}`);
+      else await api.post(`/cars/${id}/archive`);
       navigate('/cars');
     } catch (err) {
-      setError(errText(err, 'Не удалось архивировать'));
+      setError(errText(err, action === 'delete' ? 'Не удалось удалить' : 'Не удалось архивировать'));
     }
   }
 
@@ -962,7 +971,8 @@ export default function CarPage() {
         {canWrite && (
           <div className="form-actions">
             <button className="btn btn--quiet" onClick={() => setEditing(true)}>Изменить данные</button>
-            {role === 'ADMIN' && !hub.current && <button className="btn btn--ghost" onClick={archive}>В архив</button>}
+            {role === 'ADMIN' && <button className="btn btn--ghost" onClick={() => removeCar('archive')}>В архив</button>}
+            {role === 'ADMIN' && <button className="btn btn--danger" onClick={() => removeCar('delete')}>Удалить</button>}
           </div>
         )}
       </div>
@@ -999,6 +1009,25 @@ export default function CarPage() {
 
       <div role="tabpanel">
         {tab === 'report' && (
+          <div className="view-switch" role="group" aria-label="Вид отчёта">
+            <button
+              type="button"
+              className={`view-switch__btn ${reportView === 'ops' ? 'view-switch__btn--on' : ''}`}
+              onClick={() => setSearchParams({}, { replace: true })}
+            >
+              Операции
+            </button>
+            <button
+              type="button"
+              className={`view-switch__btn ${reportView === 'days' ? 'view-switch__btn--on' : ''}`}
+              onClick={() => setSearchParams({ view: 'days' }, { replace: true })}
+            >
+              По дням
+            </button>
+          </div>
+        )}
+        {tab === 'report' && reportView === 'days' && <CarLedger carId={car.id} />}
+        {tab === 'report' && reportView === 'ops' && (
           canWrite ? (
             <div className="layout-2">
               <div>

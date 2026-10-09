@@ -170,8 +170,6 @@ export default function DashboardPage() {
       <h1 className="page-title">Здравствуйте{user?.full_name ? `, ${user.full_name}` : ''}</h1>
       <p className="page-sub">{fmtDay(data.today)} · {data.role === 'OWNER' ? 'ваши машины и доход' : 'нажмите на машину, чтобы записать деньги'}</p>
       {(data.role === 'ADMIN' || data.role === 'DISPATCHER') && <FleetHome data={data} reload={load} />}
-      {data.role === 'OWNER' && <OwnerHome data={data} />}
-      {data.role === 'DRIVER' && <div className="empty">Личный кабинет водителя появится позже</div>}
-    </div>
+      {data.role === 'OWNER' && <OwnerHome data={data} />}    </div>
   );
 }

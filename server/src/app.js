@@ -21,6 +21,7 @@ import notificationsRouter from './routes/notifications.js';
 import reportsRouter from './routes/reports.js';
 import settingsRouter from './routes/settings.js';
 import branchesRouter from './routes/branches.js';
+import meRouter from './routes/me.js';
 
 const app = express();
 
@@ -68,6 +69,7 @@ app.use('/api/v1/notifications', notificationsRouter);
 app.use('/api/v1/reports', reportsRouter);
 app.use('/api/v1/settings', settingsRouter);
 app.use('/api/v1/branches', branchesRouter);
+app.use('/api/v1/me', meRouter);
 
 // Проверка работоспособности API
 app.get('/api/v1/health', (req, res) => {
