@@ -20,6 +20,7 @@ import {
   documentDue,
   ownerIdForUser,
   carDailyLedger,
+  carDebtDays,
 } from '../carMoney.js';
 
 const router = Router();
@@ -134,6 +135,18 @@ router.get('/:id/ledger', async (req, res) => {
   }
 });
 
+// GET /cars/:id/debts — за какие дни и какой водитель должен
+router.get('/:id/debts', async (req, res) => {
+  try {
+    const car = await loadCar(req, res);
+    if (!car) return;
+    if (req.user.role === 'OWNER') return fail(res, 403, 'FORBIDDEN', 'Недостаточно прав');
+    res.json(await carDebtDays(pool, car.id));
+  } catch (err) {
+    serverError(res, 'Ошибка долга по дням:', err);
+  }
+});
+
 // GET /cars/:id/hub — всё по машине одним запросом
 router.get('/:id/hub', async (req, res) => {
   try {
@@ -197,7 +210,7 @@ router.get('/:id/hub', async (req, res) => {
     const { rows: transactions } = await pool.query(txSql, txParams);
 
     const { rows: daysOff } = await pool.query(
-      `SELECT day FROM car_days_off WHERE car_id = $1 AND day >= $2 ORDER BY day`,
+      `SELECT day, reason FROM car_days_off WHERE car_id = $1 AND day >= $2 ORDER BY day`,
       [carId, addDays(today, -400)]
     );
 
@@ -244,6 +257,7 @@ router.get('/:id/hub', async (req, res) => {
       summary: summaryForRole(user.role, totals),
       transactions: transactions.map((t) => ({ ...t, ...txPermissions(t, user) })),
       days_off: daysOff.map((d) => d.day),
+      idle_days: daysOff.filter((d) => d.reason).map((d) => ({ day: d.day, reason: d.reason })),
       services: services.map((s) => ({
         ...s,
         label: SERVICE_LABELS[s.type] || s.type,
@@ -516,6 +530,36 @@ router.put('/:id/days-off', requireRole('ADMIN', 'DISPATCHER'), async (req, res)
   }
 });
 
+const IDLE_REASONS = ['REPAIR', 'LEFT', 'OTHER'];
+
+// POST /cars/:id/idle — простой: машина на ремонте или водитель её оставил, аренда за эти дни не начисляется
+router.post('/:id/idle', requireRole('ADMIN', 'DISPATCHER'), async (req, res) => {
+  try {
+    const car = await loadCar(req, res, { write: true });
+    if (!car) return;
+    const from = req.body.from;
+    const to = req.body.to || from;
+    const reason = req.body.reason;
+    if (!IDLE_REASONS.includes(reason)) return fail(res, 400, 'BAD_REQUEST', 'Выберите причину простоя', 'reason');
+    if (!isDay(from) || !isDay(to) || to < from) {
+      return fail(res, 400, 'BAD_REQUEST', 'Укажите даты простоя', 'from');
+    }
+    const days = daysBetween(from, to);
+    if (days.length > 92) return fail(res, 400, 'BAD_REQUEST', 'Не больше 92 дней за раз', 'to');
+    for (const day of days) {
+      await pool.query(
+        `INSERT INTO car_days_off (car_id, day, reason, created_by) VALUES ($1, $2, $3, $4)
+         ON CONFLICT (car_id, day) DO UPDATE SET reason = excluded.reason`,
+        [car.id, day, reason, req.user.id]
+      );
+    }
+    await writeAudit(pool, req.user.id, 'CAR_IDLE_ADDED', 'car', car.id, null, { from, to, reason }, req.ip);
+    res.status(201).json({ days, reason });
+  } catch (err) {
+    serverError(res, 'Ошибка отметки простоя:', err);
+  }
+});
+
 router.delete('/:id/days-off/:day', requireRole('ADMIN', 'DISPATCHER'), async (req, res) => {
   try {
     const car = await loadCar(req, res, { write: true });
@@ -629,6 +673,58 @@ router.post('/:id/release', requireRole('ADMIN', 'DISPATCHER'), async (req, res)
   } catch (err) {
     await client.query('ROLLBACK');
     serverError(res, 'Ошибка приёма машины:', err);
+  } finally {
+    client.release();
+  }
+});
+
+// DELETE /cars/:id/assignments/:aid — убрать ошибочную выдачу: аренда за её дни больше не начисляется.
+// Текущую выдачу могут убрать админ и диспетчер, прошлые записи истории — только админ.
+router.delete('/:id/assignments/:aid', requireRole('ADMIN', 'DISPATCHER'), async (req, res) => {
+  const car = await loadCar(req, res, { write: true }).catch((err) => { serverError(res, 'Ошибка:', err); return null; });
+  if (!car) return;
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const { rows } = await client.query(
+      `SELECT ca.*, u.full_name AS driver_name
+       FROM car_assignments ca
+       LEFT JOIN drivers d ON d.id = ca.driver_id
+       LEFT JOIN users u ON u.id = d.user_id
+       WHERE ca.id = $1 AND ca.car_id = $2`,
+      [parseInt(req.params.aid, 10), car.id]
+    );
+    const assignment = rows[0];
+    if (!assignment) {
+      await client.query('ROLLBACK');
+      return fail(res, 404, 'NOT_FOUND', 'Запись не найдена');
+    }
+    const active = !assignment.end_at;
+    if (!active && req.user.role !== 'ADMIN') {
+      await client.query('ROLLBACK');
+      return fail(res, 403, 'FORBIDDEN', 'Удалять историю может только администратор');
+    }
+    await client.query('DELETE FROM car_assignments WHERE id = $1', [assignment.id]);
+    if (active) {
+      await client.query(`UPDATE cars SET status = 'FREE' WHERE id = $1`, [car.id]);
+      if (assignment.driver_id) {
+        await client.query(
+          `UPDATE drivers SET status = 'FREE' WHERE id = $1
+             AND NOT EXISTS (SELECT 1 FROM car_assignments WHERE driver_id = $1 AND end_at IS NULL)`,
+          [assignment.driver_id]
+        );
+      }
+    }
+    await writeAudit(client, req.user.id, 'ASSIGNMENT_DELETED', 'car_assignment', assignment.id, {
+      car_id: car.id, driver_id: assignment.driver_id, driver_name: assignment.driver_name,
+      start_at: assignment.start_at, end_at: assignment.end_at,
+      mileage_start: assignment.mileage_start, mileage_end: assignment.mileage_end,
+    }, null, req.ip);
+    await client.query('COMMIT');
+    res.json({ id: assignment.id, deleted: true });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    serverError(res, 'Ошибка удаления выдачи:', err);
   } finally {
     client.release();
   }

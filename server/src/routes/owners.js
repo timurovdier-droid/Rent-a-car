@@ -81,6 +81,23 @@ router.patch('/:id', async (req, res) => {
       return res.status(400).json({ error: { code: 'BAD_REQUEST', message: 'Укажите телефон', field: 'phone' } });
     }
 
+    // ФИО и телефон в профиле арендодателя берутся из его карточки.
+    const { rows: linked } = await pool.query(
+      `SELECT user_id FROM owners WHERE id = $1 AND status != 'ARCHIVED' AND user_id IS NOT NULL`,
+      [ownerId]
+    );
+    if (linked.length) {
+      try {
+        await pool.query('UPDATE users SET full_name = $1, phone = $2 WHERE id = $3',
+          [(contact_person && contact_person.trim()) || name.trim(), phone.trim(), linked[0].user_id]);
+      } catch (e) {
+        if (e.code === '23505') {
+          return res.status(409).json({ error: { code: 'CONFLICT', message: 'Такой телефон уже есть у другого пользователя', field: 'phone' } });
+        }
+        throw e;
+      }
+    }
+
     const { rows } = await pool.query(
       `UPDATE owners
        SET name = $1, contact_person = $2, phone = $3, email = $4, bank_details = $5

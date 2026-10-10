@@ -1,5 +1,45 @@
 import { useState, useEffect } from 'react';
 import { api, ApiError } from '../api';
+import Modal from '../components/Modal';
+
+function EditDispatcherModal({ dispatcher, onClose, onDone }) {
+  const [form, setForm] = useState({ full_name: dispatcher.full_name || '', phone: dispatcher.phone || '' });
+  const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  async function submit(e) {
+    e.preventDefault();
+    setSaving(true);
+    setError('');
+    try {
+      await api.patch(`/dispatchers/${dispatcher.id}`, form);
+      onDone();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Не удалось сохранить');
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Modal title="Изменить диспетчера" onClose={onClose}>
+      <form onSubmit={submit}>
+        <div className="field">
+          <label className="field__label" htmlFor="dsp-name">ФИО</label>
+          <input id="dsp-name" className="field__input" value={form.full_name} onChange={(e) => setForm({ ...form, full_name: e.target.value })} required maxLength={120} autoFocus />
+        </div>
+        <div className="field">
+          <label className="field__label" htmlFor="dsp-phone">Телефон</label>
+          <input id="dsp-phone" className="field__input" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} required placeholder="+998901234567" inputMode="tel" />
+        </div>
+        {error && <div className="notice notice--error">{error}</div>}
+        <div className="form-actions">
+          <button className="btn" type="submit" disabled={saving}>{saving ? 'Сохранение...' : 'Сохранить'}</button>
+          <button className="btn btn--quiet" type="button" onClick={onClose}>Отмена</button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
 
 export default function DispatchersPage() {
   const [dispatchers, setDispatchers] = useState([]);
@@ -9,6 +49,7 @@ export default function DispatchersPage() {
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState('');
   const [form, setForm] = useState({ full_name: '', phone: '', login: '' });
+  const [editing, setEditing] = useState(null);
 
   async function fetchDispatchers() {
     try {
@@ -135,6 +176,13 @@ export default function DispatchersPage() {
                     </span>
                   </td>
                   <td className="table__td">
+                    <button
+                      className="btn btn--quiet"
+                      style={{ marginRight: 'var(--sp-2)', fontSize: 'var(--fs-s)', minHeight: '32px' }}
+                      onClick={() => setEditing(d)}
+                    >
+                      Изменить
+                    </button>
                     <button 
                       className="btn btn--quiet" 
                       style={{ marginRight: 'var(--sp-2)', fontSize: 'var(--fs-s)', minHeight: '32px' }}
@@ -156,6 +204,13 @@ export default function DispatchersPage() {
           </tbody>
         </table>
       </div>
+      {editing && (
+        <EditDispatcherModal
+          dispatcher={editing}
+          onClose={() => setEditing(null)}
+          onDone={() => { setEditing(null); fetchDispatchers(); }}
+        />
+      )}
     </div>
   );
 }

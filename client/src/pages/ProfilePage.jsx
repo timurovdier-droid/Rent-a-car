@@ -12,6 +12,34 @@ export default function ProfilePage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [editing, setEditing] = useState(false);
+  const [info, setInfo] = useState({ full_name: '', phone: '' });
+  const [infoError, setInfoError] = useState('');
+  const [infoSaving, setInfoSaving] = useState(false);
+  const [infoSaved, setInfoSaved] = useState(false);
+
+  function startEdit() {
+    setInfo({ full_name: user.full_name || '', phone: user.phone || '+998' });
+    setInfoError('');
+    setInfoSaved(false);
+    setEditing(true);
+  }
+
+  async function saveInfo(e) {
+    e.preventDefault();
+    setInfoSaving(true);
+    setInfoError('');
+    try {
+      await api.patch('/auth/me', info);
+      await refreshUser();
+      setEditing(false);
+      setInfoSaved(true);
+    } catch (err) {
+      setInfoError(err instanceof ApiError ? err.message : 'Не удалось сохранить');
+    } finally {
+      setInfoSaving(false);
+    }
+  }
 
   async function handleChangePassword(e) {
     e.preventDefault();
@@ -51,7 +79,25 @@ export default function ProfilePage() {
       <h1 className="page-title">Мой профиль</h1>
       <p className="page-sub">Информация о вашей учётной записи</p>
 
-      <div className="card" style={{ maxWidth: '32rem', marginBottom: 'var(--sp-4)' }}>
+      {editing && (
+        <form className="card" onSubmit={saveInfo} style={{ maxWidth: '32rem', marginBottom: 'var(--sp-4)' }}>
+          <div className="field">
+            <label className="field__label" htmlFor="pf-name">ФИО</label>
+            <input id="pf-name" className="field__input" value={info.full_name} onChange={(e) => setInfo({ ...info, full_name: e.target.value })} required maxLength={120} autoFocus />
+          </div>
+          <div className="field">
+            <label className="field__label" htmlFor="pf-phone">Телефон</label>
+            <input id="pf-phone" className="field__input" value={info.phone} onChange={(e) => setInfo({ ...info, phone: e.target.value })} required placeholder="+998901234567" inputMode="tel" />
+          </div>
+          {infoError && <p className="field__error">{infoError}</p>}
+          <div className="form-actions">
+            <button className="btn" type="submit" disabled={infoSaving}>{infoSaving ? 'Сохранение...' : 'Сохранить'}</button>
+            <button className="btn btn--quiet" type="button" onClick={() => setEditing(false)}>Отмена</button>
+          </div>
+        </form>
+      )}
+
+      <div className="card" style={{ maxWidth: '32rem', marginBottom: 'var(--sp-4)', display: editing ? 'none' : undefined }}>
         <div style={{ marginBottom: 'var(--sp-3)' }}>
           <div style={{ fontSize: 'var(--fs-s)', color: 'var(--c-muted)', marginBottom: 'var(--sp-1)' }}>
             ФИО
@@ -92,6 +138,15 @@ export default function ProfilePage() {
           <div style={{ fontWeight: 500, fontSize: 'var(--fs-s)' }}>
             {new Date(user.created_at).toLocaleString('ru-RU')}
           </div>
+        </div>
+
+        <div style={{ marginTop: 'var(--sp-4)', paddingTop: 'var(--sp-3)', borderTop: '1px solid var(--c-line)' }}>
+          {user.role === 'ADMIN' ? (
+            <button className="btn btn--quiet btn--sm" type="button" onClick={startEdit}>Изменить имя и телефон</button>
+          ) : (
+            <p className="muted small" style={{ margin: 0 }}>Чтобы изменить имя или телефон, обратитесь к администратору.</p>
+          )}
+          {infoSaved && <p style={{ color: 'var(--c-ok)', fontWeight: 500, margin: '8px 0 0' }}>Данные сохранены</p>}
         </div>
       </div>
 

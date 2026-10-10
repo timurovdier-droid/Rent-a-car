@@ -87,6 +87,37 @@ router.post('/', async (req, res) => {
   }
 });
 
+// PATCH /:id — ФИО и телефон диспетчера
+router.patch('/:id', async (req, res) => {
+  try {
+    const dispatcherId = parseInt(req.params.id, 10);
+    const fullName = String(req.body.full_name || '').trim().slice(0, 120);
+    const phone = String(req.body.phone || '').replace(/[\s()-]/g, '');
+    if (!fullName) {
+      return res.status(400).json({ error: { code: 'BAD_REQUEST', message: 'Укажите ФИО', field: 'full_name' } });
+    }
+    if (!/^\+998\d{9}$/.test(phone)) {
+      return res.status(400).json({ error: { code: 'BAD_REQUEST', message: 'Неверный формат телефона. Используйте +998XXXXXXXXX', field: 'phone' } });
+    }
+    const { rows } = await pool.query(
+      `SELECT full_name, phone FROM users WHERE id = $1 AND role = 'DISPATCHER' AND status != 'ARCHIVED'`,
+      [dispatcherId]
+    );
+    if (!rows.length) {
+      return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Диспетчер не найден' } });
+    }
+    await pool.query('UPDATE users SET full_name = $1, phone = $2 WHERE id = $3', [fullName, phone, dispatcherId]);
+    await writeAudit(pool, req.user.id, 'DISPATCHER_UPDATED', 'user', dispatcherId, rows[0], { full_name: fullName, phone }, req.ip);
+    res.json({ id: dispatcherId, full_name: fullName, phone });
+  } catch (err) {
+    if (err.code === '23505') {
+      return res.status(409).json({ error: { code: 'CONFLICT', message: 'Такой телефон уже есть у другого пользователя', field: 'phone' } });
+    }
+    console.error('Ошибка изменения диспетчера:', err);
+    res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Внутренняя ошибка сервера' } });
+  }
+});
+
 // POST /:id/reset-password — Сброс пароля (генерация временного)
 router.post('/:id/reset-password', async (req, res) => {
   try {

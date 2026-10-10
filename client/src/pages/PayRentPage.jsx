@@ -148,8 +148,8 @@ export default function PayRentPage() {
               required
             >
               <option value="CASH">Наличные</option>
-              <option value="TRANSFER">Перевод</option>
               <option value="CARD">Карта</option>
+              <option value="BALANCE">Баланс</option>
             </select>
           </div>
 

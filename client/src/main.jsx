@@ -3,7 +3,7 @@ import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 
 // Базовые стили
-import '@fontsource-variable/manrope';
+import '@fontsource-variable/noto-sans/standard.css';
 import './styles/tokens.css';
 import './styles/layout.css';
 import './styles/components.css';

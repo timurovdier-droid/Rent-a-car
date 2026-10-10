@@ -237,6 +237,10 @@ async function migrate() {
     await upgradeToV2(db);
   }
   await db.executeMultiple(SCHEMA_EXTRA_TABLES);
+  const offInfo = await db.execute("SELECT name FROM pragma_table_info('car_days_off')");
+  if (offInfo.rows.length && !offInfo.rows.some((row) => row.name === 'reason')) {
+    await db.execute('ALTER TABLE car_days_off ADD COLUMN reason TEXT');
+  }
   console.log(`База Qween готова (${config.tursoUrl.startsWith('file:') ? 'локальный файл' : 'Turso'})`);
 }
 

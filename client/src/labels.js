@@ -21,13 +21,27 @@ export const CATEGORY_LABELS = Object.fromEntries([...INCOME_CATEGORIES, ...EXPE
 export const PAY_METHODS = [
   ['CASH', 'Наличные'],
   ['CARD', 'Карта'],
+  ['BALANCE', 'Баланс'],
+];
+
+// Старые способы больше не предлагаются, но остаются в истории операций.
+const LEGACY_METHODS = [
   ['TRANSFER', 'Перевод'],
   ['CLICK', 'Click'],
   ['PAYME', 'Payme'],
   ['UZUM', 'Uzum'],
 ];
 
-export const METHOD_LABELS = Object.fromEntries(PAY_METHODS);
+export const METHOD_LABELS = Object.fromEntries([...PAY_METHODS, ...LEGACY_METHODS, ['DEPOSIT', 'Из депозита']]);
+
+export const CHARGE_KINDS = [
+  ['REPAIR', 'Ремонт'],
+  ['DAMAGE', 'Повреждение / ДТП'],
+  ['FINE', 'Штраф'],
+  ['OTHER', 'Другое'],
+];
+
+export const CHARGE_LABELS = Object.fromEntries(CHARGE_KINDS);
 
 export const FUEL_TYPES = [
   ['PETROL', 'Бензин'],

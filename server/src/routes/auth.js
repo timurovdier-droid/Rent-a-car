@@ -160,6 +160,33 @@ router.get('/me', authenticate, async (req, res) => {
   }
 });
 
+// PATCH /me — свои ФИО и телефон меняет только администратор; остальным их меняет администратор.
+router.patch('/me', authenticate, async (req, res) => {
+  try {
+    if (req.user.role !== 'ADMIN') {
+      return res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Имя и телефон меняет администратор' } });
+    }
+    const fullName = String(req.body.full_name || '').trim().slice(0, 120);
+    const phone = String(req.body.phone || '').replace(/[\s()-]/g, '');
+    if (!fullName) {
+      return res.status(400).json({ error: { code: 'BAD_REQUEST', message: 'Укажите ФИО', field: 'full_name' } });
+    }
+    if (!/^\+998\d{9}$/.test(phone)) {
+      return res.status(400).json({ error: { code: 'BAD_REQUEST', message: 'Телефон в формате +998XXXXXXXXX', field: 'phone' } });
+    }
+    const { rows } = await pool.query('SELECT full_name, phone FROM users WHERE id = $1', [req.user.id]);
+    await pool.query('UPDATE users SET full_name = $1, phone = $2 WHERE id = $3', [fullName, phone, req.user.id]);
+    await writeAudit(pool, req.user.id, 'PROFILE_UPDATED', 'user', req.user.id, rows[0] || null, { full_name: fullName, phone }, req.ip);
+    res.json({ full_name: fullName, phone });
+  } catch (err) {
+    if (err.code === '23505') {
+      return res.status(409).json({ error: { code: 'CONFLICT', message: 'Такой телефон уже есть у другого пользователя', field: 'phone' } });
+    }
+    console.error('Ошибка изменения профиля:', err);
+    res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Внутренняя ошибка сервера' } });
+  }
+});
+
 // POST /change-password — Смена пароля
 router.post('/change-password', authenticate, async (req, res) => {
   try {

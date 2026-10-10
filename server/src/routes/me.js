@@ -22,6 +22,20 @@ async function currentCar(driverId) {
   return rows[0] || null;
 }
 
+// Незакрытые долги водителя помимо аренды: ремонт, штрафы и т. п.
+async function openCharges(driverId) {
+  const { rows } = await pool.query(
+    `SELECT ch.id, ch.kind, ch.amount, ch.day, ch.comment, c.plate,
+            COALESCE((SELECT SUM(p.amount) FROM driver_charge_payments p WHERE p.charge_id = ch.id), 0) AS paid
+     FROM driver_charges ch LEFT JOIN cars c ON c.id = ch.car_id
+     WHERE ch.driver_id = $1 ORDER BY ch.day DESC, ch.id DESC`,
+    [driverId]
+  );
+  return rows
+    .map((r) => ({ ...r, paid: Number(r.paid), left: Number(r.amount) - Number(r.paid) }))
+    .filter((r) => r.left > 0);
+}
+
 function driverOnly(req, res) {
   if (req.user.role !== 'DRIVER' || !req.user.driver_id) {
     fail(res, 403, 'FORBIDDEN', 'Только для водителя');
@@ -37,7 +51,8 @@ router.get('/rent', async (req, res) => {
     const driverId = req.user.driver_id;
     const today = localToday();
     const assignment = await currentCar(driverId);
-    if (!assignment) return res.json({ today, car: null });
+    const charges = await openCharges(driverId);
+    if (!assignment) return res.json({ today, car: null, charges });
 
     const carId = Number(assignment.car_id);
     const { rows: cars } = await pool.query(
@@ -73,6 +88,7 @@ router.get('/rent', async (req, res) => {
       debt_days: overall.totals.debt_days,
       status: await rentStatus(pool, driverId),
       ledger,
+      charges,
     });
   } catch (err) {
     console.error('Ошибка кабинета водителя:', err);

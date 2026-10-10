@@ -53,6 +53,15 @@ function menuFor(role) {
   return [];
 }
 
+export function Brand({ big = false }) {
+  return (
+    <NavLink to="/" className={`brand ${big ? 'brand--big' : ''}`} aria-label="Rent a car — на главную" data-no-translate>
+      <img src="/logo.png" alt="GTA" className="brand-logo" width={big ? 104 : 84} height={big ? 27 : 22} />
+      <span className="brand__name">Rent a car</span>
+    </NavLink>
+  );
+}
+
 export default function Layout() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
@@ -82,20 +91,30 @@ export default function Layout() {
   return (
     <div className={`shell ${menuOpen ? 'shell--menu' : ''}`}>
       <header className="topbar">
-        <button type="button" className="topbar__btn" onClick={() => setMenuOpen(true)} aria-label="Открыть меню">
+        <button type="button" className="topbar__btn topbar__burger" onClick={() => setMenuOpen(true)} aria-label="Открыть меню">
           <NavIcon name="menu" size={22} />
         </button>
-        <span className="topbar__title">{current?.label || 'RENT A CAR GTA'}</span>
+        <Brand />
+        {current && <span className="topbar__section">{current.label}</span>}
+        <div className="topbar__tools">
+          <LangToggle className="lang-toggle--compact" />
+          <ThemeToggle className="theme-toggle--icon" />
+          <NavLink className="topbar__user" to="/profile" title="Перейти в профиль">
+            <span className="nav__avatar">{initials(user?.full_name)}</span>
+            <span className="nav__who">
+              <span className="nav__name">{user?.full_name}</span>
+              <span className="nav__role">{ROLE_LABELS[user?.role]}</span>
+            </span>
+          </NavLink>
+          <button type="button" className="btn btn--quiet btn--sm" onClick={handleLogout}>Выйти</button>
+        </div>
         <NavLink to="/profile" className="topbar__avatar" title="Перейти в профиль">{initials(user?.full_name)}</NavLink>
       </header>
       <div className="nav-backdrop" onClick={() => setMenuOpen(false)} aria-hidden="true" />
 
       <aside className="nav" aria-label="Меню">
         <div className="nav__brand">
-          <NavLink to="/" className="nav__logo" aria-label="RENT A CAR GTA — на главную">
-            <img src="/logo.png" alt="GTA" className="brand-logo" width="88" height="23" />
-            <span className="nav__logo-text">Rent a car</span>
-          </NavLink>
+          <Brand />
           <button type="button" className="topbar__btn nav__close" onClick={() => setMenuOpen(false)} aria-label="Закрыть меню">
             <NavIcon name="close" size={22} />
           </button>
@@ -117,7 +136,7 @@ export default function Layout() {
               end={item.end}
               className={({ isActive }) => `nav__link ${isActive ? 'nav__link--active' : ''}`}
             >
-              <NavIcon name={item.icon} />
+              <NavIcon name={item.icon} tile />
               <span>{item.label}</span>
             </NavLink>
           ))}

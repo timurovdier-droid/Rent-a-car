@@ -7,9 +7,42 @@ import PeriodPicker from '../components/PeriodPicker';
 import { BrandLogo, CarVisual } from '../components/CarTile';
 import { LedgerSummary, LedgerTable } from '../components/CarLedger';
 import { RentStatusView } from '../components/RentStatus';
-import { fmtMoney, fmtDay, todayLocal, shiftDay } from '../labels';
+import { fmtMoney, fmtDay, todayLocal, shiftDay, CHARGE_LABELS } from '../labels';
 
 const HOUR = 60 * 60 * 1000;
+
+function OtherDebts({ charges }) {
+  if (!charges?.length) return null;
+  const total = charges.reduce((s, c) => s + c.left, 0);
+  return (
+    <div className="panel" style={{ marginTop: 16 }}>
+      <div className="panel__head">
+        <h3 className="panel__title" style={{ margin: 0 }}>Другие долги</h3>
+        <b className="num-minus">{`${fmtMoney(total)} сум`}</b>
+      </div>
+      <ul className="charge-list">
+        {charges.map((c) => (
+          <li key={c.id} className="charge">
+            <div className="charge__main">
+              <div>
+                <div className="charge__title">{CHARGE_LABELS[c.kind] || c.kind}</div>
+                <div className="charge__meta">
+                  {fmtDay(c.day)}
+                  {c.plate && <> · <Plate value={c.plate} /></>}
+                  {c.comment ? ` · ${c.comment}` : ''}
+                </div>
+              </div>
+              <div className="charge__sum">
+                <b className="num-minus">{fmtMoney(c.left)}</b>
+                {c.paid > 0 && <span className="muted small">{`из ${fmtMoney(c.amount)}`}</span>}
+              </div>
+            </div>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
 const REFRESH_MS = 15 * 60 * 1000;
 
 function lastPeriod() {
@@ -99,6 +132,7 @@ export default function DriverHomePage() {
       <div>
         <h1 className="page-title">Моя аренда</h1>
         <div className="empty">Сейчас за вами не закреплена машина. Когда диспетчер выдаст машину, здесь появится аренда и оплаты.</div>
+        <OtherDebts charges={data.charges} />
       </div>
     );
   }
@@ -157,6 +191,8 @@ export default function DriverHomePage() {
         </section>
         )}
       </div>
+
+      <OtherDebts charges={data.charges} />
 
       <h2 className="drv__title">Оплаты по дням</h2>
       <PeriodPicker value={period} onChange={setPeriod} />

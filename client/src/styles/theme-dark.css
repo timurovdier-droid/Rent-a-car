@@ -65,9 +65,16 @@
 [data-theme='dark'] .modal { background: rgb(0 0 0 / .6); }
 [data-theme='dark'] .modal__panel { border: 1px solid var(--c-line); }
 
-[data-theme='dark'] .mf-block,
-[data-theme='dark'] .mf-card,
-[data-theme='dark'] .mf-chart__grid span { background: #242322; }
-[data-theme='dark'] .mf-month { background: #2A2A2A; }
+[data-theme='dark'] {
+  --mf-bg: #242322; --mf-card: #242322; --mf-line: #45433F;
+  --mf-ink: #FFFFFF; --mf-text: #F2F2F0; --mf-muted: #A9A7A3;
+  --mf-grid: #4A4844; --mf-zero: #6A6863;
+  --mf-chip: #2A2A2A; --mf-chip-hover: #3A3937; --mf-chip-ink: #FFFFFF;
+  --mf-pop: #3A3937; --mf-pop-ink: #FFFFFF; --mf-hover: #4A4946; --mf-disabled: #6E6C68; --mf-day: #E8E6E2;
+  --mf-pop-shadow: 0 16px 40px rgb(0 0 0 / .35);
+}
+[data-theme='dark'] .mf-delta--up { color: #22C55E; }
+[data-theme='dark'] .mf-delta--down { color: #FF4D3D; }
 
 [data-theme='dark'] input[type='date']::-webkit-calendar-picker-indicator { filter: invert(.85); }
+[data-theme='dark'] .notice--idle { background: #3A2610; color: #FFB15C; }

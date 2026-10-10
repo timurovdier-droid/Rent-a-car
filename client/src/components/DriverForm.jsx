@@ -9,7 +9,7 @@ export default function DriverForm({ driver, onClose, onSaved }) {
     phone: driver?.phone || '',
     passport: driver?.passport || '',
     license_no: driver?.license_no || '',
-    license_expires: driver?.license_expires ? String(driver.license_expires).slice(0, 10) : '',
+    pinfl: driver?.pinfl || '',
     login: driver?.login || '',
     password: '',
     deposit: '',
@@ -29,7 +29,7 @@ export default function DriverForm({ driver, onClose, onSaved }) {
         phone: form.phone || null,
         passport: form.passport,
         license_no: form.license_no,
-        license_expires: form.license_expires || null,
+        pinfl: form.pinfl,
         login: form.login,
       };
       if (form.password) body.password = form.password;
@@ -69,8 +69,18 @@ export default function DriverForm({ driver, onClose, onSaved }) {
             <input id="df-license" className="field__input" value={form.license_no} onChange={set('license_no')} placeholder="AF 1234567" />
           </div>
           <div className="field">
-            <label className="field__label" htmlFor="df-license-date">ВУ действует до</label>
-            <input id="df-license-date" className="field__input" type="date" value={form.license_expires} onChange={set('license_expires')} />
+            <label className="field__label" htmlFor="df-pinfl">ПИНФЛ</label>
+            <input
+              id="df-pinfl"
+              className="field__input"
+              inputMode="numeric"
+              value={form.pinfl}
+              onChange={(e) => setForm({ ...form, pinfl: e.target.value.replace(/\D/g, '').slice(0, 14) })}
+              placeholder="14 цифр"
+              maxLength={14}
+              pattern="\d{14}"
+              title="ПИНФЛ — 14 цифр"
+            />
           </div>
           <div className="field">
             <label className="field__label" htmlFor="df-login">Логин *</label>

@@ -71,6 +71,7 @@ CREATE TABLE IF NOT EXISTS drivers (
   passport TEXT,
   license_no TEXT,
   license_expires TEXT,
+  pinfl TEXT,
   status TEXT NOT NULL DEFAULT 'FREE',
   branch_id INTEGER,
   archived_at TEXT,
@@ -197,9 +198,31 @@ CREATE TABLE IF NOT EXISTS driver_waitlist (
   closed_at TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_driver_waitlist_status ON driver_waitlist (status, created_at);
+CREATE TABLE IF NOT EXISTS driver_charges (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  driver_id INTEGER NOT NULL,
+  car_id INTEGER,
+  kind TEXT NOT NULL,
+  amount INTEGER NOT NULL,
+  day TEXT NOT NULL,
+  comment TEXT,
+  created_by INTEGER,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_driver_charges_driver ON driver_charges (driver_id);
+CREATE TABLE IF NOT EXISTS driver_charge_payments (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  charge_id INTEGER NOT NULL,
+  amount INTEGER NOT NULL,
+  method TEXT NOT NULL,
+  day TEXT NOT NULL,
+  created_by INTEGER,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_driver_charge_payments_charge ON driver_charge_payments (charge_id);
 `;
 
-export const SCHEMA_VERSION = 3;
+export const SCHEMA_VERSION = 4;
 
 export const SCHEMA_V2_COLUMNS = {
   cars: {
@@ -212,6 +235,7 @@ export const SCHEMA_V2_COLUMNS = {
   },
   drivers: {
     deposit: 'INTEGER NOT NULL DEFAULT 0',
+    pinfl: 'TEXT',
   },
   service_records: {
     due_mileage: 'INTEGER',
@@ -252,6 +276,7 @@ CREATE INDEX IF NOT EXISTS idx_car_tx_status ON car_transactions (status);
 CREATE TABLE IF NOT EXISTS car_days_off (
   car_id INTEGER NOT NULL,
   day TEXT NOT NULL,
+  reason TEXT,
   created_by INTEGER,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   PRIMARY KEY (car_id, day)

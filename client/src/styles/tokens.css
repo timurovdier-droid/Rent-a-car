@@ -20,7 +20,7 @@
   --plate-bg: #FFFFFF;
   --plate-ink: #21201F;
   --plate-strip: #21201F;
-  --font-ui: "Manrope Variable", system-ui, "Segoe UI", Roboto, sans-serif;
+  --font-ui: "Noto Sans Variable", "Noto Sans", system-ui, "Segoe UI", Roboto, sans-serif;
   --font-plate: "Arial Narrow", "Roboto Condensed", sans-serif;
   --fs-s: .8125rem;
   --fs-m: .875rem;
@@ -45,7 +45,8 @@ body {
   min-height: 100%;
   background: var(--c-bg);
   color: var(--c-ink);
-  font: 500 var(--fs-m) / 1.5 var(--font-ui);
+  font: 400 var(--fs-m) / 1.55 var(--font-ui);
+  font-optical-sizing: auto;
   -webkit-text-size-adjust: 100%;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -53,7 +54,7 @@ body {
 }
 
 button, input, select, textarea { font-family: inherit; }
-b, strong, th { font-weight: 700; }
-h1, h2, h3, h4 { font-weight: 700; letter-spacing: -.02em; }
+b, strong, th { font-weight: 600; }
+h1, h2, h3, h4 { font-weight: 700; letter-spacing: -.015em; line-height: 1.25; }
 
 :focus-visible { outline: 2px solid var(--c-focus); outline-offset: 2px; }

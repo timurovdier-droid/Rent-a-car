@@ -1,4 +1,4 @@
-# Bilimlar bazasi: RENT A CAR GTA
+# Bilimlar bazasi: Rent a car
 
 Sayt: https://qween-fawn.vercel.app
 
@@ -34,12 +34,11 @@ Avtopark hisobini yuritish uchun sayt: qaysi mashina kimda, haydovchi ijara uchu
 
 ## 1. Sayt qanday tuzilgan
 
-- **Chap tomonda menyu** (telefonda u chap yuqori burchakdagi uch chiziqli tugma bilan ochiladi). Menyu bandlari rolga bogʻliq.
-- **Menyu pastida:**
-  - **RU / UZ** til almashtirgichi;
-  - **«Tungi rejim» / «Kunduzgi rejim»** tugmasi;
-  - **«Chiqish»** tugmasi.
-- **Menyu bandlari ustida** — ismingiz va rolingiz. Bosilsa **«Mening profilim»** ochiladi. Telefonda profilga oʻng yuqori burchakdagi bosh harfli sariq doira ham olib boradi.
+- **Yuqorida** butun kenglikdagi panel:
+  - chapda logotip va **Rent a car** nomi (bosilsa — bosh sahifa) hamda ochiq boʻlim nomi;
+  - oʻngda **RU / UZ** til almashtirgichi, tungi / kunduzgi rejim tugmasi, ismingiz va rolingiz (bosilsa **«Mening profilim»** ochiladi) va **«Chiqish»** tugmasi.
+- **Chap tomonda menyu** — sayt boʻlimlari. Menyu bandlari rolga bogʻliq.
+- **Telefonda** menyu chap yuqori burchakdagi uch chiziqli tugma bilan ochiladi. Til, tungi rejim va «Chiqish» shu menyuning pastida, profilga esa oʻng yuqori burchakdagi bosh harfli sariq doira olib boradi.
 - **Oynalar** (qoʻshish va tahrirlash shakllari) «×» belgisi, Esc tugmasi yoki oynadan tashqariga bosish bilan yopiladi.
 - **Asosiy obyekt — mashina.** Mashinaga oid barcha pul maʼlumotlari uning kartochkasida yoziladi:
   - daromad va xarajatlar;
@@ -51,12 +50,13 @@ Avtopark hisobini yuritish uchun sayt: qaysi mashina kimda, haydovchi ijara uchu
 
 ![Sayt menyusi](/kb/uz/02-menu.jpg)
 
-1. **Ismingiz va rolingiz.** Bosing — «Mening profilim» ochiladi (parolni almashtirish).
-2. **Sayt boʻlimlari.** Chapdagi sariq chiziq hozir qayerda ekaningizni koʻrsatadi.
-3. **«Yordam»** — shu bilimlar bazasi.
-4. **Til** — rus yoki oʻzbek.
-5. **Tungi rejim** — qorongʻi koʻrinish.
-6. **«Chiqish»** — akkauntdan chiqish.
+1. **Rent a car logotipi.** Bosing — bosh sahifaga qaytasiz.
+2. **Ismingiz va rolingiz.** Bosing — «Mening profilim» ochiladi (parolni almashtirish).
+3. **Sayt boʻlimlari.** Chapdagi sariq chiziq hozir qayerda ekaningizni koʻrsatadi.
+4. **«Yordam»** — shu bilimlar bazasi.
+5. **Til** — rus yoki oʻzbek.
+6. **Tungi rejim** — qorongʻi koʻrinish.
+7. **«Chiqish»** — akkauntdan chiqish.
 
 **Telefonda** menyu yashirilgan:
 
@@ -131,7 +131,7 @@ Agar rolingizga ruxsat berilmagan boʻlim ochilsa, sayt bosh sahifaga yoʻnaltir
 - **Tasdiqlash.**
   - Dispetcher yozuvi avval **«Tasdiqlashni kutmoqda»** holatida boʻladi. Yakun va foydaga faqat administrator tasdiqlagandan keyin kiradi.
   - Kunlar boʻyicha jadvallarda bunday summalar «kutmoqda» belgisi bilan koʻrinadi.
-- **Naqd va «Karta / oʻtkazma».** Kunlar boʻyicha jadvallarda «Naqd»ga faqat «Naqd» usuli kiradi. Karta, oʻtkazma, Click, Payme, Uzum «Karta / oʻtkazma»ga hisoblanadi.
+- **Naqd va «Karta / balans».** Kunlar boʻyicha jadvallarda «Naqd»ga faqat «Naqd» usuli kiradi. Karta va balans «Karta / balans»ga hisoblanadi.
 - **Depozit (garov)** ijaraga hisoblanmaydi va kunlar boʻyicha jadvallarga kirmaydi.
 - **Davr uchun qarz** — tanlangan sanalar uchun hisoblangan summa minus toʻlangan summa. Agar koʻproq toʻlangan boʻlsa, **«Oldindan toʻlangan»** koʻrsatiladi.
 
@@ -222,6 +222,9 @@ Yangi parolga talablar: **kamida 10 ta belgi, harflar va raqamlar**. Maydonlar: 
 
 ### Mening profilim
 - **Koʻrsatadi:** F.I.Sh., login, telefon, rol, roʻyxatdan oʻtgan sana.
+- **Ism va telefon:**
+  - administrator oʻzinikini **«Ism va telefonni oʻzgartirish»** tugmasi bilan oʻzgartiradi;
+  - boshqalarniki administrator tomonidan oʻzgartiriladi: dispetcherniki — «Dispetcherlar» sahifasida (**«Tahrirlash»** tugmasi), haydovchiniki — uning kartochkasida («Maʼlumotlarni tahrirlash»), ijaraga beruvchiniki — uning kartochkasida (F.I.Sh. «Aloqa uchun shaxs» maydonidan, u boʻsh boʻlsa — nomidan olinadi).
 - **«Parolni almashtirish» bloki:**
   - «Joriy parol», «Yangi parol», «Parolni tasdiqlash» maydonlari;
   - **«Parolni almashtirish»** tugmasi.
@@ -367,6 +370,7 @@ Ijaraga beruvchida boʻlim «Mening avtomobillarim» deb ataladi.
 - **Koʻrsatadi:** surat, raqam, marka, holat.
 - **Belgilar:** joriy haydovchi, «Xizmat koʻrsatish vaqti keldi», «Sugʻurta/Texnik koʻrik tez orada/muddati oʻtgan».
 - **Tugmalar:**
+  - **«Turib qolish»** (administrator, dispetcher) — mashina taʼmirda yoki haydovchi uni bir kunga qoldirdi. Sababni («Taʼmirda», «Haydovchi mashinani qoldirdi», «Boshqa») va «Dan» / «Gacha» sanalarini tanlang. Bu kunlarda ijara hisoblanmaydi. Turib qolishni «Dam olish kunlari» yorligʻida olib tashlash mumkin;
   - **«Maʼlumotlarni tahrirlash»** (administrator, dispetcher) — mashina shakli;
   - **«Arxivga»** (administrator) — mashinani ishdan olish, uni qaytarish mumkin;
   - **«Oʻchirish»** (administrator) — butun tarixi bilan butunlay oʻchirish.
@@ -379,6 +383,8 @@ Ijaraga beruvchida boʻlim «Mening avtomobillarim» deb ataladi.
 | Dispetcher | Hisoblangan (necha kunlik ijara uchun), Olingan, Qarz yoki Ortiqcha toʻlov |
 | Administrator | Shular, yana Xarajatlar va Foyda |
 | Ijaraga beruvchi | Daromad, Xarajatlar, Foyda |
+
+**«Qarz» plitkasi bosiladi:** «Kim va qaysi kunlar uchun qarzdor» oynasi ochiladi — sana, haydovchi, kunlik hisoblangan summa va hali yopilmagan qismi. Toʻlovlar eng eski kunlarni birinchi yopadi.
 
 Tasdiqlanmagan yozuvlar boʻlsa, administrator **«Hammasini tasdiqlash»** tugmali **«Tasdiqlashni kutmoqda: N»** sariq panelini koʻradi.
 
@@ -411,7 +417,7 @@ Tasdiqlanmagan yozuvlar boʻlsa, administrator **«Hammasini tasdiqlash»** tugm
 | **«+ Daromad» / «− Xarajat»** | Yozuv turi |
 | **Summa** | Majburiy |
 | **Nima uchun / Nimaga** | Toifa (ijara, depozit, benzin, taʼmir va h.k.) |
-| **Usul** | Naqd, Karta, Oʻtkazma, Click, Payme, Uzum |
+| **Usul** | Naqd, Karta, Balans |
 | **Sana** | Odatda bugun |
 | **Izoh** | Ixtiyoriy |
 | **«Yozib qoʻyish»** | Yozuvni saqlaydi |
@@ -449,9 +455,9 @@ Administratorning yozuvi darhol tasdiqlanadi. Dispetcherning yozuvi administrato
 Tanlangan davrning har bir kuni boʻyicha jadval.
 - **Ustunlar:**
   - Sana, Haydovchi, Hisoblangan;
-  - Naqd, Karta / oʻtkazma;
+  - Naqd, Karta / balans;
   - Kunlik qarz, Holat.
-- **Yuqorida yakunlar:** Hisoblangan, Naqd, Karta / oʻtkazma, Davr uchun qarz (yoki «Oldindan toʻlangan»).
+- **Yuqorida yakunlar:** Hisoblangan, Naqd, Karta / balans, Davr uchun qarz (yoki «Oldindan toʻlangan»).
 - **«Excelga yuklab olish» tugmasi.**
 
 ![Kunlar boʻyicha hisobot](/kb/uz/11-car-days.jpg)
@@ -472,10 +478,14 @@ Tanlangan davrning har bir kuni boʻyicha jadval.
 - **«Mashinani qabul qilish»** oynani ochadi, unda **topshirish sanasi** va **topshirishdagi probeg**ni koʻrsatish kerak.
 - Topshirishdagi probeg berishdagidan kam boʻlishi mumkin emas.
 - Shundan keyin mashina ham, haydovchi ham boʻsh boʻladi.
+- **«Mashinadan olib tashlash»** — haydovchi mashinaga xato yozilgan boʻlsa. Berish butunlay oʻchiriladi, bu kunlar uchun ijara hisoblanmaydi, mashina va haydovchi yana boʻsh.
 
 **«Mashinada kim yurgan»** (barcha rollar):
 - Taqvim: haydovchi bilan boʻlgan kunlar yashil rangda. Kim yurganini koʻrish uchun kunga bosing.
 - **Barcha berishlar roʻyxati:** haydovchi, sanalar, necha kun, probeg, kim bergan.
+- **«Tarixdan oʻchirish»** (faqat administrator) — bitta berishni tarixdan olib tashlash. Bu kunlar uchun ijara endi hisoblanmaydi.
+
+Haydovchi tizimdan butunlay oʻchirilsa, uning mashinadagi kunlari uchun qarz ham olib tashlanadi.
 
 **Mashina boʻsh — beramiz:**
 
@@ -501,6 +511,7 @@ Tanlangan davrning har bir kuni boʻyicha jadval.
 
 1. **Strelkalar** — oylarni almashtirish.
 2. **Sariq kunlar** — dam olish kunlari: bu kunlarda ijara hisoblanmaydi.
+3. **Toʻq sariq kunlar** — turib qolish (taʼmir, haydovchi mashinani qoldirdi). Bosish dam olish kuni kabi uni olib tashlaydi.
 
 ### «Xizmat koʻrsatish» yorligʻi
 - **Rejalashtirilgan TXK:**
@@ -589,9 +600,10 @@ Boʻsh mashina boʻlmaganda mashina soʻragan haydovchilar shu yerga yoziladi.
 |---|---|
 | **Maʼlumotlar** | Telefon, pasport, guvohnoma, uning muddati, qachon qoʻshilgan |
 | **Haydovchi kabinetiga kirish** | Login va **«Parol oʻrnatish»** tugmasi. Oynada loginni oʻzgartirish mumkin, sayt vaqtinchalik parolni oʻzi oʻylab topadi (**«Boshqasi»** tugmasi — yangi variant). Saqlagandan keyin haydovchiga berish uchun sayt, login va parol koʻrsatiladi. Birinchi kirishda haydovchi parolni almashtiradi |
-| **Mashinalar** | Qaysi mashinalarda va qachon yurgan |
+| **Mashinalar** | Qaysi mashinalarda va qachon yurgan. **«Mashinani almashtirish»** tugmasi (haydovchi boʻsh boʻlsa **«Mashinani berish»**): boʻsh mashinani, almashtirish sanasini va ikkala mashina probegini tanlang. Eski mashina boʻsh boʻladi, u boʻyicha ijara almashtirish kunidan bir kun oldin tugaydi. Haydovchi birinchi mashinani olgan kuniyoq boshqasiga oʻtgan boʻlsa, bu kun faqat yangi mashina uchun hisoblanadi |
+| **Boshqa qarzlar** | Ijaradan tashqari qarzlar: taʼmir, shikast / YTH, jarima, boshqa. **«+ Qarz yozish»** — nima uchun, summa, sana, mashina, izoh. Har bir qarzda **«Toʻlovni qabul qilish»** tugmasi bor (qismlab ham mumkin: naqd, karta, balans; administrator depozitdan ushlab qolishi mumkin). Administrator qarzni oʻchirishi yoki toʻlovni bekor qilishi mumkin — depozitdan ushlangan summa qaytadi. Qarz haydovchilar roʻyxatida (qizil «Boshqa qarz» belgisi) va haydovchi kabinetida koʻrinadi |
 | **Depozit** | Depozit summasi. **«Depozitni oʻzgartirish»** — faqat administrator (yangi summa va sabab). Pastda oʻzgarishlar tarixi |
-| **Ijara taqvimi** | Katta taqvim: ijara qaysi sanagacha yopilgan, qaysi kundan qarz, qancha yopish kerak (4-boʻlimga qarang) |
+| **Ijara taqvimi** | Katta taqvim: ijara qaysi sanagacha yopilgan, qaysi kundan qarz, qancha yopish kerak (4-boʻlimga qarang). **«Yopish kerak»** plitkasi bosiladi — qaysi kunlar va qaysi mashina boʻyicha qarz borligini koʻrsatadi |
 | **Kunlar boʻyicha toʻlovlar va qarz** | **«Berdi»** tugmali kunlar boʻyicha jadval (12-boʻlimga qarang) |
 
 ![Haydovchi kartochkasi](/kb/uz/17-driver-card.jpg)
@@ -616,7 +628,7 @@ Administrator va dispetcher. Har kungi belgilash uchun asosiy sahifa: haydovchi 
 ### Barcha haydovchilar
 - **Ustunlar:**
   - Haydovchi, Mashina, Hisoblangan;
-  - Naqd, Karta / oʻtkazma;
+  - Naqd, Karta / balans;
   - **Davr uchun qarz**, **Qarzli kunlar**.
 - **Tartib:** qarzli haydovchilar qizil rangda va birinchi turadi.
 - **Haydovchiga bosish** uning kunlarini ochadi.
@@ -639,9 +651,9 @@ Administrator va dispetcher. Har kungi belgilash uchun asosiy sahifa: haydovchi 
 ### «Pul berdi» oynasi
 - **Koʻrsatadi:** kun uchun qancha kerak, qancha allaqachon olingan va qancha yetishmaydi.
 - **Maydonlar:**
-  - **«Naqd»** va **«Karta orqali»** — ikkalasini ham toʻldirish mumkin;
+  - **«Naqd»**, **«Karta orqali»** va **«Balansdan»** — bir nechtasini toʻldirish mumkin;
   - izoh.
-- **Tezkor tugmalar:** «Hammasi naqd» va «Hammasi karta orqali» yetishmayotgan summani qoʻyadi.
+- **Tezkor tugmalar:** «Hammasi naqd», «Hammasi karta orqali» va «Hammasi balansdan» yetishmayotgan summani qoʻyadi.
 - **Summa keragidan kam boʻlsa,** sayt ogohlantiradi: holat **«Toʻliq toʻlamadi»** boʻladi.
 - **«Yozib qoʻyish»** toʻlovni shu kun uchun mashina boʻyicha «Ijara» daromadi sifatida saqlaydi.
   - Dispetcherda yozuv administratorga tasdiqlash uchun ketadi.
@@ -657,9 +669,10 @@ Administrator va dispetcher. Har kungi belgilash uchun asosiy sahifa: haydovchi 
 Yuqorida kun uchun qancha kerakligi, qancha allaqachon olingani va qancha yetishmasligi koʻrinadi.
 
 1. **«Naqd»** — naqd summa.
-2. **«Karta orqali»** — karta yoki oʻtkazma orqali summa. Ikkala maydonni ham toʻldirish mumkin.
-3. **«Hammasi naqd» / «Hammasi karta orqali»** — yetishmayotgan summani bir bosishda qoʻyish.
-4. **«Yozib qoʻyish».**
+2. **«Karta orqali»** — karta orqali summa.
+3. **«Balansdan»** — haydovchi balansidan yechilgan summa. Bir nechta maydonni birdan toʻldirish mumkin.
+4. **«Hammasi naqd» / «Hammasi karta orqali» / «Hammasi balansdan»** — yetishmayotgan summani bir bosishda qoʻyish.
+5. **«Yozib qoʻyish».**
 
 ---
 
@@ -834,7 +847,7 @@ Kabinet haydovchining telefonida shunday koʻrinadi:
 3. Haydovchi, sana va probegni tanlang → **«Mashinani berish»**.
 
 ### Haydovchi pul olib keldi
-- **Tez usul:** **Haydovchilar hisoboti** → haydovchini tanlang → jadvalda kerakli kun yonida **«Berdi»** ni bosing. Qancha naqd va qancha karta orqali ekanini yozing → **«Yozib qoʻyish»**.
+- **Tez usul:** **Haydovchilar hisoboti** → haydovchini tanlang → jadvalda kerakli kun yonida **«Berdi»** ni bosing. Qancha naqd, karta orqali yoki balansdan ekanini yozing → **«Yozib qoʻyish»**.
 - **Yoki mashina orqali:** mashinani oching → **«Hisobot»** yorligʻi → «+ Daromad», «Ijara» toifasi, summa, usul, sana → **«Yozib qoʻyish»**.
 
 ### Kim qancha qarzdorligini koʻrish
@@ -848,6 +861,7 @@ Kabinet haydovchining telefonida shunday koʻrinadi:
 
 ### Mashina ishlamaganini belgilash
 - Mashina → **«Dam olish kunlari»** yorligʻi → kunlarga bosing → **«Saqlash»**. Bu kunlarda ijara hisoblanmaydi.
+- Mashina taʼmirda yoki haydovchi uni qoldirgan boʻlsa — mashina kartochkasi yuqorisidagi **«Turib qolish»** tugmasi.
 
 ### Ijara narxini oʻzgartirish (administrator)
 - Mashina → **«Hisobot»** yorligʻi → «Ijara narxi» paneli.
@@ -883,8 +897,8 @@ Ijara, Depozit, Boshqa daromad.
 Benzin / gaz, Taʼmir va ehtiyot qismlar, TXK, Jarimalar, Yuvish, Sugʻurta / hujjatlar, Boshqa.
 
 ### Toʻlov usullari
-Naqd, Karta, Oʻtkazma, Click, Payme, Uzum.
-Kunlar boʻyicha jadvallarda «Naqd» — alohida, qolgan hammasi — «Karta / oʻtkazma».
+Naqd, Karta, Balans. Oʻtkazma, Click, Payme va Uzum bilan qilingan eski yozuvlar tarixda oʻz nomi bilan qoladi.
+Kunlar boʻyicha jadvallarda «Naqd» — alohida, qolgan hammasi — «Karta / balans».
 
 ### Xizmat koʻrsatish turlari
 Moy almashtirish, Taʼmir, Texnik koʻrik, Sugʻurta, Shinalar, Boshqa.

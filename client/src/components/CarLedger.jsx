@@ -27,7 +27,7 @@ export function LedgerSummary({ totals }) {
         <b>{fmtMoney(totals.cash)}</b>
       </div>
       <div className="ledger-sum__item">
-        <span className="ledger-sum__label">Карта / перевод</span>
+        <span className="ledger-sum__label">Карта / баланс</span>
         <b>{fmtMoney(totals.transfer)}</b>
       </div>
       {totals.overpaid > 0 ? (
@@ -47,7 +47,7 @@ export function LedgerSummary({ totals }) {
 }
 
 export function dayStatus(r) {
-  if (r.day_off) return { key: 'off', label: 'Выходной' };
+  if (r.day_off) return { key: 'off', label: r.idle ? 'Простой' : 'Выходной' };
   if (!r.accrued && !r.paid) return { key: 'none', label: '—' };
   if (r.paid >= r.accrued) return { key: 'paid', label: 'Оплачено' };
   if (r.pending > 0 && r.paid + r.pending >= r.accrued) return { key: 'wait', label: 'Ждёт подтверждения' };
@@ -76,7 +76,7 @@ export function LedgerTable({ ledger, showDriver = true, showCar = false, onPay 
             {showCar && <th className="table__th">Машина</th>}
             <th className="table__th table__num">Начислено</th>
             <th className="table__th table__num">Наличные</th>
-            <th className="table__th table__num">Карта / перевод</th>
+            <th className="table__th table__num">Карта / баланс</th>
             <th className="table__th table__num">Долг за день</th>
             <th className="table__th">Статус</th>
             {onPay && <th className="table__th" aria-label="Действие" />}
@@ -97,7 +97,7 @@ export function LedgerTable({ ledger, showDriver = true, showCar = false, onPay 
                 </td>
               )}
               <td className="table__td table__num">
-                {r.day_off ? <span className="ledger__tag">выходной</span> : <Money value={r.accrued} />}
+                {r.day_off ? <span className="ledger__tag">{r.idle ? 'простой' : 'выходной'}</span> : <Money value={r.accrued} />}
               </td>
               <td className="table__td table__num"><Money value={r.cash} /></td>
               <td className="table__td table__num">
@@ -139,9 +139,9 @@ export function LedgerTable({ ledger, showDriver = true, showCar = false, onPay 
 
 export function exportLedger(ledger, name) {
   downloadCsv(`${name}_${ledger.from}_${ledger.to}.csv`,
-    ['Дата', 'Водитель', 'Машина', 'Выходной', 'Начислено', 'Наличные', 'Карта / перевод', 'Ждёт подтверждения', 'Долг за день', 'Статус'],
+    ['Дата', 'Водитель', 'Машина', 'Выходной / простой', 'Начислено', 'Наличные', 'Карта / баланс', 'Ждёт подтверждения', 'Долг за день', 'Статус'],
     ledger.rows.map((r) => [
-      fmtDay(r.day), r.driver_name || '', r.plate || ledger.car?.plate || '', r.day_off ? 'да' : '',
+      fmtDay(r.day), r.driver_name || '', r.plate || ledger.car?.plate || '', r.day_off ? (r.idle ? 'простой' : 'выходной') : '',
       r.accrued, r.cash, r.transfer, r.pending, r.debt, dayStatus(r).label,
     ]));
 }

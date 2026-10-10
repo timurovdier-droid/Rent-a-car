@@ -6,7 +6,8 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 
 export const INCOME_CATEGORIES = ['RENT', 'DEPOSIT', 'OTHER_INCOME'];
 export const EXPENSE_CATEGORIES = ['FUEL', 'REPAIR', 'SERVICE', 'FINES', 'WASH', 'INSURANCE', 'OTHER'];
-export const PAY_METHODS = ['CASH', 'CARD', 'TRANSFER', 'CLICK', 'PAYME', 'UZUM'];
+// TRANSFER, CLICK, PAYME, UZUM — старые способы: новые записи ими не создаются, но старые можно править.
+export const PAY_METHODS = ['CASH', 'CARD', 'BALANCE', 'TRANSFER', 'CLICK', 'PAYME', 'UZUM'];
 
 function parseTimestamp(ts) {
   if (!ts) return null;
@@ -58,8 +59,18 @@ export async function loadAccrualInputs(db, carIds) {
   const ids = [...new Set(carIds.map(Number))].filter(Boolean);
   if (!ids.length) return { ids, assignments: [], rates: [], daysOff: [] };
   const list = placeholders(ids);
+  // Выдачи удалённых водителей не начисляются: их долг пропадает вместе с водителем.
+  // handed_over: в тот же день водитель взял другую выдачу — этот день начисляется только по новой.
   const { rows: assignments } = await db.query(
-    `SELECT car_id, start_at, end_at FROM car_assignments WHERE car_id IN (${list})`,
+    `SELECT ca.car_id, ca.start_at, ca.end_at,
+            CASE WHEN ca.end_at IS NOT NULL AND EXISTS (
+              SELECT 1 FROM car_assignments n
+              WHERE n.driver_id = ca.driver_id AND n.id <> ca.id AND n.start_at >= ca.end_at
+                AND date(n.start_at, '+5 hours') = date(ca.end_at, '+5 hours')
+            ) THEN 1 ELSE 0 END AS handed_over
+     FROM car_assignments ca
+     JOIN drivers d ON d.id = ca.driver_id
+     WHERE ca.car_id IN (${list})`,
     ids
   );
   const { rows: rates } = await db.query(
@@ -68,7 +79,7 @@ export async function loadAccrualInputs(db, carIds) {
     ids
   );
   const { rows: daysOff } = await db.query(
-    `SELECT car_id, day FROM car_days_off WHERE car_id IN (${list})`,
+    `SELECT car_id, day, reason FROM car_days_off WHERE car_id IN (${list})`,
     ids
   );
   return { ids, assignments, rates, daysOff };
@@ -99,6 +110,7 @@ export function computeAccruals(inputs, { from = null, to = null } = {}) {
       let start = localDay(a.start_at);
       let end = a.end_at ? localDay(a.end_at) : today;
       if (!start) continue;
+      if (Number(a.handed_over)) end = addDays(end, -1);
       if (from && start < from) start = from;
       if (end > upper) end = upper;
       for (const day of daysBetween(start, end)) days.add(day);
@@ -130,7 +142,7 @@ export async function carDailyLedger(db, carId, from, to, { driverId = null } = 
   const inputs = await loadAccrualInputs(db, [id]);
   const accrual = computeAccruals(inputs, { from, to: upper }).get(id) || { days: [] };
   const rateByDay = new Map(accrual.days.map((d) => [d.day, d.rate]));
-  const offDays = new Set(inputs.daysOff.map((r) => r.day));
+  const offDays = new Map(inputs.daysOff.map((r) => [r.day, r.reason || null]));
 
   const { rows: assigns } = await db.query(
     `SELECT ca.driver_id, ca.start_at, ca.end_at, u.full_name AS driver_name
@@ -186,6 +198,7 @@ export async function carDailyLedger(db, carId, from, to, { driverId = null } = 
       driver_id: driver?.driver_id ?? null,
       driver_name: driver?.driver_name ?? null,
       day_off: offDays.has(day),
+      idle: offDays.get(day) || null,
       accrued,
       cash,
       transfer,
@@ -196,6 +209,36 @@ export async function carDailyLedger(db, carId, from, to, { driverId = null } = 
   }
 
   return { from, to: upper, rows, totals: ledgerTotals(rows) };
+}
+
+// Незакрытые дни машины: кто из водителей должен и за какое число. Оплаты гасят самые старые дни первыми.
+export async function carDebtDays(db, carId) {
+  const id = Number(carId);
+  const today = localToday();
+  const { rows: first } = await db.query(
+    `SELECT MIN(ca.start_at) AS start_at FROM car_assignments ca
+     JOIN drivers d ON d.id = ca.driver_id WHERE ca.car_id = $1`,
+    [id]
+  );
+  const firstDay = localDay(first[0]?.start_at);
+  if (!firstDay) return { debt: 0, pending: 0, days: [] };
+  const ledger = await carDailyLedger(db, id, firstDay > today ? today : firstDay, today);
+  let pool = ledger.totals.paid;
+  const days = [];
+  for (const row of ledger.rows) {
+    if (!row.accrued) continue;
+    const cover = Math.min(pool, row.accrued);
+    pool -= cover;
+    const left = row.accrued - cover;
+    if (left > 0) {
+      days.push({
+        day: row.day, driver_id: row.driver_id, driver_name: row.driver_name,
+        accrued: row.accrued, paid: cover, left,
+      });
+    }
+  }
+  days.reverse();
+  return { debt: days.reduce((s, d) => s + d.left, 0), pending: ledger.totals.pending, days };
 }
 
 export function ledgerTotals(rows) {
@@ -234,6 +277,7 @@ export async function rentStatus(db, driverId) {
     d.paid += r.paid;
     d.pending += r.pending;
     d.day_off = d.day_off && r.day_off;
+    d.idle = d.idle || r.idle;
     if (r.plate && !d.plates.includes(r.plate)) d.plates.push(r.plate);
     byDay.set(r.day, d);
   }
@@ -294,8 +338,8 @@ export async function rentStatus(db, driverId) {
     paid_through: paidThrough,
     debt_from: debtFrom,
     ahead_until: aheadDays ? addDays(today, aheadDays) : null,
-    days: days.map(({ day, accrued, paid, pending: wait, covered, left, status, plates }) => ({
-      day, accrued, paid, pending: wait, covered, left, status, plates,
+    days: days.map(({ day, accrued, paid, pending: wait, covered, left, status, plates, idle }) => ({
+      day, accrued, paid, pending: wait, covered, left, status, plates, idle: status === 'off' ? idle || null : null,
     })),
   };
 }

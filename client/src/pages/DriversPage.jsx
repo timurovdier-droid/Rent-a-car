@@ -132,6 +132,7 @@ export default function DriversPage() {
                       ? <span className="badge badge--wait">На машине {d.car_plate}</span>
                       : <span className="badge badge--muted">{archived ? 'В архиве' : 'Свободен'}</span>}
                     {licenseBadge(d.license_expires)}
+                    {Number(d.other_debt) > 0 && <span className="badge badge--danger">Прочий долг {fmtMoney(d.other_debt)}</span>}
                   </div>
                   <dl className="person__facts">
                     <div><dt>Депозит</dt><dd>{fmtMoney(d.deposit)} сум</dd></div>

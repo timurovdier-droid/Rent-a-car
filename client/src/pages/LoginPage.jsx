@@ -4,6 +4,7 @@ import { api, ApiError } from '../api';
 import { useAuth } from '../auth';
 import ThemeToggle from '../components/ThemeToggle';
 import LangToggle from '../components/LangToggle';
+import { Brand } from '../components/Layout';
 
 export default function LoginPage() {
   const [login, setLogin] = useState('');
@@ -41,15 +42,15 @@ export default function LoginPage() {
   return (
     <main className="login">
       <div className="login__corner">
-        <img src="/logo.png" alt="GTA" className="brand-logo" width="84" height="22" />
         <div className="login__tools">
           <LangToggle className="lang-toggle--compact" />
           <ThemeToggle className="theme-toggle--icon" />
         </div>
       </div>
       <div className="login__card">
-      <h1 className="page-title">RENT A CAR GTA</h1>
-      <p className="page-sub">Введите логин и пароль</p>
+      <div className="login__brand"><Brand big /></div>
+      <h1 className="page-title login__title">Вход в систему</h1>
+      <p className="page-sub login__sub">Введите логин и пароль</p>
 
       <form onSubmit={handleSubmit}>
         <div className="field">

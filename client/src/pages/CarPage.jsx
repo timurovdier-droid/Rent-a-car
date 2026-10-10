@@ -17,13 +17,136 @@ import {
 
 const errText = (err, fallback) => (err instanceof ApiError ? err.message : fallback);
 
-function Stat({ label, value, hint, tone, suffix = 'сум' }) {
-  return (
-    <div className={`stat ${tone ? `stat--${tone}` : ''}`}>
+function Stat({ label, value, hint, tone, suffix = 'сум', onClick }) {
+  const body = (
+    <>
       <div className="stat__label">{label}</div>
       <div className="stat__value">{fmtMoney(value)}{suffix && <small>{suffix}</small>}</div>
       {hint && <div className="stat__hint">{hint}</div>}
-    </div>
+    </>
+  );
+  const cls = `stat ${tone ? `stat--${tone}` : ''}`;
+  return onClick
+    ? <button type="button" className={`${cls} stat--link`} onClick={onClick}>{body}</button>
+    : <div className={cls}>{body}</div>;
+}
+
+const IDLE_REASONS = [
+  ['REPAIR', 'На ремонте'],
+  ['LEFT', 'Водитель оставил машину'],
+  ['OTHER', 'Другое'],
+];
+const IDLE_LABELS = Object.fromEntries(IDLE_REASONS);
+
+function DebtModal({ carId, onClose }) {
+  const [data, setData] = useState(null);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    api.get(`/cars/${carId}/debts`).then(setData).catch((err) => setError(errText(err, 'Не удалось загрузить долг')));
+  }, [carId]);
+
+  return (
+    <Modal title="Кто и за какие дни должен" onClose={onClose}>
+      {error && <div className="notice notice--error">{error}</div>}
+      {!data && !error && <div className="muted">Загрузка…</div>}
+      {data && (data.days.length === 0 ? (
+        <p className="muted" style={{ margin: 0 }}>Долгов нет: все дни оплачены.</p>
+      ) : (
+        <>
+          <p className="muted small" style={{ marginTop: 0 }}>
+            Оплаты закрывают самые старые дни первыми. Ниже — дни, которые ещё не закрыты.
+          </p>
+          <div className="table-wrap">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th className="table__th">Дата</th>
+                  <th className="table__th">Водитель</th>
+                  <th className="table__th table__num">За день</th>
+                  <th className="table__th table__num">Должен</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.days.map((d) => (
+                  <tr key={d.day} className="table__row">
+                    <td className="table__td">{fmtDay(d.day)}</td>
+                    <td className="table__td">
+                      {d.driver_id && d.driver_name
+                        ? <Link to={`/drivers/${d.driver_id}`}>{d.driver_name}</Link>
+                        : d.driver_name || '—'}
+                    </td>
+                    <td className="table__td table__num">{fmtMoney(d.accrued)}</td>
+                    <td className="table__td table__num ledger__debt">{fmtMoney(d.left)}</td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr>
+                  <td className="table__td" colSpan={3}><b>Итого долг</b></td>
+                  <td className="table__td table__num ledger__debt"><b>{fmtMoney(data.debt)} сум</b></td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+          {data.pending > 0 && <p className="muted small">{`Ещё ${fmtMoney(data.pending)} сум ждёт подтверждения и пока не учтено.`}</p>}
+        </>
+      ))}
+    </Modal>
+  );
+}
+
+function IdleModal({ car, today, onClose, onDone }) {
+  const [reason, setReason] = useState('REPAIR');
+  const [from, setFrom] = useState(today);
+  const [to, setTo] = useState(today);
+  const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  async function submit(e) {
+    e.preventDefault();
+    setSaving(true);
+    setError('');
+    try {
+      await api.post(`/cars/${car.id}/idle`, { reason, from, to: to < from ? from : to });
+      onDone();
+    } catch (err) {
+      setError(errText(err, 'Не удалось отметить простой'));
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Modal title="Простой машины" onClose={onClose}>
+      <form onSubmit={submit}>
+        <p className="muted" style={{ marginTop: 0 }}>
+          За дни простоя аренда не начисляется. Снять простой можно во вкладке «Выходные дни».
+        </p>
+        <div className="field">
+          <span className="field__label">Причина</span>
+          <div className="chips">
+            {IDLE_REASONS.map(([v, l]) => (
+              <button type="button" key={v} className={`chip ${reason === v ? 'chip--on' : ''}`} onClick={() => setReason(v)}>{l}</button>
+            ))}
+          </div>
+        </div>
+        <div className="form-grid">
+          <div className="field">
+            <label className="field__label" htmlFor="idle-from">С</label>
+            <input id="idle-from" className="field__input" type="date" value={from} onChange={(e) => setFrom(e.target.value)} required />
+          </div>
+          <div className="field">
+            <label className="field__label" htmlFor="idle-to">По</label>
+            <input id="idle-to" className="field__input" type="date" value={to} min={from} onChange={(e) => setTo(e.target.value)} required />
+          </div>
+        </div>
+        {error && <div className="notice notice--error">{error}</div>}
+        <div className="form-actions">
+          <button className="btn" type="submit" disabled={saving}>{saving ? 'Сохраняю…' : 'Отметить простой'}</button>
+          <button className="btn btn--quiet" type="button" onClick={onClose}>Отмена</button>
+        </div>
+      </form>
+    </Modal>
   );
 }
 
@@ -32,7 +155,7 @@ function DueBadge({ state, soon, overdue }) {
   return <span className={`badge ${state === 'OVERDUE' ? 'badge--danger' : 'badge--warn'}`}>{state === 'OVERDUE' ? overdue : soon}</span>;
 }
 
-function Summary({ role, s }) {
+function Summary({ role, s, onDebt }) {
   if (role === 'OWNER') {
     return (
       <div className="stats">
@@ -46,7 +169,13 @@ function Summary({ role, s }) {
     <div className="stats">
       <Stat label="Начислено" value={s.accrued} hint={`за ${s.accrued_days} дн. аренды`} />
       <Stat label="Получено" value={s.received} tone="ok" hint={s.pending ? `ещё ${fmtMoney(s.pending)} ждёт подтверждения` : 'подтверждено'} />
-      <Stat label={s.overpaid ? 'Переплата' : 'Долг'} value={s.overpaid || s.debt} tone={s.debt ? 'danger' : 'ok'} />
+      <Stat
+        label={s.overpaid ? 'Переплата' : 'Долг'}
+        value={s.overpaid || s.debt}
+        tone={s.debt ? 'danger' : 'ok'}
+        hint={s.debt ? 'нажмите — кто и за какие дни' : undefined}
+        onClick={s.debt ? onDebt : undefined}
+      />
       {role === 'ADMIN' && <Stat label="Расходы" value={s.expenses} />}
       {role === 'ADMIN' && <Stat label="Прибыль" value={s.profit} tone="accent" hint="доход − расходы" />}
     </div>
@@ -182,6 +311,9 @@ function EditTx({ carId, tx, onClose, onDone }) {
           <label className="field__label" htmlFor="etx-method">Способ</label>
           <select id="etx-method" className="field__input" value={method} onChange={(e) => setMethod(e.target.value)}>
             {PAY_METHODS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+            {!PAY_METHODS.some(([v]) => v === tx.method) && tx.method && (
+              <option value={tx.method}>{METHOD_LABELS[tx.method] || tx.method}</option>
+            )}
           </select>
         </div>
         <div className="field">
@@ -297,6 +429,20 @@ function DriverPanel({ hub, canWrite, onChanged }) {
     setMileage(car.mileage != null ? String(car.mileage) : '');
   }, [car.mileage]);
 
+  async function cancelAssignment() {
+    const text = `Убрать ${current.driver_name || 'водителя'} с машины ${car.plate}, как будто выдачи не было?\n\n`
+      + 'Используйте, если записали по ошибке. Аренда за эти дни не будет начислена, а запись пропадёт из истории. '
+      + 'Если водитель реально ездил и вернул машину — нажмите «Принять машину».';
+    if (!window.confirm(text)) return;
+    setError('');
+    try {
+      await api.delete(`/cars/${car.id}/assignments/${current.id}`);
+      onChanged();
+    } catch (err) {
+      setError(errText(err, 'Не удалось убрать водителя'));
+    }
+  }
+
   async function assign(e) {
     e.preventDefault();
     setSaving(true);
@@ -325,7 +471,12 @@ function DriverPanel({ hub, canWrite, onChanged }) {
               {current.driver_phone ? ` · ${current.driver_phone}` : ''}
             </div>
           </div>
-          {canWrite && <button className="btn btn--quiet btn--sm" onClick={() => setReleasing(true)}>Принять машину</button>}
+          {canWrite && (
+            <div className="driver-actions">
+              <button className="btn btn--quiet btn--sm" onClick={() => setReleasing(true)}>Принять машину</button>
+              <button className="btn btn--ghost btn--sm" onClick={cancelAssignment} title="Если записали водителя по ошибке">Убрать с машины</button>
+            </div>
+          )}
         </div>
       ) : canWrite ? (
         <form onSubmit={assign}>
@@ -354,6 +505,7 @@ function DriverPanel({ hub, canWrite, onChanged }) {
       ) : (
         <p className="muted">Сейчас без водителя</p>
       )}
+      {current && error && <div className="notice notice--error">{error}</div>}
 
       {releasing && current && (
         <ReleaseModal car={car} current={current} today={today} onClose={() => setReleasing(false)} onDone={() => { setReleasing(false); onChanged(); }} />
@@ -387,10 +539,29 @@ function DriverName({ a, linkDrivers }) {
     : <span className="dh__name">{name}</span>;
 }
 
-function DriverHistory({ hub, linkDrivers }) {
-  const { assignments, today } = hub;
+function DriverHistory({ hub, linkDrivers, canDelete = false, onChanged }) {
+  const { assignments, today, car } = hub;
   const [picked, setPicked] = useState(today);
   const [month, setMonth] = useState(today.slice(0, 7));
+  const [busy, setBusy] = useState(null);
+  const [error, setError] = useState('');
+
+  async function remove(a, from, to) {
+    const who = a.driver_name || 'Удалённый водитель';
+    const text = `Удалить из истории запись «${who}, ${fmtDay(from)} — ${a.end_at ? fmtDay(to) : 'по сей день'}»?\n\n`
+      + 'Аренда за эти дни больше не будет начисляться, долг за них пропадёт. Деньги, которые уже записаны, останутся.';
+    if (!window.confirm(text)) return;
+    setBusy(a.id);
+    setError('');
+    try {
+      await api.delete(`/cars/${car.id}/assignments/${a.id}`);
+      onChanged?.();
+    } catch (err) {
+      setError(errText(err, 'Не удалось удалить запись'));
+    } finally {
+      setBusy(null);
+    }
+  }
 
   const spans = useMemo(
     () => assignments.map((a) => ({ a, ...assignmentSpan(a, today) })),
@@ -434,6 +605,7 @@ function DriverHistory({ hub, linkDrivers }) {
       ) : (
         <>
           <div className="dh__sub">Все выдачи</div>
+          {error && <div className="notice notice--error">{error}</div>}
           <ol className="dh">
             {spans.map(({ a, from, to }) => {
               const days = daysBetween(from, to);
@@ -459,6 +631,16 @@ function DriverHistory({ hub, linkDrivers }) {
                     </div>
                     {a.note && <div className="dh__note">{a.note}</div>}
                   </button>
+                  {canDelete && (
+                    <button
+                      type="button"
+                      className="link-btn link-btn--danger dh__delete"
+                      disabled={busy === a.id}
+                      onClick={() => remove(a, from, to)}
+                    >
+                      Удалить из истории
+                    </button>
+                  )}
                 </li>
               );
             })}
@@ -584,6 +766,7 @@ function shortDays(list) {
 function DaysOffPanel({ hub, onChanged }) {
   const { car, days_off: saved, today } = hub;
   const savedSet = useMemo(() => new Set(saved), [saved]);
+  const idleMap = useMemo(() => new Map((hub.idle_days || []).map((d) => [d.day, d.reason])), [hub.idle_days]);
   const [month, setMonth] = useState(today.slice(0, 7));
   const [add, setAdd] = useState(() => new Set());
   const [remove, setRemove] = useState(() => new Set());
@@ -625,17 +808,20 @@ function DaysOffPanel({ hub, onChanged }) {
   const dayClass = (day) => {
     if (add.has(day)) return 'cal__day--on cal__day--new';
     if (remove.has(day)) return 'cal__day--removed';
+    if (idleMap.has(day)) return 'cal__day--on cal__day--idle';
     return savedSet.has(day) ? 'cal__day--on' : '';
   };
 
-  const upcoming = saved.filter((d) => d >= today && !remove.has(d));
+  const upcoming = saved.filter((d) => d >= today && !remove.has(d) && !idleMap.has(d));
+  const idleList = [...idleMap.keys()].filter((d) => d >= `${today.slice(0, 7)}-01` && !remove.has(d)).sort();
   const dirty = add.size > 0 || remove.size > 0;
 
   return (
     <div className="panel">
-      <h3 className="panel__title">Выходные (без начисления)</h3>
+      <h3 className="panel__title">Выходные и простой (без начисления)</h3>
       <p className="muted small" style={{ margin: '0 0 12px' }}>
-        Нажимайте на дни, когда машина не работает: например 1, 3, 6 и 21 число. Повторное нажатие снимает выходной.
+        Нажимайте на дни, когда машина не работает: например 1, 3, 6 и 21 число. Повторное нажатие снимает выходной или простой.
+        Простой (ремонт, водитель оставил машину) отмечается кнопкой «Простой» вверху и показан оранжевым.
       </p>
       <DayCalendar month={month} onMonth={setMonth} onPick={toggle} dayClass={dayClass} today={today} label="Выходные дни" />
 
@@ -652,6 +838,7 @@ function DaysOffPanel({ hub, onChanged }) {
       ) : (
         <p className="muted small" style={{ margin: '12px 0 0' }}>
           {upcoming.length ? `Ближайшие выходные: ${shortDays(upcoming.slice(0, 12))}${upcoming.length > 12 ? '…' : ''}` : 'Выходных впереди нет'}
+          {idleList.length > 0 && <><br />{`Простой: ${shortDays(idleList.slice(-12))}`}</>}
         </p>
       )}
     </div>
@@ -872,6 +1059,8 @@ export default function CarPage() {
   const [error, setError] = useState('');
   const [editing, setEditing] = useState(false);
   const [confirmingAll, setConfirmingAll] = useState(false);
+  const [debtOpen, setDebtOpen] = useState(false);
+  const [idleOpen, setIdleOpen] = useState(false);
   const [searchParams, setSearchParams] = useSearchParams();
   const tabParam = searchParams.get('tab') || 'report';
   const reportView = searchParams.get('view') === 'days' ? 'days' : 'ops';
@@ -938,6 +1127,7 @@ export default function CarPage() {
   const serviceDue = hub.services.find((s) => s.due === 'OVERDUE') || hub.services.find((s) => s.due);
   const dueCount = hub.services.filter((s) => s.due).length;
   const upcomingDaysOff = hub.days_off.filter((d) => d >= hub.today).length;
+  const idleToday = (hub.idle_days || []).find((d) => d.day === hub.today);
 
   const tabs = [
     { key: 'report', label: 'Отчёт', count: pending.length, alert: true },
@@ -970,6 +1160,7 @@ export default function CarPage() {
         </div>
         {canWrite && (
           <div className="form-actions">
+            <button className="btn btn--quiet" onClick={() => setIdleOpen(true)} title="Машина на ремонте или водитель оставил её — без начисления аренды">Простой</button>
             <button className="btn btn--quiet" onClick={() => setEditing(true)}>Изменить данные</button>
             {role === 'ADMIN' && <button className="btn btn--ghost" onClick={() => removeCar('archive')}>В архив</button>}
             {role === 'ADMIN' && <button className="btn btn--danger" onClick={() => removeCar('delete')}>Удалить</button>}
@@ -979,7 +1170,13 @@ export default function CarPage() {
 
       {error && <div className="notice notice--error">{error}</div>}
 
-      <Summary role={role} s={hub.summary} />
+      {idleToday && (
+        <div className="notice notice--idle">
+          {`Сегодня простой: ${IDLE_LABELS[idleToday.reason] || 'простой'}. Аренда за этот день не начисляется.`}
+        </div>
+      )}
+
+      <Summary role={role} s={hub.summary} onDebt={canWrite ? () => setDebtOpen(true) : undefined} />
 
       {role === 'ADMIN' && pending.length > 0 && (
         <div className="panel panel--yellow" style={{ marginTop: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
@@ -1058,7 +1255,7 @@ export default function CarPage() {
               )}
             </div>
             <div>
-              <DriverHistory hub={hub} linkDrivers={role !== 'OWNER'} />
+              <DriverHistory hub={hub} linkDrivers={role !== 'OWNER'} canDelete={role === 'ADMIN'} onChanged={load} />
             </div>
           </div>
         )}
@@ -1087,6 +1284,10 @@ export default function CarPage() {
 
       {editing && (
         <CarForm car={car} onClose={() => setEditing(false)} onSaved={() => { setEditing(false); load(); }} />
+      )}
+      {debtOpen && <DebtModal carId={car.id} onClose={() => setDebtOpen(false)} />}
+      {idleOpen && (
+        <IdleModal car={car} today={hub.today} onClose={() => setIdleOpen(false)} onDone={() => { setIdleOpen(false); load(); }} />
       )}
     </div>
   );

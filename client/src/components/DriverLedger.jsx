@@ -12,22 +12,30 @@ function PayDayModal({ row, driverName, isAdmin, onClose, onDone }) {
   const left = Math.max(row.accrued - row.paid - row.pending, 0);
   const [cash, setCash] = useState('');
   const [card, setCard] = useState('');
+  const [balance, setBalance] = useState('');
   const [comment, setComment] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
-  const total = (Number(cash) || 0) + (Number(card) || 0);
+  const total = (Number(cash) || 0) + (Number(card) || 0) + (Number(balance) || 0);
+
+  function payAll(setter) {
+    setCash('');
+    setCard('');
+    setBalance('');
+    setter(String(left));
+  }
 
   async function submit(e) {
     e.preventDefault();
     if (!total) {
-      setError('Впишите сумму: наличными, картой или обе');
+      setError('Впишите сумму: наличными, картой или с баланса');
       return;
     }
     setSaving(true);
     setError('');
     const note = [`Оплата за ${fmtDay(row.day)}`, driverName, comment.trim()].filter(Boolean).join(' · ');
     try {
-      for (const [method, amount] of [['CASH', cash], ['CARD', card]]) {
+      for (const [method, amount] of [['CASH', cash], ['CARD', card], ['BALANCE', balance]]) {
         if (Number(amount) > 0) {
           await api.post(`/cars/${row.car_id}/transactions`, {
             kind: 'INCOME', category: 'RENT', method, amount: Number(amount), tx_date: row.day, comment: note,
@@ -61,14 +69,21 @@ function PayDayModal({ row, driverName, isAdmin, onClose, onDone }) {
             <label className="field__label" htmlFor="pd-card">Картой</label>
             <MoneyInput id="pd-card" value={card} onChange={setCard} />
           </div>
+          <div className="field">
+            <label className="field__label" htmlFor="pd-balance">С баланса</label>
+            <MoneyInput id="pd-balance" value={balance} onChange={setBalance} />
+          </div>
         </div>
         {left > 0 && (
           <div className="chips">
-            <button type="button" className="chip" onClick={() => { setCash(String(left)); setCard(''); }}>
+            <button type="button" className="chip" onClick={() => payAll(setCash)}>
               {`Всё наличными: ${fmtMoney(left)}`}
             </button>
-            <button type="button" className="chip" onClick={() => { setCard(String(left)); setCash(''); }}>
+            <button type="button" className="chip" onClick={() => payAll(setCard)}>
               {`Всё картой: ${fmtMoney(left)}`}
+            </button>
+            <button type="button" className="chip" onClick={() => payAll(setBalance)}>
+              {`Всё с баланса: ${fmtMoney(left)}`}
             </button>
           </div>
         )}
@@ -130,7 +145,7 @@ export default function DriverLedger({ driverId, period: outerPeriod, showName =
           </div>
           <p className="muted small ledger-box__note">
             {canPay
-              ? 'Если водитель принёс деньги за день — нажмите «Дал» и впишите, сколько наличными и сколько картой.'
+              ? 'Если водитель принёс деньги за день — нажмите «Дал» и впишите, сколько наличными, картой или с баланса.'
               : 'Красным — дни, за которые водитель не заплатил полностью. В колонке «Долг за день» — сколько не хватило.'}
           </p>
           {ledger.rows.length === 0
@@ -190,7 +205,7 @@ export function DriverDebtList({ period, onPick }) {
               <th className="table__th">Машина</th>
               <th className="table__th table__num">Начислено</th>
               <th className="table__th table__num">Наличные</th>
-              <th className="table__th table__num">Карта / перевод</th>
+              <th className="table__th table__num">Карта / баланс</th>
               <th className="table__th table__num">Долг за период</th>
               <th className="table__th table__num">Дней с долгом</th>
             </tr>

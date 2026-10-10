@@ -57,7 +57,7 @@ export default function DriverReportPage() {
 
       {driverId && (
         <div style={{ marginBottom: 24 }}>
-          <DriverRentStatus driverId={driverId} version={version} />
+          <DriverRentStatus driverId={driverId} version={version} onChanged={() => setVersion((v) => v + 1)} />
         </div>
       )}
 
