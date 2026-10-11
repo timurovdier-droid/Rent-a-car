@@ -193,23 +193,29 @@ export function DriverDebtList({ period, onPick }) {
 
   const drivers = [...data.drivers].sort((a, b) => b.debt - a.debt);
   const debtors = drivers.filter((d) => d.debt > 0).length;
+  const accrued = sum('accrued');
+  const received = sum('cash') + sum('transfer');
+  const share = (part, whole) => (whole > 0 ? Math.min(100, Math.round((part / whole) * 100)) : 100);
 
   return (
     <div className="ledger-box">
-      <div className="dcard-sum">
-        <div className="dcard-sum__item">
-          <span className="dcard-sum__label">Начислено</span>
-          <b>{fmtMoney(sum('accrued'))} <small>сум</small></b>
+      <section className="dsum">
+        <div className="dsum__main">
+          <span className="dsum__label">Долг за период</span>
+          <span className={`dsum__value ${debtors ? 'dsum__value--debt' : ''}`}>
+            {fmtMoney(sum('debt'))}<span className="dsum__unit">сум</span>
+          </span>
+          <span className="dsum__note">
+            {debtors ? `${debtors} из ${drivers.length} водителей не доплатили` : 'Все водители рассчитались'}
+          </span>
         </div>
-        <div className="dcard-sum__item">
-          <span className="dcard-sum__label">Получено</span>
-          <b>{fmtMoney(sum('cash') + sum('transfer'))} <small>сум</small></b>
+        <div className="dsum__side">
+          <div className="dsum__row"><span>Начислено</span><b>{fmtMoney(accrued)}</b></div>
+          <div className="dsum__row"><span>Получено</span><b>{fmtMoney(received)}</b></div>
+          <div className="dbar" aria-hidden="true"><span style={{ width: `${share(received, accrued)}%` }} /></div>
+          <span className="dsum__pct">{`${share(received, accrued)}% собрано`}</span>
         </div>
-        <div className={`dcard-sum__item ${debtors ? 'dcard-sum__item--debt' : 'dcard-sum__item--ok'}`}>
-          <span className="dcard-sum__label">{debtors ? `Должны ${debtors} из ${drivers.length}` : 'Долгов нет'}</span>
-          <b>{fmtMoney(sum('debt'))} <small>сум</small></b>
-        </div>
-      </div>
+      </section>
 
       <div className="ledger-box__head">
         <p className="muted small ledger-box__note">Нажмите на карточку — откроются дни: когда и сколько водитель не доплатил.</p>
@@ -219,43 +225,41 @@ export function DriverDebtList({ period, onPick }) {
       <div className="dcards">
         {drivers.map((d) => {
           const debt = d.debt > 0;
+          const paid = d.cash + d.transfer;
           return (
-            <button
-              key={d.driver_id}
-              type="button"
-              className={`dcard ${debt ? 'dcard--debt' : 'dcard--ok'}`}
-              onClick={() => onPick(d.driver_id)}
-            >
+            <button key={d.driver_id} type="button" className="dcard" onClick={() => onPick(d.driver_id)}>
               <div className="dcard__head">
                 <div className="dcard__who">
-                  <b className="dcard__name">{d.full_name}</b>
-                  {d.phone && <span className="muted small">{d.phone}</span>}
+                  <span className="dcard__name">{d.full_name}</span>
+                  {d.phone && <span className="dcard__phone">{d.phone}</span>}
                 </div>
                 <div className="dcard__plates">
                   {d.cars.map((plate) => <Plate key={plate} value={plate} />)}
                 </div>
               </div>
 
-              <div className={`dcard__status ${debt ? 'dcard__status--debt' : 'dcard__status--ok'}`}>
+              <div className="dcard__money">
                 {debt ? (
                   <>
-                    <span className="dcard__status-label">Должен</span>
-                    <b className="dcard__status-sum">{fmtMoney(d.debt)} <small>сум</small></b>
-                    <span className="dcard__status-days">{`${d.debt_days} дн. с долгом`}</span>
+                    <span className="dcard__debt">−{fmtMoney(d.debt)}<span className="dcard__unit">сум</span></span>
+                    <span className="dcard__tag dcard__tag--debt">{`долг · ${d.debt_days} дн.`}</span>
                   </>
                 ) : (
                   <>
-                    <span className="dcard__status-label">Долгов нет</span>
-                    <b className="dcard__status-sum">✓ Всё оплачено</b>
+                    <span className="dcard__clear">Рассчитался</span>
+                    <span className="dcard__tag">без долга</span>
                   </>
                 )}
               </div>
 
-              <dl className="dcard__nums">
-                <div><dt>Начислено</dt><dd>{fmtMoney(d.accrued)}</dd></div>
-                <div><dt>Наличные</dt><dd>{fmtMoney(d.cash)}</dd></div>
-                <div><dt>Карта / баланс</dt><dd>{fmtMoney(d.transfer)}</dd></div>
-              </dl>
+              <div className={`dbar ${debt ? 'dbar--debt' : ''}`} aria-hidden="true">
+                <span style={{ width: `${share(paid, d.accrued)}%` }} />
+              </div>
+
+              <div className="dcard__foot">
+                <span>{`Получено ${fmtMoney(paid)} из ${fmtMoney(d.accrued)}`}</span>
+                <span className="dcard__split">{`нал. ${fmtMoney(d.cash)} · карта ${fmtMoney(d.transfer)}`}</span>
+              </div>
             </button>
           );
         })}
