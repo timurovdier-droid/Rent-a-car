@@ -1056,4 +1056,6 @@ button.rs-cell:hover { box-shadow: inset 0 0 0 2px var(--c-ink); }
   .table-wrap .table:not(.table--queue) td[data-label='']::before { content: none; }
   .table-wrap .table:not(.table--queue) td[data-label=''] { justify-content: flex-end; }
   .table-wrap .table:not(.table--queue) td:empty { display: none; }
+  .table-wrap .table:not(.table--queue) td:has(.btn) { flex-wrap: wrap; justify-content: flex-start; row-gap: 8px; }
+  .table-wrap .table:not(.table--queue) td:has(.btn)::before { flex-basis: 100%; max-width: none; }
 }
