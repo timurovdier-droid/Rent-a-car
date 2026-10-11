@@ -2,23 +2,25 @@ import { Router } from 'express';
 import { pool } from '../db.js';
 import { authenticate } from '../middleware/auth.js';
 import { localToday, addDays, getReminderSettings, serviceDue, documentDue } from '../carMoney.js';
-import { visibleCars, carMoney, dailySeries, monthStart } from '../fleetStats.js';
+import { visibleCars, carMoney, dailySeries, monthStart, filterCars, readPeriod } from '../fleetStats.js';
 
 const router = Router();
 
 router.use(authenticate);
 
 // Главная админа и диспетчера: сначала машины с метками, затем цифры и график за 14 дней.
-async function fleetOverview(user) {
+async function fleetOverview(user, query = {}) {
   const isAdmin = user.role === 'ADMIN';
   const today = localToday();
   const from14 = addDays(today, -13);
   const month = monthStart(today);
+  const period = isAdmin ? readPeriod(query, month) : { from: month, to: today };
   const reminders = await getReminderSettings(pool);
 
-  const cars = await visibleCars(pool, user);
+  const all = await visibleCars(pool, user);
+  const cars = isAdmin ? filterCars(all, query) : all;
   const ids = cars.map((c) => Number(c.id));
-  const money = await carMoney(pool, cars, { from: month, to: today });
+  const money = await carMoney(pool, cars, period);
 
   let services = [];
   if (ids.length) {
@@ -73,6 +75,8 @@ async function fleetOverview(user) {
       pending_count: total('pending_count'),
       cars_total: cars.length,
       cars_rented: rented,
+      from: period.from,
+      to: period.to,
     };
   } else {
     const { rows } = await pool.query(
@@ -128,7 +132,7 @@ router.get('/', async (req, res) => {
       res.json({ role: 'DRIVER', assignments, recentPayments });
     } 
     else if (role === 'DISPATCHER' || role === 'ADMIN') {
-      res.json(await fleetOverview(req.user));
+      res.json(await fleetOverview(req.user, req.query));
     } 
     else if (role === 'OWNER') {
       // Арендодатель: свои машины, доход, расходы и прибыль за месяц (только просмотр)

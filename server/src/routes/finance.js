@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { pool } from '../db.js';
 import { authenticate } from '../middleware/auth.js';
 import { requireRole } from '../middleware/rbac.js';
-import { visibleCars, carMoney, dailySeries, expensesByCategory, readPeriod } from '../fleetStats.js';
+import { visibleCars, carMoney, dailySeries, expensesByCategory, readPeriod, filterCars } from '../fleetStats.js';
 import { addDays, localToday } from '../carMoney.js';
 
 const router = Router();
@@ -32,7 +32,7 @@ router.get('/month', requireRole('ADMIN', 'OWNER'), async (req, res) => {
     const today = localToday();
     const month = /^\d{4}-(0[1-9]|1[0-2])$/.test(req.query.month || '') ? req.query.month : today.slice(0, 7);
     const { first, last } = monthBounds(month);
-    const cars = await visibleCars(pool, req.user);
+    const cars = filterCars(await visibleCars(pool, req.user), req.query);
     const ids = cars.map((c) => Number(c.id));
 
     const chart = await dailySeries(pool, ids, first, last);

@@ -5,8 +5,11 @@ import Plate from '../components/Plate';
 import BarChart from '../components/BarChart';
 import MonthFinance from '../components/MonthFinance';
 import PeriodFinance from '../components/PeriodFinance';
+import MonthRangePicker, { wholeMonth, rangeLabel } from '../components/MonthRangePicker';
+import Select from '../components/Select';
 import { alertWeight, CarAlertBadges } from '../components/CarAlerts';
-import { fmtMoney, fmtDay } from '../labels';
+import { useAuth } from '../auth';
+import { fmtMoney, fmtDay, todayLocal } from '../labels';
 
 function Stat({ label, value, hint, tone, plain = false }) {
   return (
@@ -65,10 +68,66 @@ function Attention({ cars }) {
   );
 }
 
-function FleetHome({ data }) {
+function SummaryFilters({ value, onChange }) {
+  const [owners, setOwners] = useState(null);
+  const [cars, setCars] = useState(null);
+
+  useEffect(() => {
+    api.get('/owners').then(setOwners).catch(() => setOwners([]));
+    api.get('/cars').then(setCars).catch(() => setCars([]));
+  }, []);
+
+  const ownerOptions = [
+    { value: '', label: 'Все владельцы' },
+    ...(owners || []).filter((o) => o.status !== 'ARCHIVED').map((o) => ({ value: String(o.id), label: o.name })),
+  ];
+  const carOptions = [
+    { value: '', label: value.owner ? 'Все машины владельца' : 'Все машины' },
+    ...(cars || [])
+      .filter((c) => !c.archived_at && (!value.owner || String(c.owner_id) === value.owner))
+      .map((c) => ({ value: String(c.id), label: c.plate, hint: `${c.brand} ${c.model}` })),
+  ];
+
+  return (
+    <div className="sum-filters">
+      <div className="field">
+        <span className="field__label">Дата или период</span>
+        <MonthRangePicker value={value.range} onChange={(range) => onChange({ ...value, range })} />
+      </div>
+      <div className="field">
+        <label className="field__label" htmlFor="sf-owner">Владелец</label>
+        <Select
+          id="sf-owner"
+          value={value.owner}
+          onChange={(owner) => onChange({ ...value, owner: String(owner || ''), car: '' })}
+          options={ownerOptions}
+          disabled={!owners}
+        />
+      </div>
+      <div className="field">
+        <label className="field__label" htmlFor="sf-car">Машина</label>
+        <Select
+          id="sf-car"
+          value={value.car}
+          onChange={(car) => onChange({ ...value, car: String(car || '') })}
+          options={carOptions}
+          disabled={!cars}
+        />
+      </div>
+      {(value.owner || value.car) && (
+        <button type="button" className="btn btn--quiet sum-filters__reset" onClick={() => onChange({ ...value, owner: '', car: '' })}>
+          Сбросить
+        </button>
+      )}
+    </div>
+  );
+}
+
+function FleetHome({ data, range, filter }) {
   const isAdmin = data.role === 'ADMIN';
   const s = data.stats;
   const chartTotal = data.chart.reduce((sum, d) => sum + d.income, 0);
+  const single = isAdmin && s.from === s.to;
 
   return (
     <>
@@ -79,7 +138,9 @@ function FleetHome({ data }) {
       <div className="stats">
         <Stat label="Машин в аренде" value={`${s.cars_rented} из ${s.cars_total}`} plain hint={`свободно ${s.cars_total - s.cars_rented}`} />
         <Stat label="Сегодня получено" value={s.today_income} tone="accent" />
-        <Stat label="Получено за месяц" value={s.month_income} tone="ok" hint="подтверждено" />
+        {isAdmin
+          ? <Stat label={single ? 'Получено за день' : 'Получено за период'} value={s.month_income} tone="ok" hint={rangeLabel(range)} />
+          : <Stat label="Получено за месяц" value={s.month_income} tone="ok" hint="подтверждено" />}
         <Stat label="Долг водителей" value={s.debt} tone={s.debt ? 'danger' : 'ok'} />
         <Stat
           label="Ждёт подтверждения"
@@ -91,7 +152,12 @@ function FleetHome({ data }) {
       {isAdmin ? (
         <>
           <div className="section-head"><h2>Финансы парка</h2></div>
-          <MonthFinance title="Финансовые показатели парка" subtitle="Подтверждённые доходы и расходы по всем машинам" />
+          <MonthFinance
+            title="Финансовые показатели парка"
+            subtitle={filter ? 'Подтверждённые доходы и расходы по выбранным машинам' : 'Подтверждённые доходы и расходы по всем машинам'}
+            range={range}
+            filter={filter}
+          />
         </>
       ) : (
         <>
@@ -163,21 +229,36 @@ function OwnerHome({ data }) {
 }
 
 export default function DashboardPage() {
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'ADMIN';
+  const [filters, setFilters] = useState(() => ({ range: wholeMonth(todayLocal().slice(0, 7)), owner: '', car: '' }));
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
 
+  const filter = `${filters.owner ? `&owner=${filters.owner}` : ''}${filters.car ? `&car=${filters.car}` : ''}`;
+  const query = isAdmin ? `?from=${filters.range.from}&to=${filters.range.to}${filter}` : '';
+
   const load = useCallback(() => {
-    api.get('/dashboard').then(setData).catch(() => setError('Не удалось загрузить данные'));
-  }, []);
+    setError('');
+    api.get(`/dashboard${query}`).then(setData).catch(() => setError('Не удалось загрузить данные'));
+  }, [query]);
 
   useEffect(() => { load(); }, [load]);
 
-  if (error) return <div className="notice notice--error">{error}</div>;
-  if (!data) return <div className="muted">Загрузка…</div>;
-
   return (
     <div>
-      {(data.role === 'ADMIN' || data.role === 'DISPATCHER') && <FleetHome data={data} />}
+      {isAdmin && <SummaryFilters value={filters} onChange={setFilters} />}
+      {error && <div className="notice notice--error">{error}</div>}
+      {!data && !error && <div className="muted">Загрузка…</div>}
+      {data && <Home data={data} range={filters.range} filter={filter} />}
+    </div>
+  );
+}
+
+function Home({ data, range, filter }) {
+  return (
+    <div>
+      {(data.role === 'ADMIN' || data.role === 'DISPATCHER') && <FleetHome data={data} range={range} filter={filter} />}
       {data.role === 'OWNER' && <OwnerHome data={data} />}
     </div>
   );

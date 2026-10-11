@@ -119,6 +119,13 @@ export function monthStart(day = localToday()) {
   return `${day.slice(0, 7)}-01`;
 }
 
+// Фильтр сводки: ?owner=<id> — машины одного арендодателя, ?car=<id> — одна машина.
+export function filterCars(cars, query = {}) {
+  const owner = Number(query.owner) || null;
+  const car = Number(query.car) || null;
+  return cars.filter((c) => (!owner || Number(c.owner_id) === owner) && (!car || Number(c.id) === car));
+}
+
 export function readPeriod(query, fallbackFrom) {
   const today = localToday();
   const ok = (v) => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v);

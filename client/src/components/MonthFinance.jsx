@@ -83,19 +83,25 @@ function SplitChart({ data, today, from, to }) {
   );
 }
 
-export default function MonthFinance({ title = 'Финансовые показатели', subtitle = 'Следите за показателями и оценивайте прибыль' }) {
-  const [range, setRange] = useState(() => wholeMonth(todayLocal().slice(0, 7)));
+export default function MonthFinance({
+  title = 'Финансовые показатели',
+  subtitle = 'Следите за показателями и оценивайте прибыль',
+  range: fixedRange,
+  filter = '',
+}) {
+  const [ownRange, setRange] = useState(() => wholeMonth(todayLocal().slice(0, 7)));
+  const range = fixedRange || ownRange;
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
 
   useEffect(() => {
     let alive = true;
     setError('');
-    api.get(`/finance/month?month=${range.month}&from=${range.from}&to=${range.to}`)
+    api.get(`/finance/month?month=${range.month}&from=${range.from}&to=${range.to}${filter}`)
       .then((d) => { if (alive) setData(d); })
       .catch(() => { if (alive) setError('Не удалось загрузить показатели'); });
     return () => { alive = false; };
-  }, [range]);
+  }, [range.month, range.from, range.to, filter]);
 
   const stats = useMemo(() => {
     if (!data) return null;
@@ -115,7 +121,7 @@ export default function MonthFinance({ title = 'Финансовые показ�
 
   return (
     <div className="mf">
-      <MonthRangePicker value={range} onChange={setRange} />
+      {!fixedRange && <MonthRangePicker value={range} onChange={setRange} />}
 
       {error && <div className="notice notice--error">{error}</div>}
 
