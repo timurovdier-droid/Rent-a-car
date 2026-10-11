@@ -58,7 +58,7 @@
 
 [data-theme='dark'] .stat--accent .stat__value { color: #21201F; }
 [data-theme='dark'] .person { background: var(--c-nav); border-color: transparent; }
-[data-theme='dark'] .person .badge--ok { color: #FFFFFF; }
+[data-theme='dark'] .person .badge--ok { background: transparent; color: #FFFFFF; padding-left: 0; padding-right: 0; }
 [data-theme='dark'] .person .btn--danger,
 [data-theme='dark'] .person .btn--danger:hover { background: transparent; border-color: transparent; box-shadow: none; color: #FFFFFF; }
 [data-theme='dark'] .person .avatar,
