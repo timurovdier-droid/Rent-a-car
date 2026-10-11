@@ -87,6 +87,49 @@ function AvatarLogo() {
   return <img src="/logo.png" alt="GTA" className="avatar-logo" width={24} height={6} />;
 }
 
+function UserMenu({ user }) {
+  const { pathname } = useLocation();
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef(null);
+
+  useEffect(() => { setOpen(false); }, [pathname]);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const onDown = (e) => { if (!rootRef.current?.contains(e.target)) setOpen(false); };
+    const onKey = (e) => { if (e.key === 'Escape') setOpen(false); };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
+
+  return (
+    <div className="umenu" ref={rootRef}>
+      <button type="button" className="topbar__user" onClick={() => setOpen(!open)} aria-expanded={open} aria-haspopup="menu">
+        <span className="nav__avatar"><AvatarLogo /></span>
+        <span className="nav__who">
+          <span className="nav__name">{user?.full_name}</span>
+          <span className="nav__role">{ROLE_LABELS[user?.role]}</span>
+        </span>
+        <span aria-hidden="true" className={`dp__caret ${open ? 'dp__caret--up' : ''}`} />
+      </button>
+      {open && (
+        <div className="umenu__pop" role="menu">
+          <NavLink to="/profile" className="umenu__item">Профиль</NavLink>
+          <div className="umenu__row">
+            <span>Язык</span>
+            <LangToggle className="lang-toggle--compact" />
+          </div>
+          <ThemeToggle />
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function Brand({ big = false }) {
   return (
     <NavLink to="/" className={`brand ${big ? 'brand--big' : ''}`} aria-label="Rent a car — на главную" data-no-translate>
@@ -135,15 +178,7 @@ export default function Layout() {
         </button>
         {current && <span className="topbar__section">{current.label}</span>}
         <div className="topbar__tools">
-          <LangToggle className="lang-toggle--compact" />
-          <ThemeToggle className="theme-toggle--icon" />
-          <NavLink className="topbar__user" to="/profile" title="Перейти в профиль">
-            <span className="nav__avatar"><AvatarLogo /></span>
-            <span className="nav__who">
-              <span className="nav__name">{user?.full_name}</span>
-              <span className="nav__role">{ROLE_LABELS[user?.role]}</span>
-            </span>
-          </NavLink>
+          <UserMenu user={user} />
           <button type="button" className="btn btn--quiet btn--sm" onClick={handleLogout}>Выйти</button>
         </div>
         <NavLink to="/profile" className="topbar__avatar" title="Перейти в профиль"><AvatarLogo /></NavLink>
