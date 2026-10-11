@@ -43,6 +43,7 @@
   font-size: 13px; font-weight: 700; text-decoration: none;
 }
 .topbar__avatar { margin-left: auto; }
+.avatar-logo { display: block; width: 24px; height: auto; filter: brightness(0); }
 
 /* Логотип с названием */
 .brand {

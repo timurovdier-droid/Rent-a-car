@@ -5,8 +5,6 @@ import ThemeToggle from './ThemeToggle';
 import LangToggle from './LangToggle';
 import NavIcon from './NavIcon';
 import UpdateBanner from './UpdateBanner';
-import { initials } from '../labels';
-
 const ROLE_LABELS = {
   DRIVER: 'Водитель',
   DISPATCHER: 'Диспетчер',
@@ -50,6 +48,10 @@ function menuFor(role) {
     ];
   }
   return [];
+}
+
+function AvatarLogo() {
+  return <img src="/logo.png" alt="GTA" className="avatar-logo" width={24} height={6} />;
 }
 
 export function Brand({ big = false }) {
@@ -97,7 +99,7 @@ export default function Layout() {
           <LangToggle className="lang-toggle--compact" />
           <ThemeToggle className="theme-toggle--icon" />
           <NavLink className="topbar__user" to="/profile" title="Перейти в профиль">
-            <span className="nav__avatar">{initials(user?.full_name)}</span>
+            <span className="nav__avatar"><AvatarLogo /></span>
             <span className="nav__who">
               <span className="nav__name">{user?.full_name}</span>
               <span className="nav__role">{ROLE_LABELS[user?.role]}</span>
@@ -105,7 +107,7 @@ export default function Layout() {
           </NavLink>
           <button type="button" className="btn btn--quiet btn--sm" onClick={handleLogout}>Выйти</button>
         </div>
-        <NavLink to="/profile" className="topbar__avatar" title="Перейти в профиль">{initials(user?.full_name)}</NavLink>
+        <NavLink to="/profile" className="topbar__avatar" title="Перейти в профиль"><AvatarLogo /></NavLink>
       </header>
       <div className="nav-backdrop" onClick={() => setMenuOpen(false)} aria-hidden="true" />
 
@@ -118,7 +120,7 @@ export default function Layout() {
         </div>
 
         <NavLink className="nav__user" to="/profile" title="Перейти в профиль">
-          <span className="nav__avatar">{initials(user?.full_name)}</span>
+          <span className="nav__avatar"><AvatarLogo /></span>
           <span className="nav__who">
             <span className="nav__name">{user?.full_name}</span>
             <span className="nav__role">{ROLE_LABELS[user?.role]}</span>
