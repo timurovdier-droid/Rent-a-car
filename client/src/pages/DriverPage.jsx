@@ -11,6 +11,7 @@ import DriverLedger from '../components/DriverLedger';
 import DriverRentStatus from '../components/RentStatus';
 import DriverCharges from '../components/DriverCharges';
 import { fmtMoney, fmtNumber, fmtDay, fmtDateTime, localDayOf, initials, todayLocal } from '../labels';
+import DateInput from '../components/DateInput';
 
 const errText = (err, fallback) => (err instanceof ApiError ? err.message : fallback);
 
@@ -84,7 +85,7 @@ function ChangeCarModal({ driver, onClose, onDone }) {
         </div>
         <div className="field">
           <label className="field__label" htmlFor="cc-date">Дата смены</label>
-          <input id="cc-date" className="field__input" type="date" value={day} max={todayLocal()} onChange={(e) => setDay(e.target.value)} required />
+          <DateInput id="cc-date" className="field__input" value={day} max={todayLocal()} onChange={(e) => setDay(e.target.value)} required />
         </div>
         <div className="form-grid">
           {current && (

@@ -6,6 +6,7 @@ import MoneyInput from './MoneyInput';
 import Plate from './Plate';
 import Select from './Select';
 import { CHARGE_KINDS, CHARGE_LABELS, METHOD_LABELS, PAY_METHODS, fmtDay, fmtMoney, todayLocal } from '../labels';
+import DateInput from './DateInput';
 
 const errText = (err, fallback) => (err instanceof ApiError ? err.message : fallback);
 
@@ -59,7 +60,7 @@ function ChargeModal({ driver, onClose, onDone }) {
           </div>
           <div className="field">
             <label className="field__label" htmlFor="ch-date">Дата</label>
-            <input id="ch-date" className="field__input" type="date" value={day} max={todayLocal()} onChange={(e) => setDay(e.target.value)} required />
+            <DateInput id="ch-date" className="field__input" value={day} max={todayLocal()} onChange={(e) => setDay(e.target.value)} required />
           </div>
         </div>
         <div className="field">
@@ -141,7 +142,7 @@ function PayModal({ driver, charge, isAdmin, onClose, onDone }) {
           </div>
           <div className="field">
             <label className="field__label" htmlFor="chp-date">Дата</label>
-            <input id="chp-date" className="field__input" type="date" value={day} max={todayLocal()} onChange={(e) => setDay(e.target.value)} required />
+            <DateInput id="chp-date" className="field__input" value={day} max={todayLocal()} onChange={(e) => setDay(e.target.value)} required />
           </div>
         </div>
         {method === 'DEPOSIT' && <p className="muted small">Сумма спишется с депозита водителя, это попадёт в историю депозита.</p>}

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { todayLocal, shiftDay } from '../labels';
+import DateInput from './DateInput';
 
 function presets() {
   const today = todayLocal();
@@ -45,11 +46,11 @@ export default function PeriodPicker({ value, onChange }) {
       >
         <div className="field">
           <label className="field__label" htmlFor="pp-from">С</label>
-          <input id="pp-from" className="field__input" type="date" value={from} onChange={(e) => setFrom(e.target.value)} required />
+          <DateInput id="pp-from" className="field__input" value={from} onChange={(e) => setFrom(e.target.value)} required />
         </div>
         <div className="field">
           <label className="field__label" htmlFor="pp-to">По</label>
-          <input id="pp-to" className="field__input" type="date" value={to} onChange={(e) => setTo(e.target.value)} required />
+          <DateInput id="pp-to" className="field__input" value={to} onChange={(e) => setTo(e.target.value)} required />
         </div>
         <button className="btn btn--quiet" type="submit">Показать</button>
       </form>

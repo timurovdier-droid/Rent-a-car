@@ -5,6 +5,7 @@ import Plate from './Plate';
 import Modal from './Modal';
 import MoneyInput from './MoneyInput';
 import { fmtMoney, fmtDay } from '../labels';
+import DateInput from './DateInput';
 
 const MONTHS = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
 const WEEK = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
@@ -109,10 +110,9 @@ function DayReportModal({ driverId, status, day, onClose, onDone }) {
       <form onSubmit={submit} className="pay-day">
         <div className="field">
           <label className="field__label" htmlFor="drp-date">Дата отчёта</label>
-          <input
+          <DateInput
             id="drp-date"
             className="field__input"
-            type="date"
             value={date}
             max={status.today}
             onChange={(e) => setDate(e.target.value)}

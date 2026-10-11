@@ -6,6 +6,7 @@ import MoneyInput from './MoneyInput';
 import Select, { pairs } from './Select';
 import { FUEL_TYPES } from '../labels';
 import { CarVisual } from './CarTile';
+import DateInput from './DateInput';
 
 function readImage(file) {
   return new Promise((resolve, reject) => {
@@ -187,11 +188,11 @@ export default function CarForm({ car, onClose, onSaved }) {
             </div>
             <div className="field">
               <label className="field__label" htmlFor="cf-ins">Страховка до</label>
-              <input id="cf-ins" className="field__input" type="date" value={form.insurance_expires} onChange={set('insurance_expires')} />
+              <DateInput id="cf-ins" className="field__input" value={form.insurance_expires} onChange={set('insurance_expires')} />
             </div>
             <div className="field">
               <label className="field__label" htmlFor="cf-insp">Техосмотр до</label>
-              <input id="cf-insp" className="field__input" type="date" value={form.inspection_expires} onChange={set('inspection_expires')} />
+              <DateInput id="cf-insp" className="field__input" value={form.inspection_expires} onChange={set('inspection_expires')} />
             </div>
           </div>
         </fieldset>

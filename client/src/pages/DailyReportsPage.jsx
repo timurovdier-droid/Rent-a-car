@@ -4,6 +4,7 @@ import { useAuth } from '../auth';
 import Plate from '../components/Plate';
 import Money from '../components/Money';
 import Select from '../components/Select';
+import DateInput from '../components/DateInput';
 
 export default function DailyReportsPage() {
   const { user } = useAuth();
@@ -129,10 +130,9 @@ export default function DailyReportsPage() {
           <>
             <div className="field" style={{ margin: 0, minWidth: '10rem' }}>
               <label className="field__label" htmlFor="filterDate">Дата</label>
-              <input
+              <DateInput
                 id="filterDate"
                 className="field__input"
-                type="date"
                 value={filterDate}
                 onChange={(e) => setFilterDate(e.target.value)}
               />
@@ -278,10 +278,9 @@ export default function DailyReportsPage() {
 
           <div className="field">
             <label className="field__label" htmlFor="date">Дата отчёта</label>
-            <input
+            <DateInput
               id="date"
               className="field__input"
-              type="date"
               value={formData.report_date}
               onChange={(e) => setFormData({ ...formData, report_date: e.target.value })}
               required

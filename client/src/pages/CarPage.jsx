@@ -11,6 +11,7 @@ import CarForm from '../components/CarForm';
 import { CarVisual } from '../components/CarTile';
 import DayCalendar from '../components/DayCalendar';
 import CarLedger from '../components/CarLedger';
+import DateInput from '../components/DateInput';
 import {
   CATEGORY_LABELS, EXPENSE_CATEGORIES, INCOME_CATEGORIES, METHOD_LABELS, PAY_METHODS,
   FUEL_LABELS, SERVICE_TYPES, fmtMoney, fmtNumber, fmtDay, localDayOf, todayLocal,
@@ -134,11 +135,11 @@ function IdleModal({ car, today, onClose, onDone }) {
         <div className="form-grid">
           <div className="field">
             <label className="field__label" htmlFor="idle-from">С</label>
-            <input id="idle-from" className="field__input" type="date" value={from} onChange={(e) => setFrom(e.target.value)} required />
+            <DateInput id="idle-from" className="field__input" value={from} onChange={(e) => setFrom(e.target.value)} required />
           </div>
           <div className="field">
             <label className="field__label" htmlFor="idle-to">По</label>
-            <input id="idle-to" className="field__input" type="date" value={to} min={from} onChange={(e) => setTo(e.target.value)} required />
+            <DateInput id="idle-to" className="field__input" value={to} min={from} onChange={(e) => setTo(e.target.value)} required />
           </div>
         </div>
         {error && <div className="notice notice--error">{error}</div>}
@@ -255,7 +256,7 @@ function AddEntry({ carId, isAdmin, onClose, onDone }) {
       <div className="form-grid">
         <div className="field">
           <label className="field__label" htmlFor="tx-date">Дата</label>
-          <input id="tx-date" className="field__input" type="date" value={day} onChange={(e) => setDay(e.target.value)} required />
+          <DateInput id="tx-date" className="field__input" value={day} onChange={(e) => setDay(e.target.value)} required />
         </div>
         <div className="field">
           <label className="field__label" htmlFor="tx-comment">Комментарий</label>
@@ -323,7 +324,7 @@ function EditTx({ carId, tx, onClose, onDone }) {
         </div>
         <div className="field">
           <label className="field__label" htmlFor="etx-date">Дата</label>
-          <input id="etx-date" className="field__input" type="date" value={day} onChange={(e) => setDay(e.target.value)} required />
+          <DateInput id="etx-date" className="field__input" value={day} onChange={(e) => setDay(e.target.value)} required />
         </div>
         <div className="field">
           <label className="field__label" htmlFor="etx-comment">Комментарий</label>
@@ -503,7 +504,7 @@ function DriverPanel({ hub, canWrite, onChanged }) {
           <div className="form-grid">
             <div className="field">
               <label className="field__label" htmlFor="as-date">Дата выдачи</label>
-              <input id="as-date" className="field__input" type="date" value={day} onChange={(e) => setDay(e.target.value)} required />
+              <DateInput id="as-date" className="field__input" value={day} onChange={(e) => setDay(e.target.value)} required />
             </div>
             <div className="field">
               <label className="field__label" htmlFor="as-km">Пробег при выдаче</label>
@@ -692,7 +693,7 @@ function ReleaseModal({ car, current, today, onClose, onDone }) {
         </p>
         <div className="field">
           <label className="field__label" htmlFor="rl-date">Дата сдачи</label>
-          <input id="rl-date" className="field__input" type="date" value={day} onChange={(e) => setDay(e.target.value)} required />
+          <DateInput id="rl-date" className="field__input" value={day} onChange={(e) => setDay(e.target.value)} required />
         </div>
         <div className="field">
           <label className="field__label" htmlFor="rl-km">Пробег при сдаче</label>
@@ -735,7 +736,7 @@ function StartDateModal({ car, current, today, onClose, onDone }) {
         <p className="muted small">Укажите день, когда водитель на самом деле взял машину — аренда будет считаться с этого дня.</p>
         <div className="field">
           <label className="field__label" htmlFor="sd-date">Взял машину</label>
-          <input id="sd-date" className="field__input" type="date" value={day} max={today} onChange={(e) => setDay(e.target.value)} required />
+          <DateInput id="sd-date" className="field__input" value={day} max={today} onChange={(e) => setDay(e.target.value)} required />
         </div>
         {error && <div className="notice notice--error">{error}</div>}
         <div className="form-actions">
@@ -781,7 +782,7 @@ function RateModal({ hub, onClose, onDone }) {
           </div>
           <div className="field">
             <label className="field__label" htmlFor="rt-from">Действует с</label>
-            <input id="rt-from" className="field__input" type="date" value={from} onChange={(e) => setFrom(e.target.value)} required />
+            <DateInput id="rt-from" className="field__input" value={from} onChange={(e) => setFrom(e.target.value)} required />
           </div>
         </div>
         {error && <div className="notice notice--error">{error}</div>}
@@ -979,7 +980,7 @@ function ServicePanel({ hub, canWrite, onChanged }) {
             </div>
             <div className="field">
               <label className="field__label" htmlFor="sv-date">{doneNow ? 'Когда сделано' : 'Сделать до даты'}</label>
-              <input id="sv-date" className="field__input" type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
+              <DateInput id="sv-date" className="field__input" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
             </div>
             {doneNow ? (
               <>
@@ -1064,7 +1065,7 @@ function ServiceDoneModal({ car, record, today, onClose, onDone }) {
         </div>
         <div className="field">
           <label className="field__label" htmlFor="sd-date">Дата</label>
-          <input id="sd-date" className="field__input" type="date" value={day} onChange={(e) => setDay(e.target.value)} required />
+          <DateInput id="sd-date" className="field__input" value={day} onChange={(e) => setDay(e.target.value)} required />
         </div>
         {error && <div className="notice notice--error">{error}</div>}
         <div className="form-actions">

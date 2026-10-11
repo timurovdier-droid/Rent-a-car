@@ -5,6 +5,7 @@ import Plate from '../components/Plate';
 import Money from '../components/Money';
 import StatusMark from '../components/StatusMark';
 import Select from '../components/Select';
+import DateInput from '../components/DateInput';
 
 export default function ServicePage() {
   const { user } = useAuth();
@@ -324,10 +325,9 @@ export default function ServicePage() {
 
           <div className="field">
             <label className="field__label" htmlFor="date">Планируемая дата</label>
-            <input
+            <DateInput
               id="date"
               className="field__input"
-              type="date"
               value={formData.scheduled_at}
               onChange={(e) => setFormData({ ...formData, scheduled_at: e.target.value })}
             />
