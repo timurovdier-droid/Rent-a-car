@@ -137,7 +137,7 @@ export default function DriversPage() {
                   </div>
                   <dl className="person__facts">
                     <div><dt>Депозит</dt><dd>{fmtMoney(d.deposit)} сум</dd></div>
-                    <div><dt>ВУ</dt><dd>{d.license_no || '—'}</dd></div>
+                    <div><dt>ВУ</dt><dd className="person__strong">{d.license_no || '—'}</dd></div>
                   </dl>
                   <div className="person__actions" onClick={(e) => e.stopPropagation()}>
                     {archived

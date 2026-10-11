@@ -338,7 +338,8 @@ a.person:hover, .person--link:hover { border-color: #CFCDC8; box-shadow: 0 6px 1
 }
 .avatar--muted { background: #ECEDEF; color: #6B6966; }
 .avatar--l { width: 64px; height: 64px; font-size: 22px; }
-.person__name { font-weight: 600; line-height: 1.25; }
+.person__name { font-weight: 800; line-height: 1.25; }
+.person__facts dd.person__strong { font-weight: 800; }
 .person__sub { color: var(--c-muted); font-size: 13px; }
 .person__facts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; font-size: 13px; }
 .person__facts dt { color: var(--c-muted); font-size: 12px; }
