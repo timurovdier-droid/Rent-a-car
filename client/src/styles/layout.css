@@ -50,6 +50,8 @@ button.topbar__user { border: 0; background: transparent; font: inherit; text-al
   color: var(--c-ink); text-decoration: none; font-weight: 600;
 }
 .umenu__item:hover { background: var(--c-row-hover); }
+button.umenu__item { width: 100%; border: 0; background: transparent; font: inherit; font-weight: 600; cursor: pointer; text-align: left; }
+button.umenu__logout { margin-top: 2px; border-top: 1px solid var(--c-line); border-radius: 0 0 var(--r-control) var(--r-control); color: var(--c-danger); }
 .umenu__row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 0 2px 0 12px; font-weight: 600; }
 .umenu__pop .theme-toggle { margin: 0; justify-content: flex-start; padding: 0 12px; }
 .topbar__avatar,

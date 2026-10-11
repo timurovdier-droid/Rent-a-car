@@ -30,8 +30,8 @@ function menuFor(role) {
   }
   if (role === 'ADMIN') {
     return [
-      { to: '/cars', label: 'Автомобили', icon: 'car' },
       { to: '/drivers', label: 'Водители', icon: 'users' },
+      { to: '/cars', label: 'Автомобили', icon: 'car' },
       { to: '/users', label: 'Пользователи', icon: 'team' },
       { to: '/reports', label: 'Отчёты', icon: 'chart' },
       { to: '/settings', label: 'Настройки', icon: 'sliders' },
@@ -87,7 +87,7 @@ function AvatarLogo() {
   return <img src="/logo.png" alt="GTA" className="avatar-logo" width={24} height={6} />;
 }
 
-function UserMenu({ user }) {
+function UserMenu({ user, onLogout }) {
   const { pathname } = useLocation();
   const [open, setOpen] = useState(false);
   const rootRef = useRef(null);
@@ -124,6 +124,7 @@ function UserMenu({ user }) {
             <LangToggle className="lang-toggle--compact" />
           </div>
           <ThemeToggle />
+          <button type="button" className="umenu__item umenu__logout" onClick={onLogout}>Выйти</button>
         </div>
       )}
     </div>
@@ -178,8 +179,7 @@ export default function Layout() {
         </button>
         {current && <span className="topbar__section">{current.label}</span>}
         <div className="topbar__tools">
-          <UserMenu user={user} />
-          <button type="button" className="btn btn--quiet btn--sm" onClick={handleLogout}>Выйти</button>
+          <UserMenu user={user} onLogout={handleLogout} />
         </div>
         <NavLink to="/profile" className="topbar__avatar" title="Перейти в профиль"><AvatarLogo /></NavLink>
       </header>
