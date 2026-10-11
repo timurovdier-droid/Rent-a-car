@@ -49,6 +49,7 @@ function DriverReportRoute() {
 
 function HomeRoute() {
   const { user } = useAuth();
+  if (user?.role === 'ADMIN') return <Navigate to="/reports?tab=summary" replace />;
   return user?.role === 'DRIVER' ? <DriverHomePage /> : <DashboardPage />;
 }
 

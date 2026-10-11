@@ -7,6 +7,8 @@ import CarLedger from '../components/CarLedger';
 import CarPicker from '../components/CarPicker';
 import DriverReportPage from './DriverReportPage';
 import AuditPage from './AuditPage';
+import DashboardPage from './DashboardPage';
+import NavIcon from '../components/NavIcon';
 import { fmtMoney, fmtDay, downloadCsv } from '../labels';
 
 const TABS = [
@@ -27,10 +29,12 @@ function Num({ value, tone }) {
 export default function ReportsPage() {
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
-  const tab = TABS.some(([key]) => key === params.get('tab')) ? params.get('tab') : 'cars';
+  const requested = params.get('tab');
+  const tab = requested === 'summary' || TABS.some(([key]) => key === requested) ? requested : 'cars';
+  const summary = tab === 'summary';
   const carId = params.get('car') || '';
-  const ownTab = tab === 'car' || tab === 'drivers' || tab === 'audit';
-  const ownPeriod = tab === 'drivers' || tab === 'audit';
+  const ownTab = summary || tab === 'car' || tab === 'drivers' || tab === 'audit';
+  const ownPeriod = summary || tab === 'drivers' || tab === 'audit';
   const [period, setPeriod] = useState(defaultPeriod);
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
@@ -95,9 +99,20 @@ export default function ReportsPage() {
           <h1 className="page-title">Отчёты</h1>
           <p className="page-sub">Доход, расходы, прибыль, долги, оплаты водителей и журнал действий</p>
         </div>
-        {!ownTab && (
-          <button className="btn btn--quiet" onClick={exportCurrent} disabled={!data}>Скачать в Excel</button>
-        )}
+        <div className="form-actions">
+          <button
+            type="button"
+            className={`btn summary-btn ${summary ? 'summary-btn--on' : ''}`}
+            onClick={() => setTab(summary ? 'cars' : 'summary')}
+            aria-pressed={summary}
+          >
+            <NavIcon name="home" size={20} />
+            {summary ? 'Закрыть сводку' : 'Сводка парка'}
+          </button>
+          {!ownTab && (
+            <button className="btn btn--quiet" onClick={exportCurrent} disabled={!data}>Скачать в Excel</button>
+          )}
+        </div>
       </div>
 
       {!ownPeriod && <PeriodPicker value={period} onChange={setPeriod} />}
@@ -127,6 +142,7 @@ export default function ReportsPage() {
         ? <CarLedger carId={carId} period={period} />
         : <div className="empty">Выберите машину — покажу по дням, сколько водитель отдал наличными и переводом и в какие дни есть долг</div>)}
 
+      {summary && <DashboardPage />}
       {tab === 'drivers' && <DriverReportPage embedded />}
       {tab === 'audit' && <AuditPage embedded />}
 

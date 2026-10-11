@@ -30,7 +30,6 @@ function menuFor(role) {
   }
   if (role === 'ADMIN') {
     return [
-      { to: '/', label: 'Главная', icon: 'home', end: true },
       { to: '/cars', label: 'Автомобили', icon: 'car' },
       { to: '/drivers', label: 'Водители', icon: 'users' },
       { to: '/users', label: 'Пользователи', icon: 'team' },
@@ -55,7 +54,7 @@ const PREFETCH = {
   '/drivers': ['/drivers', '/driver-waitlist'],
   '/users': ['/owners', '/dispatchers'],
   '/driver-report': ['/drivers'],
-  '/reports': ['/cars'],
+  '/reports': ['/cars', '/dashboard'],
   '/settings': ['/settings'],
 };
 
