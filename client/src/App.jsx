@@ -14,7 +14,6 @@ import DriverReportPage from './pages/DriverReportPage';
 import PaymentsQueuePage from './pages/PaymentsQueuePage';
 import AuditPage from './pages/AuditPage';
 import OwnersPage from './pages/OwnersPage';
-import FinancePage from './pages/FinancePage';
 import AssignmentsPage from './pages/AssignmentsPage';
 import DailyReportsPage from './pages/DailyReportsPage';
 import ServicePage from './pages/ServicePage';
@@ -124,10 +123,7 @@ export default function App() {
             element={<Guard roles={['ADMIN']}><OwnersPage /></Guard>} 
           />
           
-          <Route 
-            path="/finance" 
-            element={<Guard roles={['ADMIN', 'OWNER']}><FinancePage /></Guard>} 
-          />
+          <Route path="/finance" element={<Navigate to="/" replace />} />
           
           <Route 
             path="/users/dispatchers" 

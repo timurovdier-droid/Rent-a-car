@@ -34,7 +34,6 @@ function menuFor(role) {
       { to: '/drivers', label: 'Водители', icon: 'users' },
       { to: '/owners', label: 'Арендодатели', icon: 'briefcase' },
       { to: '/users/dispatchers', label: 'Диспетчеры', icon: 'headset' },
-      { to: '/finance', label: 'Финансы', icon: 'wallet' },
       { to: '/driver-report', label: 'Отчёт по водителям', icon: 'calendar' },
       { to: '/reports', label: 'Отчёты', icon: 'chart' },
       { to: '/audit', label: 'Журнал аудита', icon: 'list' },
@@ -46,7 +45,6 @@ function menuFor(role) {
     return [
       { to: '/', label: 'Главная', icon: 'home', end: true },
       { to: '/cars', label: 'Мои автомобили', icon: 'car' },
-      { to: '/finance', label: 'Финансы', icon: 'wallet' },
       { to: '/help', label: 'Справка', icon: 'help' },
     ];
   }

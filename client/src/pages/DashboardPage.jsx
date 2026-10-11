@@ -5,6 +5,7 @@ import { useAuth } from '../auth';
 import Plate from '../components/Plate';
 import BarChart from '../components/BarChart';
 import MonthFinance from '../components/MonthFinance';
+import PeriodFinance from '../components/PeriodFinance';
 import { alertWeight, CarAlertBadges } from '../components/CarAlerts';
 import { fmtMoney, fmtDay } from '../labels';
 
@@ -104,6 +105,7 @@ function FleetHome({ data }) {
       )}
 
       <Attention cars={data.cars} />
+      {isAdmin && <PeriodFinance />}
     </>
   );
 }
@@ -157,6 +159,7 @@ function OwnerHome({ data }) {
           </table>
         </div>
       )}
+      <PeriodFinance />
     </>
   );
 }

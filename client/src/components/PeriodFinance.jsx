@@ -2,10 +2,9 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api';
 import { useAuth } from '../auth';
-import Plate from '../components/Plate';
-import BarChart from '../components/BarChart';
-import PeriodPicker, { defaultPeriod } from '../components/PeriodPicker';
-import MonthFinance from '../components/MonthFinance';
+import Plate from './Plate';
+import BarChart from './BarChart';
+import PeriodPicker, { defaultPeriod } from './PeriodPicker';
 import { CATEGORY_LABELS, fmtMoney } from '../labels';
 
 function Stat({ label, value, hint, tone }) {
@@ -18,7 +17,7 @@ function Stat({ label, value, hint, tone }) {
   );
 }
 
-export default function FinancePage() {
+export default function PeriodFinance() {
   const { user } = useAuth();
   const isAdmin = user?.role === 'ADMIN';
   const [period, setPeriod] = useState(defaultPeriod);
@@ -37,14 +36,6 @@ export default function FinancePage() {
 
   return (
     <div>
-      <h1 className="page-title">Финансы</h1>
-      <p className="page-sub">{isAdmin ? 'Сводка по всему парку: только подтверждённые суммы' : 'Доход, расходы и прибыль по вашим машинам'}</p>
-
-      <MonthFinance
-        title={isAdmin ? 'Финансовые показатели парка' : 'Финансовые показатели'}
-        subtitle={isAdmin ? 'Подтверждённые доходы и расходы по всем машинам' : 'Доход, расходы и прибыль по вашим машинам'}
-      />
-
       <div className="section-head" style={{ marginTop: 28 }}><h2>Подробно за период</h2></div>
       <PeriodPicker value={period} onChange={setPeriod} />
       {error && <div className="notice notice--error">{error}</div>}

@@ -75,9 +75,9 @@ Agar rolingizga ruxsat berilmagan boʻlim ochilsa, sayt bosh sahifaga yoʻnaltir
 
 | Rol | Menyu | Qisqacha |
 |---|---|---|
-| **Administrator** | Bosh sahifa, Bildirishnomalar, Avtomobillar, Haydovchilar, Ijaraga beruvchilar, Dispetcherlar, Moliya, Haydovchilar hisoboti, Hisobotlar, Audit jurnali, Sozlamalar, Yordam | Hamma narsani qila oladi. Uning pul yozuvlari darhol tasdiqlanadi. |
+| **Administrator** | Bosh sahifa, Bildirishnomalar, Avtomobillar, Haydovchilar, Ijaraga beruvchilar, Dispetcherlar, Haydovchilar hisoboti, Hisobotlar, Audit jurnali, Sozlamalar, Yordam | Hamma narsani qila oladi. Uning pul yozuvlari darhol tasdiqlanadi. |
 | **Dispetcher** | Bosh sahifa, Avtomobillar, Haydovchilar, Haydovchilar hisoboti, Yordam | Kundalik ish: pul, mashina berish, haydovchilar. Uning yozuvlari administrator tasdigʻini kutadi. |
-| **Ijaraga beruvchi** | Bosh sahifa, Mening avtomobillarim, Moliya, Yordam | Faqat oʻz mashinalari va ularning daromadini koʻradi. |
+| **Ijaraga beruvchi** | Bosh sahifa, Mening avtomobillarim, Yordam | Faqat oʻz mashinalari va ularning daromadini koʻradi. |
 | **Haydovchi** | Mening ijaram | Faqat oʻz kabineti: mashina, qarz, kunlar boʻyicha toʻlovlar. |
 
 ### Administrator
@@ -234,30 +234,11 @@ Yangi parolga talablar: **kamida 10 ta belgi, harflar va raqamlar**. Maydonlar: 
 ## 6. Bosh sahifa
 
 ### Administrator va dispetcher
-- **Barcha mashinalar plitkalari.** Eʼtibor talab qiladigan mashinalar birinchi turadi va ramka bilan ajratilgan.
-- **Plitkada:**
-  - surat, raqam;
-  - haydovchi yoki «Haydovchisiz», holat;
-  - kunlik narx;
-  - **qarz** (qizil) yoki «yoʻq».
-- **Plitkadagi belgilar:**
-  - «Tasdiqlashni kutmoqda · summa»;
-  - «Xizmat koʻrsatish vaqti keldi» / «Tez orada TXK»;
-  - «Sugʻurta» / «Texnik koʻrik» — tez orada tugaydi yoki muddati oʻtgan.
-- **Amallar:**
-  - plitkaga bosish mashina kartochkasini ochadi;
-  - **qalam** mashinani tahrirlash shaklini ochadi;
-  - **«Barcha avtomobillar»** havolasi «Avtomobillar» boʻlimiga olib boradi.
+Bosh sahifada faqat raqamlar, grafiklar va tahlil. Mashinalarning oʻzi — «Avtomobillar» boʻlimida.
 
-![Bosh sahifa: mashina plitkalari](/kb/uz/03-home-tiles.jpg)
-
-1. **Nechta mashina ijarada** (jamidan).
-2. **Mashina plitkasi.** Bosing — mashina kartochkasi ochiladi. Sariq ramka — mashina eʼtibor talab qiladi.
-3. **Qarz** — shu mashina boʻyicha haydovchi qarzi (qizil). «yoʻq» — qarz yoʻq.
-4. **«Tasdiqlashni kutmoqda»** — dispetcher pul yozgan, administrator hali tasdiqlamagan.
-5. **Hujjat yoki TXK belgisi** — masalan, «Texnik koʻrik» muddati oʻtgan.
-6. **Qalam** — mashina maʼlumotlarini tez tahrirlash.
-7. **«Barcha avtomobillar»** — «Avtomobillar» boʻlimiga oʻtish.
+- **«Xulosa»:** jami mashinalardan nechtasi ijarada, «Bugun olingan», «Oy davomida olindi», «Haydovchilar qarzi», «Tasdiqlashni kutmoqda». Dispetcherda pul uning yozuvlari boʻyicha hisoblanadi.
+- **«Qarzi va eslatmasi bor mashinalar»** — faqat qarzi, tasdiqlanmagan puli bor, TXK vaqti kelgan yoki sugʻurta va texnik koʻrik muddati tugayotgan mashinalar jadvali. Qatorga bosing — mashina ochiladi.
+- **«Davr boʻyicha batafsil»** (administrator) — avvalgi «Moliya» boʻlimi, qarang: [15-boʻlim](#15-moliya).
 
 - **Faqat administratorda** pastda **«Park moliyasi»** bloki bor:
   - tushum, xarajatlar, sof daromad va oʻtgan oyga nisbatan oʻzgarish;
@@ -285,10 +266,11 @@ Yangi parolga talablar: **kamida 10 ta belgi, harflar va raqamlar**. Maydonlar: 
 5. **Grafik** — 2 hafta davomida kunlar boʻyicha qancha olingan.
 
 ### Ijaraga beruvchi
-- **Oʻz mashinalari plitkalari:** holat, daromad, xarajatlar, foyda.
-- **Pastda:** oylik moliya bloki — «Kuniga oʻrtacha», «Eng yaxshi kun».
-
-![Ijaraga beruvchining bosh sahifasi](/kb/uz/29-owner-home.jpg)
+- **«Oylik xulosa»:** nechta mashina, daromad, xarajatlar, foyda.
+- **Oylik moliya bloki** — grafik, «Kuniga oʻrtacha», «Eng yaxshi kun».
+- **«Mashinalar boʻyicha foyda»** — jadval; mashinani ochish uchun qatorga bosing.
+- **«Davr boʻyicha batafsil»** — qarang: [15-boʻlim](#15-moliya).
+- Mashina plitkalari — «Mening avtomobillarim» boʻlimida.
 
 ---
 
@@ -728,7 +710,7 @@ Faqat administrator.
 
 ## 15. Moliya
 
-Administrator va ijaraga beruvchi. **Faqat tasdiqlangan** summalar hisoblanadi.
+Menyuda alohida boʻlim endi yoʻq — bularning hammasi administrator va ijaraga beruvchining **«Bosh sahifa»**sida. **Faqat tasdiqlangan** summalar hisoblanadi.
 
 ### Oylik blok
 - tushum, xarajatlar, sof daromad;
