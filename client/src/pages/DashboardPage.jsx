@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { api } from '../api';
-import { useAuth } from '../auth';
 import Plate from '../components/Plate';
 import BarChart from '../components/BarChart';
 import MonthFinance from '../components/MonthFinance';
@@ -164,7 +163,6 @@ function OwnerHome({ data }) {
 }
 
 export default function DashboardPage() {
-  const { user } = useAuth();
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
 
@@ -179,8 +177,6 @@ export default function DashboardPage() {
 
   return (
     <div>
-      <h1 className="page-title">Здравствуйте{user?.full_name ? `, ${user.full_name}` : ''}</h1>
-      <p className="page-sub">{fmtDay(data.today)} · сводка, финансы и аналитика</p>
       {(data.role === 'ADMIN' || data.role === 'DISPATCHER') && <FleetHome data={data} />}
       {data.role === 'OWNER' && <OwnerHome data={data} />}
     </div>
