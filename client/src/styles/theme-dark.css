@@ -57,9 +57,12 @@
 [data-theme='dark'] .tab--on { border-bottom-color: var(--c-primary); }
 
 [data-theme='dark'] .stat--accent .stat__value { color: #21201F; }
-[data-theme='dark'] .person { background: #333333; border-color: transparent; }
+[data-theme='dark'] .person { background: #141414; border-color: transparent; }
+[data-theme='dark'] .person .badge--ok { color: #FFFFFF; }
+[data-theme='dark'] .person .btn--danger,
+[data-theme='dark'] .person .btn--danger:hover { background: transparent; border-color: transparent; box-shadow: none; color: #FFFFFF; }
 [data-theme='dark'] .person .avatar,
-[data-theme='dark'] .avatar { background: #444444; color: var(--c-primary); }
+[data-theme='dark'] .avatar { background: #333333; color: #FFFFFF; }
 [data-theme='dark'] .avatar--muted,
 [data-theme='dark'] .person .avatar--muted { background: #3D3D3D; color: #8A8A8A; }
 [data-theme='dark'] .car-card:hover,
