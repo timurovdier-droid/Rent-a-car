@@ -533,8 +533,9 @@ a.person:hover, .person--link:hover { border-color: #CFCDC8; box-shadow: 0 6px 1
 .mf-card { border: 1px solid var(--mf-line); border-radius: 18px; padding: 16px; background: var(--mf-card); }
 .mf-kpis { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
 .mf-kpi { display: flex; flex-direction: column; justify-content: space-between; min-height: 132px; }
-.mf-kpi__title { font-weight: 600; font-size: 15px; color: var(--mf-ink); }
-.mf-kpi__value { display: flex; flex-wrap: wrap; gap: 6px; align-items: baseline; font-size: 15px; font-variant-numeric: tabular-nums; color: var(--mf-ink); }
+.mf-kpi__title { font-weight: 700; font-size: 16px; letter-spacing: -.015em; color: var(--mf-ink); }
+.mf-kpi__value { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: baseline; font-size: 15px; font-variant-numeric: tabular-nums; color: var(--mf-ink); }
+.mf-kpi__value > span:first-child { font-size: 28px; line-height: 1.1; font-weight: 800; letter-spacing: -.025em; }
 .mf-delta { font-weight: 600; white-space: nowrap; }
 .mf-delta--up { color: #16A34A; }
 .mf-delta--down { color: #E5341F; }
@@ -562,8 +563,8 @@ a.person:hover, .person--link:hover { border-color: #CFCDC8; box-shadow: 0 6px 1
 .mf-divider { height: 1px; background: var(--mf-line); margin: 18px 0; }
 .mf-notes { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .mf-note { display: flex; flex-direction: column; gap: 4px; min-height: 140px; }
-.mf-note__title { font-weight: 600; color: var(--mf-ink); }
-.mf-note__value { margin-top: auto; font-size: 15px; color: var(--mf-ink); display: flex; align-items: center; gap: 8px; font-variant-numeric: tabular-nums; }
+.mf-note__title { font-weight: 700; font-size: 16px; letter-spacing: -.015em; color: var(--mf-ink); }
+.mf-note__value { margin-top: auto; font-size: 24px; font-weight: 800; letter-spacing: -.025em; color: var(--mf-ink); display: flex; align-items: center; gap: 8px; font-variant-numeric: tabular-nums; }
 .mf-alert { display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; background: #FF3B30; color: #fff; font-size: 12px; font-weight: 800; }
 @media (max-width: 860px) {
   .mf-kpis, .mf-notes, .mf-split { grid-template-columns: 1fr; }
