@@ -6,6 +6,7 @@ import Plate from '../components/Plate';
 import StatusMark from '../components/StatusMark';
 import CarForm from '../components/CarForm';
 import CarTile from '../components/CarTile';
+import { alertWeight, CarAlertBadges } from '../components/CarAlerts';
 import { fmtMoney, fmtNumber, fmtDay } from '../labels';
 
 const VIEW_KEY = 'rac-cars-view';
@@ -108,13 +109,29 @@ export default function CarsPage() {
 
   const fetchCars = useCallback(async () => {
     try {
-      setCars(await api.get('/cars'));
+      const [list, overview] = await Promise.all([
+        api.get('/cars'),
+        isOwner ? null : api.get('/dashboard').catch(() => null),
+      ]);
+      const extra = new Map((overview?.cars || []).map((c) => [c.id, c]));
+      setCars(list.map((c) => {
+        const o = extra.get(c.id);
+        return o ? {
+          ...c,
+          debt: o.debt,
+          pending_count: o.pending_count,
+          pending_amount: o.pending_amount,
+          service_due: o.service_due,
+          insurance_due: o.insurance_due,
+          inspection_due: o.inspection_due,
+        } : c;
+      }));
     } catch {
       setError('Не удалось загрузить автомобили');
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [isOwner]);
 
   useEffect(() => { fetchCars(); }, [fetchCars]);
 
@@ -193,6 +210,7 @@ export default function CarsPage() {
                 <th className="table__th">Машина</th>
                 <th className="table__th">Водитель</th>
                 {!isOwner && <th className="table__th table__num">Ставка / день</th>}
+                {!isOwner && <th className="table__th table__num">Долг</th>}
                 <th className="table__th table__num">Пробег</th>
                 <th className="table__th">Статус</th>
               </tr>
@@ -207,6 +225,11 @@ export default function CarsPage() {
                   </td>
                   <td className="table__td">{c.driver_name || <span className="muted">—</span>}</td>
                   {!isOwner && <td className="table__td table__num">{fmtMoney(c.daily_rate)}</td>}
+                  {!isOwner && (
+                    <td className="table__td table__num">
+                      {c.debt ? <b style={{ color: 'var(--c-danger)' }}>{fmtMoney(c.debt)}</b> : <span className="muted">—</span>}
+                    </td>
+                  )}
                   <td className="table__td table__num">{c.mileage != null ? `${fmtNumber(c.mileage)} км` : '—'}</td>
                   <td className="table__td"><StatusMark status={c.status} /></td>
                 </tr>
@@ -217,13 +240,20 @@ export default function CarsPage() {
       ) : (
         <div className="car-grid car-grid--tiles">
           {shown.map((c) => (
-            <CarTile key={c.id} car={c} onEdit={canEdit ? setEditing : undefined}>
+            <CarTile key={c.id} car={c} onEdit={canEdit ? setEditing : undefined} alert={alertWeight(c) > 0}>
               <div className="ct__row">
                 <span className="muted" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.driver_name || 'Без водителя'}</span>
                 <StatusMark status={c.status} />
               </div>
               {!isOwner && <div className="ct__row"><span className="muted">Ставка</span><b>{fmtMoney(c.daily_rate)} / день</b></div>}
               <div className="ct__row"><span className="muted">Пробег</span><b>{c.mileage != null ? `${fmtNumber(c.mileage)} км` : '—'}</b></div>
+              {c.debt !== undefined && (
+                <div className="ct__row">
+                  <span className="muted">Долг</span>
+                  <b style={{ color: c.debt ? 'var(--c-danger)' : 'var(--c-ok)' }}>{c.debt ? `${fmtMoney(c.debt)} сум` : 'нет'}</b>
+                </div>
+              )}
+              <CarAlertBadges car={c} />
             </CarTile>
           ))}
         </div>
