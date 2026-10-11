@@ -79,7 +79,7 @@ function ArchivedCars({ query }) {
                   <td className="table__td">{c.archived_at ? fmtDay(String(c.archived_at).slice(0, 10)) : '—'}</td>
                   <td className="table__td" style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
                     <button className="btn btn--quiet btn--sm" disabled={busy === c.id} onClick={() => act(c, 'restore')}>Вернуть</button>{' '}
-                    <button className="btn btn--danger btn--sm" disabled={busy === c.id} onClick={() => act(c, 'delete')}>Удалить навсегда</button>
+                    <button className="btn btn--danger btn--sm" disabled={busy === c.id} onClick={() => act(c, 'delete')}>Удалить</button>
                   </td>
                 </tr>
               ))}

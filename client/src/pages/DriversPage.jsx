@@ -142,7 +142,7 @@ export default function DriversPage() {
                     {archived
                       ? <button className="btn btn--quiet btn--sm" onClick={() => act(d, 'restore')}>Вернуть</button>
                       : <button className="btn btn--ghost btn--sm" onClick={() => act(d, 'archive')}>В архив</button>}
-                    {isAdmin && <button className="btn btn--danger btn--sm" onClick={() => act(d, 'delete')}>Удалить навсегда</button>}
+                    {isAdmin && <button className="btn btn--danger btn--sm" onClick={() => act(d, 'delete')}>Удалить</button>}
                   </div>
                 </div>
               ))}
