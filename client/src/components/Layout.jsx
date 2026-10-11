@@ -4,6 +4,7 @@ import { useAuth } from '../auth';
 import ThemeToggle from './ThemeToggle';
 import LangToggle from './LangToggle';
 import NavIcon from './NavIcon';
+import UpdateBanner from './UpdateBanner';
 import { initials } from '../labels';
 
 const ROLE_LABELS = {
@@ -152,6 +153,7 @@ export default function Layout() {
       <main className="main">
         <Outlet />
       </main>
+      <UpdateBanner />
     </div>
   );
 }

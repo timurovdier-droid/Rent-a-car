@@ -4,6 +4,7 @@ import { api } from '../api';
 import Plate from '../components/Plate';
 import PeriodPicker, { defaultPeriod } from '../components/PeriodPicker';
 import CarLedger from '../components/CarLedger';
+import CarPicker from '../components/CarPicker';
 import DriverLedger, { DriverDebtList } from '../components/DriverLedger';
 import { fmtMoney, fmtDay, downloadCsv } from '../labels';
 
@@ -117,20 +118,7 @@ export default function ReportsPage() {
         <div className="ledger-pick">
           <div className="field">
             <label className="field__label" htmlFor="ledger-car">Машина</label>
-            <select
-              id="ledger-car"
-              className="field__input"
-              value={carId}
-              onChange={(e) => setCarId(e.target.value)}
-              disabled={!carList}
-            >
-              <option value="">{carList ? 'Выберите машину' : 'Загрузка…'}</option>
-              {(carList || []).map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.plate} · {c.brand} {c.model}{c.driver_name ? ` · ${c.driver_name}` : ''}
-                </option>
-              ))}
-            </select>
+            <CarPicker id="ledger-car" cars={carList} value={carId} onChange={setCarId} loading={!carList} />
           </div>
           {carId && (
             <button type="button" className="btn btn--quiet" onClick={() => navigate(`/cars/${carId}`)}>
