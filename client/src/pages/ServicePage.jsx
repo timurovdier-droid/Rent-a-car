@@ -4,6 +4,7 @@ import { useAuth } from '../auth';
 import Plate from '../components/Plate';
 import Money from '../components/Money';
 import StatusMark from '../components/StatusMark';
+import Select from '../components/Select';
 
 export default function ServicePage() {
   const { user } = useAuth();
@@ -152,16 +153,16 @@ export default function ServicePage() {
 
         <div className="field" style={{ margin: 0, minWidth: '10rem' }}>
           <label className="field__label" htmlFor="filterStatus">Статус</label>
-          <select
+          <Select
             id="filterStatus"
-            className="field__input"
             value={filterStatus}
-            onChange={(e) => setFilterStatus(e.target.value)}
-          >
-            <option value="">Все</option>
-            <option value="SCHEDULED">Запланировано</option>
-            <option value="COMPLETED">Завершено</option>
-          </select>
+            onChange={setFilterStatus}
+            options={[
+              { value: '', label: 'Все' },
+              { value: 'SCHEDULED', label: 'Запланировано' },
+              { value: 'COMPLETED', label: 'Завершено' },
+            ]}
+          />
         </div>
 
         <button
@@ -291,20 +292,20 @@ export default function ServicePage() {
 
           <div className="field">
             <label className="field__label" htmlFor="type">Тип обслуживания</label>
-            <select
+            <Select
               id="type"
-              className="field__input"
               value={formData.type}
-              onChange={(e) => setFormData({ ...formData, type: e.target.value })}
+              onChange={(v) => setFormData({ ...formData, type: v })}
               required
-            >
-              <option value="OIL_CHANGE">Замена масла</option>
-              <option value="REPAIR">Ремонт</option>
-              <option value="INSURANCE">Страховка</option>
-              <option value="INSPECTION">Техосмотр</option>
-              <option value="TIRE">Шины</option>
-              <option value="OTHER">Другое</option>
-            </select>
+              options={[
+                { value: 'OIL_CHANGE', label: 'Замена масла' },
+                { value: 'REPAIR', label: 'Ремонт' },
+                { value: 'INSURANCE', label: 'Страховка' },
+                { value: 'INSPECTION', label: 'Техосмотр' },
+                { value: 'TIRE', label: 'Шины' },
+                { value: 'OTHER', label: 'Другое' },
+              ]}
+            />
           </div>
 
           <div className="field">

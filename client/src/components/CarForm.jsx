@@ -3,6 +3,7 @@ import { api, ApiError } from '../api';
 import { useAuth } from '../auth';
 import Modal from './Modal';
 import MoneyInput from './MoneyInput';
+import Select, { pairs } from './Select';
 import { FUEL_TYPES } from '../labels';
 import { CarVisual } from './CarTile';
 
@@ -163,10 +164,12 @@ export default function CarForm({ car, onClose, onSaved }) {
             </div>
             <div className="field">
               <label className="field__label" htmlFor="cf-fuel">Топливо</label>
-              <select id="cf-fuel" className="field__input" value={form.fuel_type} onChange={set('fuel_type')}>
-                <option value="">Не указано</option>
-                {FUEL_TYPES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-              </select>
+              <Select
+                id="cf-fuel"
+                value={form.fuel_type}
+                onChange={(v) => setForm({ ...form, fuel_type: v })}
+                options={[{ value: '', label: 'Не указано' }, ...pairs(FUEL_TYPES)]}
+              />
             </div>
           </div>
         </fieldset>
@@ -199,10 +202,12 @@ export default function CarForm({ car, onClose, onSaved }) {
             <div className="cf__grid cf__grid--2">
               <div className="field">
                 <label className="field__label" htmlFor="cf-owner">Арендодатель</label>
-                <select id="cf-owner" className="field__input" value={form.owner_id} onChange={set('owner_id')}>
-                  <option value="">Не указан</option>
-                  {owners.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
-                </select>
+                <Select
+                  id="cf-owner"
+                  value={form.owner_id}
+                  onChange={(v) => setForm({ ...form, owner_id: v })}
+                  options={[{ value: '', label: 'Не указан' }, ...owners.map((o) => ({ value: o.id, label: o.name }))]}
+                />
               </div>
               {!car && (
                 <div className="field">

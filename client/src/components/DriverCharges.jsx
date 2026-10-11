@@ -4,6 +4,7 @@ import { api, ApiError } from '../api';
 import Modal from './Modal';
 import MoneyInput from './MoneyInput';
 import Plate from './Plate';
+import Select from './Select';
 import { CHARGE_KINDS, CHARGE_LABELS, METHOD_LABELS, PAY_METHODS, fmtDay, fmtMoney, todayLocal } from '../labels';
 
 const errText = (err, fallback) => (err instanceof ApiError ? err.message : fallback);
@@ -63,12 +64,15 @@ function ChargeModal({ driver, onClose, onDone }) {
         </div>
         <div className="field">
           <label className="field__label" htmlFor="ch-car">Машина</label>
-          <select id="ch-car" className="field__input" value={carId} onChange={(e) => setCarId(e.target.value)}>
-            <option value="">— без машины —</option>
-            {cars.map((a) => (
-              <option key={a.car_id} value={a.car_id}>{`${a.plate} · ${a.brand} ${a.model}`}</option>
-            ))}
-          </select>
+          <Select
+            id="ch-car"
+            value={carId}
+            onChange={setCarId}
+            options={[
+              { value: '', label: '— без машины —' },
+              ...cars.map((a) => ({ value: a.car_id, label: `${a.plate} · ${a.brand} ${a.model}` })),
+            ]}
+          />
         </div>
         <div className="field">
           <label className="field__label" htmlFor="ch-comment">{kind === 'OTHER' ? 'За что именно' : 'Комментарий'}</label>

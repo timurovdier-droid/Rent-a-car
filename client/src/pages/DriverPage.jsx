@@ -5,6 +5,7 @@ import { useAuth } from '../auth';
 import Plate from '../components/Plate';
 import Modal from '../components/Modal';
 import MoneyInput from '../components/MoneyInput';
+import Select from '../components/Select';
 import DriverForm from '../components/DriverForm';
 import DriverLedger from '../components/DriverLedger';
 import DriverRentStatus from '../components/RentStatus';
@@ -66,12 +67,19 @@ function ChangeCarModal({ driver, onClose, onDone }) {
         )}
         <div className="field">
           <label className="field__label" htmlFor="cc-car">Новая машина</label>
-          <select id="cc-car" className="field__input" value={carId} onChange={(e) => pick(e.target.value)} required>
-            <option value="">{cars ? '— выберите свободную машину —' : 'Загрузка…'}</option>
-            {(cars || []).map((c) => (
-              <option key={c.id} value={c.id}>{`${c.plate} · ${c.brand} ${c.model}${c.daily_rate ? ` · ${fmtMoney(c.daily_rate)} сум/день` : ''}`}</option>
-            ))}
-          </select>
+          <Select
+            id="cc-car"
+            value={carId}
+            onChange={pick}
+            required
+            disabled={!cars}
+            placeholder={cars ? '— выберите свободную машину —' : 'Загрузка…'}
+            options={(cars || []).map((c) => ({
+              value: c.id,
+              label: `${c.plate} · ${c.brand} ${c.model}`,
+              hint: c.daily_rate ? `${fmtMoney(c.daily_rate)} сум/день` : undefined,
+            }))}
+          />
           {cars && cars.length === 0 && <span className="muted small">Свободных машин нет</span>}
         </div>
         <div className="field">

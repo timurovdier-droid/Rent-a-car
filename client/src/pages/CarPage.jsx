@@ -6,6 +6,7 @@ import Plate from '../components/Plate';
 import StatusMark from '../components/StatusMark';
 import Modal from '../components/Modal';
 import MoneyInput from '../components/MoneyInput';
+import Select, { pairs } from '../components/Select';
 import CarForm from '../components/CarForm';
 import { CarVisual } from '../components/CarTile';
 import DayCalendar from '../components/DayCalendar';
@@ -305,18 +306,20 @@ function EditTx({ carId, tx, onClose, onDone }) {
         </div>
         <div className="field">
           <label className="field__label" htmlFor="etx-cat">Категория</label>
-          <select id="etx-cat" className="field__input" value={category} onChange={(e) => setCategory(e.target.value)}>
-            {categories.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-          </select>
+          <Select id="etx-cat" value={category} onChange={setCategory} options={pairs(categories)} />
         </div>
         <div className="field">
           <label className="field__label" htmlFor="etx-method">Способ</label>
-          <select id="etx-method" className="field__input" value={method} onChange={(e) => setMethod(e.target.value)}>
-            {PAY_METHODS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-            {!PAY_METHODS.some(([v]) => v === tx.method) && tx.method && (
-              <option value={tx.method}>{METHOD_LABELS[tx.method] || tx.method}</option>
-            )}
-          </select>
+          <Select
+            id="etx-method"
+            value={method}
+            onChange={setMethod}
+            options={[
+              ...pairs(PAY_METHODS),
+              ...(!PAY_METHODS.some(([v]) => v === tx.method) && tx.method
+                ? [{ value: tx.method, label: METHOD_LABELS[tx.method] || tx.method }] : []),
+            ]}
+          />
         </div>
         <div className="field">
           <label className="field__label" htmlFor="etx-date">Дата</label>
@@ -487,10 +490,14 @@ function DriverPanel({ hub, canWrite, onChanged }) {
           <p className="muted small" style={{ marginTop: 0 }}>Машина свободна. Выдайте её водителю — с этого дня начнётся начисление ставки.</p>
           <div className="field">
             <label className="field__label" htmlFor="as-driver">Водитель</label>
-            <select id="as-driver" className="field__input" value={driverId} onChange={(e) => setDriverId(e.target.value)} required>
-              <option value="">— выберите свободного водителя —</option>
-              {drivers.map((d) => <option key={d.id} value={d.id}>{d.full_name}{d.phone ? ` · ${d.phone}` : ''}</option>)}
-            </select>
+            <Select
+              id="as-driver"
+              value={driverId}
+              onChange={setDriverId}
+              required
+              placeholder="— выберите свободного водителя —"
+              options={drivers.map((d) => ({ value: d.id, label: d.full_name, hint: d.phone }))}
+            />
             {drivers.length === 0 && <span className="muted small">Свободных водителей нет. Добавьте их в разделе «Водители».</span>}
           </div>
           <div className="form-grid">
@@ -968,9 +975,7 @@ function ServicePanel({ hub, canWrite, onChanged }) {
           <div className="form-grid">
             <div className="field">
               <label className="field__label" htmlFor="sv-type">Что</label>
-              <select id="sv-type" className="field__input" value={type} onChange={(e) => setType(e.target.value)}>
-                {SERVICE_TYPES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-              </select>
+              <Select id="sv-type" value={type} onChange={setType} options={pairs(SERVICE_TYPES)} />
             </div>
             <div className="field">
               <label className="field__label" htmlFor="sv-date">{doneNow ? 'Когда сделано' : 'Сделать до даты'}</label>

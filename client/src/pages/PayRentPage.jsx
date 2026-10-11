@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { api, ApiError } from '../api';
 import Plate from '../components/Plate';
 import Money from '../components/Money';
+import Select from '../components/Select';
 
 function generateIdempotencyKey() {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
@@ -89,20 +90,17 @@ export default function PayRentPage() {
         <form onSubmit={handleSubmit} style={{ maxWidth: '28rem' }}>
           <div className="field">
             <label className="field__label" htmlFor="report">Дневной отчёт</label>
-            <select
+            <Select
               id="report"
-              className="field__input"
               value={selectedReportId}
-              onChange={(e) => setSelectedReportId(e.target.value)}
+              onChange={setSelectedReportId}
               required
-            >
-              <option value="">— выберите отчёт —</option>
-              {reports.map((r) => (
-                <option key={r.id} value={r.id}>
-                  {new Date(r.report_date).toLocaleDateString('ru-RU')} · {r.plate} · {r.brand} {r.model}
-                </option>
-              ))}
-            </select>
+              placeholder="— выберите отчёт —"
+              options={reports.map((r) => ({
+                value: r.id,
+                label: `${new Date(r.report_date).toLocaleDateString('ru-RU')} · ${r.plate} · ${r.brand} ${r.model}`,
+              }))}
+            />
           </div>
 
           {selectedReportId && (
@@ -140,17 +138,17 @@ export default function PayRentPage() {
 
           <div className="field">
             <label className="field__label" htmlFor="method">Способ оплаты</label>
-            <select
+            <Select
               id="method"
-              className="field__input"
               value={method}
-              onChange={(e) => setMethod(e.target.value)}
+              onChange={setMethod}
               required
-            >
-              <option value="CASH">Наличные</option>
-              <option value="CARD">Карта</option>
-              <option value="BALANCE">Баланс</option>
-            </select>
+              options={[
+                { value: 'CASH', label: 'Наличные' },
+                { value: 'CARD', label: 'Карта' },
+                { value: 'BALANCE', label: 'Баланс' },
+              ]}
+            />
           </div>
 
           <div className="field">

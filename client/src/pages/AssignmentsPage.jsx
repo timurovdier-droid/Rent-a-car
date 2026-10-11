@@ -3,6 +3,7 @@ import { api, ApiError } from '../api';
 import { useAuth } from '../auth';
 import Plate from '../components/Plate';
 import Money from '../components/Money';
+import Select from '../components/Select';
 
 export default function AssignmentsPage() {
   const { user } = useAuth();
@@ -210,38 +211,24 @@ export default function AssignmentsPage() {
         <form onSubmit={handleCreate}>
           <div className="field">
             <label className="field__label" htmlFor="car">Автомобиль</label>
-            <select
+            <Select
               id="car"
-              className="field__input"
               value={selectedCar}
-              onChange={(e) => setSelectedCar(e.target.value)}
+              onChange={setSelectedCar}
               required
-            >
-              <option value="">— выберите —</option>
-              {available.cars.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.plate} — {c.brand} {c.model}
-                </option>
-              ))}
-            </select>
+              options={available.cars.map((c) => ({ value: c.id, label: `${c.plate} — ${c.brand} ${c.model}` }))}
+            />
           </div>
 
           <div className="field">
             <label className="field__label" htmlFor="driver">Водитель</label>
-            <select
+            <Select
               id="driver"
-              className="field__input"
               value={selectedDriver}
-              onChange={(e) => setSelectedDriver(e.target.value)}
+              onChange={setSelectedDriver}
               required
-            >
-              <option value="">— выберите —</option>
-              {available.drivers.map((d) => (
-                <option key={d.id} value={d.id}>
-                  {d.full_name} — {d.phone}
-                </option>
-              ))}
-            </select>
+              options={available.drivers.map((d) => ({ value: d.id, label: d.full_name, hint: d.phone }))}
+            />
           </div>
 
           <div className="field">

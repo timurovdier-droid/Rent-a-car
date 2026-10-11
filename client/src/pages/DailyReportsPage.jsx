@@ -3,6 +3,7 @@ import { api, ApiError } from '../api';
 import { useAuth } from '../auth';
 import Plate from '../components/Plate';
 import Money from '../components/Money';
+import Select from '../components/Select';
 
 export default function DailyReportsPage() {
   const { user } = useAuth();
@@ -138,17 +139,12 @@ export default function DailyReportsPage() {
             </div>
             <div className="field" style={{ margin: 0, minWidth: '12rem' }}>
               <label className="field__label" htmlFor="filterDriver">Водитель</label>
-              <select
+              <Select
                 id="filterDriver"
-                className="field__input"
                 value={filterDriverId}
-                onChange={(e) => setFilterDriverId(e.target.value)}
-              >
-                <option value="">Все</option>
-                {driversList.map((d) => (
-                  <option key={d.id} value={d.id}>{d.full_name}</option>
-                ))}
-              </select>
+                onChange={setFilterDriverId}
+                options={[{ value: '', label: 'Все' }, ...driversList.map((d) => ({ value: d.id, label: d.full_name }))]}
+              />
             </div>
             <button
               className="btn btn--quiet"
@@ -251,18 +247,13 @@ export default function DailyReportsPage() {
           {user?.role !== 'DRIVER' && (
             <div className="field">
               <label className="field__label" htmlFor="driver">Водитель</label>
-              <select
+              <Select
                 id="driver"
-                className="field__input"
                 value={formData.driver_id}
-                onChange={(e) => setFormData({ ...formData, driver_id: e.target.value })}
+                onChange={(v) => setFormData({ ...formData, driver_id: v })}
                 required
-              >
-                <option value="">— выберите —</option>
-                {driversList.map((d) => (
-                  <option key={d.id} value={d.id}>{d.full_name}</option>
-                ))}
-              </select>
+                options={driversList.map((d) => ({ value: d.id, label: d.full_name }))}
+              />
             </div>
           )}
 

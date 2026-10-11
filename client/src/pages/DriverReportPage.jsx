@@ -4,6 +4,7 @@ import { api } from '../api';
 import PeriodPicker, { defaultPeriod } from '../components/PeriodPicker';
 import DriverLedger, { DriverDebtList } from '../components/DriverLedger';
 import DriverRentStatus from '../components/RentStatus';
+import Select from '../components/Select';
 
 export default function DriverReportPage() {
   const [params, setParams] = useSearchParams();
@@ -32,20 +33,17 @@ export default function DriverReportPage() {
       <div className="ledger-pick">
         <div className="field">
           <label className="field__label" htmlFor="dr-driver">Водитель</label>
-          <select
+          <Select
             id="dr-driver"
-            className="field__input"
             value={driverId}
-            onChange={(e) => pick(e.target.value)}
+            onChange={pick}
             disabled={!drivers}
-          >
-            <option value="">{drivers ? 'Все водители' : 'Загрузка…'}</option>
-            {(drivers || []).map((d) => (
-              <option key={d.id} value={d.id}>
-                {d.full_name}{d.car_plate ? ` · ${d.car_plate}` : ''}
-              </option>
-            ))}
-          </select>
+            placeholder="Загрузка…"
+            options={drivers ? [
+              { value: '', label: 'Все водители' },
+              ...drivers.map((d) => ({ value: d.id, label: d.full_name, hint: d.car_plate })),
+            ] : []}
+          />
         </div>
         {driverId && (
           <>
