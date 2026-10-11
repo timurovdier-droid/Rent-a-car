@@ -1013,3 +1013,47 @@ button.rs-cell:hover { box-shadow: inset 0 0 0 2px var(--c-ink); }
 .charge__pays { list-style: none; margin: 8px 0 0; padding: 0 0 0 10px; border-left: 2px solid var(--c-line); font-size: 12px; color: var(--c-muted); }
 .charge__pays li { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; padding: 2px 0; }
 .charge__actions { display: flex; gap: 14px; align-items: center; margin-top: 8px; }
+
+/* Телефон */
+@media (max-width: 600px) {
+  .main { padding-bottom: 96px; }
+
+  .stats { gap: 10px; }
+  .stats > .stat:last-child:nth-child(odd) { grid-column: 1 / -1; }
+  .stat { padding: 12px 14px; border-radius: 14px; }
+  .stat__value { font-size: 22px; overflow-wrap: normal; }
+  .stat__value small { white-space: nowrap; margin-left: 3px; }
+
+  .page-head > .form-actions { display: grid; grid-template-columns: 1fr 1fr; width: 100%; }
+  .page-head > .form-actions .btn { width: 100%; justify-content: center; }
+  .page-head > .form-actions .btn--report { grid-column: 1 / -1; }
+  .page-head > .form-actions .btn--ghost { border: 1px solid var(--c-line-strong); }
+
+  .mf-block { padding: 0; }
+
+  .table-wrap { overflow: visible; }
+  .table-wrap .table:not(.table--queue),
+  .table-wrap .table:not(.table--queue) tbody,
+  .table-wrap .table:not(.table--queue) tfoot { display: block; }
+  .table-wrap .table:not(.table--queue) thead { display: none; }
+  .table-wrap .table:not(.table--queue) tr {
+    display: block; margin-bottom: 10px; padding: 4px 14px;
+    background: var(--c-surface); border: 1px solid var(--c-line); border-radius: 14px;
+  }
+  .table-wrap .table:not(.table--queue) td {
+    display: flex; justify-content: space-between; align-items: center; gap: 12px;
+    padding: 8px 0; text-align: right; border-bottom: 1px solid var(--c-line);
+  }
+  .table-wrap .table:not(.table--queue) td:last-child { border-bottom: 0; }
+  .table-wrap .table:not(.table--queue) td::before {
+    content: attr(data-label); flex: none; max-width: 45%;
+    color: var(--c-muted); font-size: 13px; font-weight: 500; text-align: left;
+  }
+  .table-wrap .table:not(.table--queue) td:first-child {
+    display: block; padding: 10px 0; text-align: left; font-weight: 700;
+  }
+  .table-wrap .table:not(.table--queue) td:first-child::before,
+  .table-wrap .table:not(.table--queue) td[data-label='']::before { content: none; }
+  .table-wrap .table:not(.table--queue) td[data-label=''] { justify-content: flex-end; }
+  .table-wrap .table:not(.table--queue) td:empty { display: none; }
+}

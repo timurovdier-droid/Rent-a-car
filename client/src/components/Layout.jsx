@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth';
 import ThemeToggle from './ThemeToggle';
@@ -7,6 +7,7 @@ import NavIcon from './NavIcon';
 import UpdateBanner from './UpdateBanner';
 import NotifyBell from './NotifyBell';
 import { api } from '../api';
+import useTableLabels from './useTableLabels';
 const ROLE_LABELS = {
   DRIVER: 'Водитель',
   DISPATCHER: 'Диспетчер',
@@ -103,6 +104,8 @@ export default function Layout() {
   const { user } = useAuth();
   const { pathname } = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
+  const mainRef = useRef(null);
+  useTableLabels(mainRef);
   const menuItems = menuFor(user?.role);
   const current = menuItems.find((item) => (item.end ? pathname === item.to : pathname.startsWith(item.to)));
 
@@ -182,7 +185,7 @@ export default function Layout() {
         )}
       </aside>
 
-      <main className="main">
+      <main className="main" ref={mainRef}>
         <Outlet />
       </main>
       {user?.role === 'ADMIN' && <NotifyBell />}
