@@ -55,7 +55,8 @@ function menuFor(role) {
 export function Brand({ big = false }) {
   return (
     <NavLink to="/" className={`brand ${big ? 'brand--big' : ''}`} aria-label="Rent a car — на главную" data-no-translate>
-      <img src="/logo.png" alt="GTA" className="brand-logo" width={big ? 104 : 84} height={big ? 27 : 22} />    </NavLink>
+      <img src="/logo.png" alt="GTA" className="brand-logo" width={big ? 160 : 112} height={big ? 42 : 29} />
+    </NavLink>
   );
 }
 
