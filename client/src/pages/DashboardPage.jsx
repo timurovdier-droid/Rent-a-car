@@ -72,7 +72,7 @@ function FleetHome({ data }) {
 
   return (
     <>
-      <div className="section-head">
+      <div className="section-head section-head--lead">
         <h2>Сводка</h2>
         {!isAdmin && <span className="muted small">деньги — по вашим записям</span>}
       </div>
@@ -113,7 +113,7 @@ function OwnerHome({ data }) {
   const s = data.stats;
   return (
     <>
-      <div className="section-head"><h2>Сводка за месяц</h2></div>
+      <div className="section-head section-head--lead"><h2>Сводка за месяц</h2></div>
       <div className="stats">
         <Stat label="Машин" value={data.cars.length} plain />
         <Stat label="Доход" value={s.month_income} tone="ok" />
