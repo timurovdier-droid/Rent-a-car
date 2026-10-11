@@ -57,10 +57,56 @@ async function request(method, path, body = null, extra = {}) {
   return response.json();
 }
 
+// Ответы GET запоминаются ненадолго: повторный заход в раздел открывается сразу,
+// а любое изменение (POST/PATCH/PUT/DELETE) сбрасывает всё запомненное.
+const CACHE_TTL = 60000;
+const REFRESH_AFTER = 5000;
+const NO_CACHE = ['/auth/'];
+const cache = new Map();
+const inflight = new Map();
+let generation = 0;
+
+function copy(data) {
+  return data && typeof data === 'object' ? structuredClone(data) : data;
+}
+
+function fetchFresh(path) {
+  if (inflight.has(path)) return inflight.get(path);
+  const started = generation;
+  const promise = request('GET', path)
+    .then((data) => {
+      if (started === generation) cache.set(path, { at: Date.now(), data });
+      return data;
+    })
+    .finally(() => { if (inflight.get(path) === promise) inflight.delete(path); });
+  inflight.set(path, promise);
+  return promise;
+}
+
+function cachedGet(path) {
+  if (NO_CACHE.some((prefix) => path.startsWith(prefix))) return request('GET', path);
+  const hit = cache.get(path);
+  const age = hit ? Date.now() - hit.at : Infinity;
+  if (age < CACHE_TTL) {
+    if (age > REFRESH_AFTER) fetchFresh(path).catch(() => {});
+    return Promise.resolve(copy(hit.data));
+  }
+  return fetchFresh(path).then(copy);
+}
+
+function mutate(method, path, body, extra) {
+  return request(method, path, body, extra).finally(() => {
+    generation += 1;
+    cache.clear();
+    inflight.clear();
+  });
+}
+
 export const api = {
-  get: (path) => request('GET', path),
-  post: (path, body, extra) => request('POST', path, body, extra),
-  patch: (path, body, extra) => request('PATCH', path, body, extra),
-  put: (path, body, extra) => request('PUT', path, body, extra),
-  delete: (path) => request('DELETE', path),
+  get: cachedGet,
+  prefetch: (path) => { cachedGet(path).catch(() => {}); },
+  post: (path, body, extra) => mutate('POST', path, body, extra),
+  patch: (path, body, extra) => mutate('PATCH', path, body, extra),
+  put: (path, body, extra) => mutate('PUT', path, body, extra),
+  delete: (path) => mutate('DELETE', path),
 };

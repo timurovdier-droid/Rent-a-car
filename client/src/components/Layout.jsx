@@ -6,6 +6,7 @@ import LangToggle from './LangToggle';
 import NavIcon from './NavIcon';
 import UpdateBanner from './UpdateBanner';
 import NotifyBell from './NotifyBell';
+import { api } from '../api';
 const ROLE_LABELS = {
   DRIVER: 'Водитель',
   DISPATCHER: 'Диспетчер',
@@ -50,6 +51,22 @@ function menuFor(role) {
   return [];
 }
 
+const PREFETCH = {
+  '/': ['/dashboard'],
+  '/cars': ['/cars', '/dashboard'],
+  '/drivers': ['/drivers', '/driver-waitlist'],
+  '/owners': ['/owners'],
+  '/users/dispatchers': ['/dispatchers'],
+  '/driver-report': ['/drivers'],
+  '/reports': ['/cars'],
+  '/settings': ['/settings'],
+};
+
+function prefetchSection(role, to) {
+  if (role === 'DRIVER') return;
+  (PREFETCH[to] || []).forEach((path) => api.prefetch(path));
+}
+
 function useLogout() {
   const { logout } = useAuth();
   const navigate = useNavigate();
@@ -90,6 +107,14 @@ export default function Layout() {
   const current = menuItems.find((item) => (item.end ? pathname === item.to : pathname.startsWith(item.to)));
 
   useEffect(() => { setMenuOpen(false); }, [pathname]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      menuItems.forEach((item) => prefetchSection(user?.role, item.to));
+    }, 1500);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.role]);
 
   useEffect(() => {
     if (!menuOpen) return undefined;
@@ -141,6 +166,8 @@ export default function Layout() {
               to={item.to}
               end={item.end}
               className={({ isActive }) => `nav__link ${isActive ? 'nav__link--active' : ''}`}
+              onMouseEnter={() => prefetchSection(user?.role, item.to)}
+              onTouchStart={() => prefetchSection(user?.role, item.to)}
             >
               <NavIcon name={item.icon} />
               <span>{item.label}</span>
