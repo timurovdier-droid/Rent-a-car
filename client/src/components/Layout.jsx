@@ -50,6 +50,26 @@ function menuFor(role) {
   return [];
 }
 
+function useLogout() {
+  const { logout } = useAuth();
+  const navigate = useNavigate();
+  return async () => {
+    await logout();
+    navigate('/login');
+  };
+}
+
+export function AppControls() {
+  const handleLogout = useLogout();
+  return (
+    <>
+      <LangToggle />
+      <ThemeToggle />
+      <button type="button" className="btn btn--quiet nav__logout" onClick={handleLogout}>Выйти</button>
+    </>
+  );
+}
+
 function AvatarLogo() {
   return <img src="/logo.png" alt="GTA" className="avatar-logo" width={24} height={6} />;
 }
@@ -63,8 +83,7 @@ export function Brand({ big = false }) {
 }
 
 export default function Layout() {
-  const { user, logout } = useAuth();
-  const navigate = useNavigate();
+  const { user } = useAuth();
   const { pathname } = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
   const menuItems = menuFor(user?.role);
@@ -83,10 +102,7 @@ export default function Layout() {
     };
   }, [menuOpen]);
 
-  async function handleLogout() {
-    await logout();
-    navigate('/login');
-  }
+  const handleLogout = useLogout();
 
   return (
     <div className={`shell ${menuOpen ? 'shell--menu' : ''}`}>
@@ -113,19 +129,10 @@ export default function Layout() {
 
       <aside className="nav" aria-label="Меню">
         <div className="nav__brand">
-          <Brand />
           <button type="button" className="topbar__btn nav__close" onClick={() => setMenuOpen(false)} aria-label="Закрыть меню">
             <NavIcon name="close" size={22} />
           </button>
         </div>
-
-        <NavLink className="nav__user" to="/profile" title="Перейти в профиль">
-          <span className="nav__avatar"><AvatarLogo /></span>
-          <span className="nav__who">
-            <span className="nav__name">{user?.full_name}</span>
-            <span className="nav__role">{ROLE_LABELS[user?.role]}</span>
-          </span>
-        </NavLink>
 
         <nav className="nav__menu">
           {menuItems.map((item) => (
@@ -141,13 +148,11 @@ export default function Layout() {
           ))}
         </nav>
 
-        <div className="nav__foot">
-          <LangToggle />
-          <ThemeToggle />
-          <button className="btn btn--quiet nav__logout" onClick={handleLogout}>
-            Выйти
-          </button>
-        </div>
+        {user?.role !== 'ADMIN' && (
+          <div className="nav__foot">
+            <AppControls />
+          </div>
+        )}
       </aside>
 
       <main className="main">

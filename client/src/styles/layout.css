@@ -77,7 +77,7 @@ body.no-scroll { overflow: hidden; }
 .shell--menu .nav { transform: none; box-shadow: 8px 0 32px rgb(0 0 0 / .2); }
 
 .nav__brand {
-  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  display: flex; align-items: center; justify-content: flex-end; gap: 8px;
   padding: 4px 4px 14px 10px;
 }
 
@@ -147,6 +147,7 @@ body.no-scroll { overflow: hidden; }
 }
 
 .nav__foot { padding: 10px 4px 4px; }
+.app-controls { display: grid; gap: 10px; max-width: 32rem; margin-bottom: var(--sp-5); }
 .nav__logout { width: 100%; }
 
 .main {
@@ -208,7 +209,7 @@ body.no-scroll { overflow: hidden; }
     grid-column: 1 / -1;
     height: 64px; padding: 0 20px 0 22px; gap: 16px;
   }
-  .topbar__burger, .topbar__avatar, .nav-backdrop, .nav__close, .nav__brand, .nav__user, .nav__foot { display: none; }
+  .topbar__burger, .topbar__avatar, .nav-backdrop, .nav__close, .nav__brand, .nav__user, .nav__foot, .app-controls { display: none; }
   .topbar__tools { display: flex; }
   .topbar__section { flex: 0 1 auto; }
   .nav {

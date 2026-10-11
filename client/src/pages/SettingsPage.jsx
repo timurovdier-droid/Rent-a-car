@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { api, ApiError } from '../api';
+import { AppControls } from '../components/Layout';
 
 const FIELDS = [
   { key: 'company_name', label: 'Название компании', type: 'text' },
@@ -65,6 +66,10 @@ export default function SettingsPage() {
     <div>
       <h1 className="page-title">Настройки системы</h1>
       <p className="page-sub">Глобальные параметры, применяемые ко всей системе</p>
+
+      <div className="app-controls">
+        <AppControls />
+      </div>
 
       <form onSubmit={handleSave} style={{ maxWidth: '32rem' }}>
         {FIELDS.map((f) => (
