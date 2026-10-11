@@ -56,7 +56,7 @@ export function Brand({ big = false }) {
   return (
     <NavLink to="/" className={`brand ${big ? 'brand--big' : ''}`} aria-label="Rent a car — на главную" data-no-translate>
       <img src="/logo.png" alt="GTA" className="brand-logo" width={big ? 104 : 84} height={big ? 27 : 22} />
-      <span className="brand__name">Rent a car</span>
+      {big && <span className="brand__name">Rent a car</span>}
     </NavLink>
   );
 }
