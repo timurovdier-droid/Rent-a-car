@@ -1,4 +1,4 @@
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './auth';
 import Layout from './components/Layout';
 import LoginPage from './pages/LoginPage';
@@ -12,7 +12,6 @@ import CarPage from './pages/CarPage';
 import DriverHomePage from './pages/DriverHomePage';
 import DriverReportPage from './pages/DriverReportPage';
 import PaymentsQueuePage from './pages/PaymentsQueuePage';
-import AuditPage from './pages/AuditPage';
 import OwnersPage from './pages/OwnersPage';
 import AssignmentsPage from './pages/AssignmentsPage';
 import DailyReportsPage from './pages/DailyReportsPage';
@@ -38,6 +37,17 @@ function Guard({ roles, children }) {
   return children;
 }
 
+function DriverReportRoute() {
+  const { user } = useAuth();
+  const { search } = useLocation();
+  if (user?.role === 'ADMIN') {
+    const params = new URLSearchParams(search);
+    params.set('tab', 'drivers');
+    return <Navigate to={`/reports?${params}`} replace />;
+  }
+  return <DriverReportPage />;
+}
+
 function HomeRoute() {
   const { user } = useAuth();
   return user?.role === 'DRIVER' ? <DriverHomePage /> : <DashboardPage />;
@@ -55,7 +65,7 @@ export default function App() {
           
           <Route
             path="/driver-report"
-            element={<Guard roles={['DISPATCHER', 'ADMIN']}><DriverReportPage /></Guard>}
+            element={<Guard roles={['DISPATCHER', 'ADMIN']}><DriverReportRoute /></Guard>}
           />
 
           <Route 
@@ -137,7 +147,7 @@ export default function App() {
 
           <Route 
             path="/audit" 
-            element={<Guard roles={['ADMIN']}><AuditPage /></Guard>} 
+            element={<Navigate to="/reports?tab=audit" replace />} 
           />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />

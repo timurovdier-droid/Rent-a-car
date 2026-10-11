@@ -6,7 +6,7 @@ import DriverLedger, { DriverDebtList } from '../components/DriverLedger';
 import DriverRentStatus from '../components/RentStatus';
 import Select from '../components/Select';
 
-export default function DriverReportPage() {
+export default function DriverReportPage({ embedded = false }) {
   const [params, setParams] = useSearchParams();
   const driverId = params.get('driver') || '';
   const [period, setPeriod] = useState(defaultPeriod);
@@ -18,17 +18,21 @@ export default function DriverReportPage() {
   }, []);
 
   function pick(id) {
-    setParams(id ? { driver: String(id) } : {});
+    const next = new URLSearchParams(params);
+    if (id) next.set('driver', String(id)); else next.delete('driver');
+    setParams(next);
   }
 
   return (
     <div>
-      <div className="page-head">
-        <div>
-          <h1 className="page-title">Отчёт по водителям</h1>
-          <p className="page-sub">Отмечайте по каждому дню: дал водитель деньги или нет</p>
+      {!embedded && (
+        <div className="page-head">
+          <div>
+            <h1 className="page-title">Отчёт по водителям</h1>
+            <p className="page-sub">Отмечайте по каждому дню: дал водитель деньги или нет</p>
+          </div>
         </div>
-      </div>
+      )}
 
       <div className="ledger-pick">
         <div className="field">

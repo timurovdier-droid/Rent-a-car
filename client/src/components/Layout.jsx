@@ -35,9 +35,7 @@ function menuFor(role) {
       { to: '/drivers', label: 'Водители', icon: 'users' },
       { to: '/owners', label: 'Арендодатели', icon: 'briefcase' },
       { to: '/users/dispatchers', label: 'Диспетчеры', icon: 'headset' },
-      { to: '/driver-report', label: 'Отчёт по водителям', icon: 'calendar' },
       { to: '/reports', label: 'Отчёты', icon: 'chart' },
-      { to: '/audit', label: 'Журнал аудита', icon: 'list' },
       { to: '/settings', label: 'Настройки', icon: 'sliders' },
       { to: '/help', label: 'Справка', icon: 'help' },
     ];

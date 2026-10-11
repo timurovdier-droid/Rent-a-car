@@ -5,16 +5,18 @@ import Plate from '../components/Plate';
 import PeriodPicker, { defaultPeriod } from '../components/PeriodPicker';
 import CarLedger from '../components/CarLedger';
 import CarPicker from '../components/CarPicker';
-import DriverLedger, { DriverDebtList } from '../components/DriverLedger';
+import DriverReportPage from './DriverReportPage';
+import AuditPage from './AuditPage';
 import { fmtMoney, fmtDay, downloadCsv } from '../labels';
 
 const TABS = [
   ['cars', 'По машинам'],
   ['car', 'По машине'],
-  ['drivers', 'По водителям'],
+  ['drivers', 'Отчёт по водителям'],
   ['owners', 'По арендодателям'],
   ['debts', 'Долги'],
   ['days', 'По дням'],
+  ['audit', 'Журнал аудита'],
 ];
 
 function Num({ value, tone }) {
@@ -27,8 +29,8 @@ export default function ReportsPage() {
   const [params, setParams] = useSearchParams();
   const tab = TABS.some(([key]) => key === params.get('tab')) ? params.get('tab') : 'cars';
   const carId = params.get('car') || '';
-  const driverId = params.get('driver') || '';
-  const ownTab = tab === 'car' || tab === 'drivers';
+  const ownTab = tab === 'car' || tab === 'drivers' || tab === 'audit';
+  const ownPeriod = tab === 'drivers' || tab === 'audit';
   const [period, setPeriod] = useState(defaultPeriod);
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
@@ -44,12 +46,6 @@ export default function ReportsPage() {
     const next = new URLSearchParams(params);
     if (id) next.set('car', id); else next.delete('car');
     setParams(next, { replace: true });
-  }
-
-  function setDriverId(id) {
-    const next = new URLSearchParams(params);
-    if (id) next.set('driver', id); else next.delete('driver');
-    setParams(next);
   }
 
   useEffect(() => {
@@ -97,14 +93,14 @@ export default function ReportsPage() {
       <div className="page-head">
         <div>
           <h1 className="page-title">Отчёты</h1>
-          <p className="page-sub">Доход, расходы, прибыль и долги по каждой машине</p>
+          <p className="page-sub">Доход, расходы, прибыль, долги, оплаты водителей и журнал действий</p>
         </div>
         {!ownTab && (
           <button className="btn btn--quiet" onClick={exportCurrent} disabled={!data}>Скачать в Excel</button>
         )}
       </div>
 
-      <PeriodPicker value={period} onChange={setPeriod} />
+      {!ownPeriod && <PeriodPicker value={period} onChange={setPeriod} />}
 
       <div className="tabs">
         {TABS.map(([key, label]) => (
@@ -131,16 +127,8 @@ export default function ReportsPage() {
         ? <CarLedger carId={carId} period={period} />
         : <div className="empty">Выберите машину — покажу по дням, сколько водитель отдал наличными и переводом и в какие дни есть долг</div>)}
 
-      {tab === 'drivers' && !driverId && <DriverDebtList period={period} onPick={(id) => setDriverId(String(id))} />}
-      {tab === 'drivers' && driverId && (
-        <div>
-          <div className="ledger-pick">
-            <button type="button" className="btn btn--quiet" onClick={() => setDriverId('')}>← Все водители</button>
-            <button type="button" className="btn btn--ghost" onClick={() => navigate(`/drivers/${driverId}`)}>Карточка водителя</button>
-          </div>
-          <DriverLedger driverId={driverId} period={period} showName canPay />
-        </div>
-      )}
+      {tab === 'drivers' && <DriverReportPage embedded />}
+      {tab === 'audit' && <AuditPage embedded />}
 
       {!ownTab && error && <div className="notice notice--error">{error}</div>}
       {!ownTab && !data && !error && <div className="muted">Загрузка…</div>}

@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { api } from '../api';
 import StatusMark from '../components/StatusMark';
 
-export default function AuditPage() {
+export default function AuditPage({ embedded = false }) {
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -106,8 +106,12 @@ export default function AuditPage() {
 
   return (
     <div>
-      <h1 className="page-title">Журнал аудита</h1>
-      <p className="page-sub">История всех действий в системе</p>
+      {!embedded && (
+        <>
+          <h1 className="page-title">Журнал аудита</h1>
+          <p className="page-sub">История всех действий в системе</p>
+        </>
+      )}
 
       {logs.length === 0 ? (
         <p style={{ color: 'var(--c-muted)' }}>Записей пока нет</p>
