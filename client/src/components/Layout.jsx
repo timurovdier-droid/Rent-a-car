@@ -114,7 +114,6 @@ function UserMenu({ user, onLogout }) {
           <span className="nav__name">{user?.full_name}</span>
           <span className="nav__role">{ROLE_LABELS[user?.role]}</span>
         </span>
-        <span aria-hidden="true" className={`dp__caret ${open ? 'dp__caret--up' : ''}`} />
       </button>
       {open && (
         <div className="umenu__pop" role="menu">
