@@ -5,6 +5,7 @@ import ThemeToggle from './ThemeToggle';
 import LangToggle from './LangToggle';
 import NavIcon from './NavIcon';
 import UpdateBanner from './UpdateBanner';
+import NotifyBell from './NotifyBell';
 const ROLE_LABELS = {
   DRIVER: 'Водитель',
   DISPATCHER: 'Диспетчер',
@@ -28,7 +29,6 @@ function menuFor(role) {
   if (role === 'ADMIN') {
     return [
       { to: '/', label: 'Главная', icon: 'home', end: true },
-      { to: '/notifications', label: 'Уведомления', icon: 'bell' },
       { to: '/cars', label: 'Автомобили', icon: 'car' },
       { to: '/drivers', label: 'Водители', icon: 'users' },
       { to: '/owners', label: 'Арендодатели', icon: 'briefcase' },
@@ -158,6 +158,7 @@ export default function Layout() {
       <main className="main">
         <Outlet />
       </main>
+      {user?.role === 'ADMIN' && <NotifyBell />}
       <UpdateBanner />
     </div>
   );

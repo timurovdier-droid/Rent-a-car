@@ -814,6 +814,27 @@ button.rs-cell:hover { box-shadow: inset 0 0 0 2px var(--c-ink); }
 .sel__check { flex: none; color: var(--c-ink); }
 .sel__empty { padding: 16px 10px; text-align: center; color: var(--c-muted); font-size: 14px; }
 
+.bell {
+  position: fixed; z-index: 60; right: 20px; bottom: 20px;
+  display: grid; place-items: center;
+  width: 56px; height: 56px; border-radius: 50%;
+  background: var(--c-primary); color: var(--c-on-primary);
+  box-shadow: 0 10px 28px -8px rgb(0 0 0 / .45);
+  text-decoration: none;
+  transition: transform .15s, box-shadow .15s;
+}
+.bell:hover { transform: translateY(-2px); box-shadow: 0 14px 32px -8px rgb(0 0 0 / .5); }
+.bell--active { box-shadow: 0 0 0 3px var(--c-bg), 0 0 0 5px var(--c-primary); }
+.bell__count {
+  position: absolute; top: -2px; right: -2px;
+  min-width: 22px; height: 22px; padding: 0 6px; box-sizing: border-box;
+  display: grid; place-items: center;
+  border-radius: 999px; border: 2px solid var(--c-bg);
+  background: var(--c-danger-solid); color: #fff;
+  font: 700 11px/1 var(--font-ui);
+}
+@media (max-width: 600px) { .bell { right: 14px; bottom: 14px; width: 52px; height: 52px; } }
+
 .update-banner {
   position: fixed; z-index: 90; left: 50%; bottom: 20px; transform: translateX(-50%);
   display: flex; align-items: center; gap: 14px;
