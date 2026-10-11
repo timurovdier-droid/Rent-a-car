@@ -5,14 +5,13 @@ import LoginPage from './pages/LoginPage';
 import ChangePasswordPage from './pages/ChangePasswordPage';
 import DashboardPage from './pages/DashboardPage';
 import CarsPage from './pages/CarsPage';
-import DispatchersPage from './pages/DispatchersPage';
+import UsersPage from './pages/UsersPage';
 import DriversPage from './pages/DriversPage';
 import DriverPage from './pages/DriverPage';
 import CarPage from './pages/CarPage';
 import DriverHomePage from './pages/DriverHomePage';
 import DriverReportPage from './pages/DriverReportPage';
 import PaymentsQueuePage from './pages/PaymentsQueuePage';
-import OwnersPage from './pages/OwnersPage';
 import AssignmentsPage from './pages/AssignmentsPage';
 import DailyReportsPage from './pages/DailyReportsPage';
 import ServicePage from './pages/ServicePage';
@@ -128,17 +127,16 @@ export default function App() {
             element={<Guard roles={['DISPATCHER', 'ADMIN']}><DriverPage /></Guard>}
           />
           
-          <Route 
-            path="/owners" 
-            element={<Guard roles={['ADMIN']}><OwnersPage /></Guard>} 
+          <Route
+            path="/users"
+            element={<Guard roles={['ADMIN']}><UsersPage /></Guard>}
           />
+
+          <Route path="/owners" element={<Navigate to="/users?tab=owners" replace />} />
           
           <Route path="/finance" element={<Navigate to="/" replace />} />
           
-          <Route 
-            path="/users/dispatchers" 
-            element={<Guard roles={['ADMIN']}><DispatchersPage /></Guard>} 
-          />
+          <Route path="/users/dispatchers" element={<Navigate to="/users?tab=dispatchers" replace />} />
           
           <Route
             path="/help"

@@ -41,7 +41,7 @@ function EditDispatcherModal({ dispatcher, onClose, onDone }) {
   );
 }
 
-export default function DispatchersPage() {
+export default function DispatchersPage({ embedded = false }) {
   const [dispatchers, setDispatchers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -117,8 +117,8 @@ export default function DispatchersPage() {
 
   return (
     <div>
-      <h1 className="page-title">Диспетчеры</h1>
-      <p className="page-sub">Управление учётными записями диспетчеров</p>
+      {!embedded && <h1 className="page-title">Диспетчеры</h1>}
+      <p className="page-sub">Учётные записи диспетчеров: создание, сброс пароля, архив</p>
 
       <div style={{ marginBottom: 'var(--sp-4)' }}>
         <button className="btn" type="button" onClick={() => setShowForm((v) => !v)}>

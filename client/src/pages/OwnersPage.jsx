@@ -64,7 +64,7 @@ function OwnerForm({ owner, onClose, onSaved }) {
   );
 }
 
-export default function OwnersPage() {
+export default function OwnersPage({ embedded = false }) {
   const [owners, setOwners] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -101,7 +101,7 @@ export default function OwnersPage() {
     <div>
       <div className="page-head">
         <div>
-          <h1 className="page-title">Арендодатели</h1>
+          {!embedded && <h1 className="page-title">Арендодатели</h1>}
           <p className="page-sub">{active.length} арендодателей · {totalCars} машин в парке</p>
         </div>
         <button className="btn" onClick={() => setEditing('new')}>+ Добавить арендодателя</button>
