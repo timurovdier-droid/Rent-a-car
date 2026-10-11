@@ -4,7 +4,7 @@
   min-height: 40px; padding: 0 16px;
   border: 0; border-radius: var(--r-control);
   background: var(--c-primary); color: var(--c-on-primary);
-  font: 600 14px / 1 var(--font-ui); cursor: pointer;
+  font: 700 15px / 1 var(--font-ui); letter-spacing: -.01em; cursor: pointer;
   text-decoration: none; white-space: nowrap;
   transition: background-color .15s, border-color .15s, transform .1s;
 }
@@ -55,7 +55,7 @@
 .table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; line-height: 1.35; }
 .table__th {
   padding: 10px 12px; text-align: left;
-  font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--c-muted);
+  font-size: 12px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--c-muted);
   border-bottom: 1px solid var(--c-line);
   background: #FAFAF9;
 }
@@ -147,9 +147,9 @@
 
 /* Заголовки секций */
 .section-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 28px 0 12px; flex-wrap: wrap; }
-.section-head h2 { margin: 0; font-size: 18px; font-weight: 700; letter-spacing: -.01em; }
+.section-head h2 { margin: 0; font-size: 21px; font-weight: 800; letter-spacing: -.025em; }
 .section-head:first-child { margin-top: 0; }
-.section-head--lead h2 { font-size: 26px; letter-spacing: -.02em; }
+.section-head--lead h2 { font-size: 32px; letter-spacing: -.035em; }
 .muted { color: var(--c-muted); }
 .small { font-size: 13px; }
 .nowrap { white-space: nowrap; }
@@ -158,8 +158,8 @@
 
 /* Цифры сводки */
 .stat { background: var(--c-surface); border: 1px solid var(--c-line); border-radius: 14px; padding: 14px 16px; min-width: 0; }
-.stat__label { color: var(--c-muted); font-size: 13px; }
-.stat__value { margin-top: 4px; font-size: 22px; font-weight: 700; letter-spacing: -.015em; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.stat__label { color: var(--c-muted); font-size: 13px; font-weight: 600; }
+.stat__value { margin-top: 6px; font-size: 28px; line-height: 1.1; font-weight: 800; letter-spacing: -.025em; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 .stat__value small { font-size: 13px; font-weight: 500; color: var(--c-muted); margin-left: 4px; }
 .stat__hint { margin-top: 2px; font-size: 12px; color: var(--c-muted); }
 .stat--accent { background: var(--c-primary); border-color: var(--c-primary); }
@@ -353,7 +353,7 @@ a.person:hover, .person--link:hover { border-color: #CFCDC8; box-shadow: 0 6px 1
 /* Панели страницы машины */
 .panel { background: var(--c-surface); border: 1px solid var(--c-line); border-radius: 16px; padding: 16px; }
 .panel + .panel { margin-top: 12px; }
-.panel__title { margin: 0 0 12px; font-size: 17px; font-weight: 700; letter-spacing: -.01em; }
+.panel__title { margin: 0 0 12px; font-size: 19px; font-weight: 800; letter-spacing: -.025em; }
 .panel--yellow { background: #FFF8CC; border-color: #F6E27A; }
 .layout-2 { display: grid; gap: 12px; }
 @media (min-width: 1100px) { .layout-2 { grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); align-items: start; } }
@@ -525,8 +525,8 @@ a.person:hover, .person--link:hover { border-color: #CFCDC8; box-shadow: 0 6px 1
 .dp__year { border: 0; border-radius: 999px; background: transparent; color: var(--mf-muted); font: 600 13px/1 var(--font-ui); padding: 8px 14px; cursor: pointer; }
 .dp__year--on { background: var(--mf-hover); color: var(--mf-pop-ink); }
 .mf-block { background: var(--mf-bg); color: var(--mf-text); border-radius: 28px; padding: 20px; }
-.mf-title { margin: 0; font-size: 20px; font-weight: 700; letter-spacing: -.01em; color: var(--mf-ink); }
-.mf-subtitle { margin: 0 0 12px; font-size: 16px; font-weight: 600; color: var(--mf-ink); }
+.mf-title { margin: 0; font-size: 24px; font-weight: 800; letter-spacing: -.03em; color: var(--mf-ink); }
+.mf-subtitle { margin: 0 0 12px; font-size: 18px; font-weight: 800; letter-spacing: -.02em; color: var(--mf-ink); }
 .mf-sub { margin: 4px 0 18px; }
 .mf-muted { color: var(--mf-muted); }
 .mf-small { font-size: 13px; line-height: 1.35; }
@@ -542,7 +542,7 @@ a.person:hover, .person--link:hover { border-color: #CFCDC8; box-shadow: 0 6px 1
 .mf-split { display: grid; grid-template-columns: minmax(12rem, 16rem) 1fr; gap: 16px; }
 .mf-split__side { display: flex; flex-direction: column; }
 .mf-split__side .mf-small { margin: 6px 0 0; }
-.mf-big { margin-top: auto; padding-top: 18px; font-size: 26px; font-weight: 500; letter-spacing: -.01em; color: var(--mf-ink); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.mf-big { margin-top: auto; padding-top: 18px; font-size: 30px; font-weight: 800; letter-spacing: -.03em; color: var(--mf-ink); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 .mf-chart { position: relative; height: 230px; padding-right: 54px; }
 .mf-chart__grid { position: absolute; left: 0; right: 0; border-top: 1px solid var(--mf-grid); pointer-events: none; }
 .mf-chart__grid span { position: absolute; right: 0; top: -8px; font-size: 10px; color: var(--mf-muted); background: var(--mf-bg); padding-left: 4px; }
@@ -822,7 +822,7 @@ button.rs-cell:hover { box-shadow: inset 0 0 0 2px var(--c-ink); }
 @media (max-width: 640px) { .dsum { grid-template-columns: 1fr; gap: 18px; padding: 18px; } }
 .dsum__main { display: grid; align-content: start; gap: 6px; }
 .dsum__label, .dsum__row span, .dsum__pct, .dsum__note { font-size: 13px; color: var(--c-muted); }
-.dsum__value { font-size: 40px; line-height: 1; font-weight: 700; letter-spacing: -.03em; font-variant-numeric: tabular-nums; }
+.dsum__value { font-size: 46px; line-height: 1; font-weight: 800; letter-spacing: -.035em; font-variant-numeric: tabular-nums; }
 .dsum__value--debt { color: var(--c-danger); }
 .dsum__unit { margin-left: 6px; font-size: 15px; font-weight: 500; letter-spacing: 0; color: var(--c-muted); }
 .dsum__side { display: grid; align-content: center; gap: 8px; }
@@ -847,11 +847,11 @@ button.rs-cell:hover { box-shadow: inset 0 0 0 2px var(--c-ink); }
 .dcard:focus-visible { outline: 2px solid var(--c-focus); outline-offset: 2px; }
 .dcard__head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
 .dcard__who { display: grid; gap: 2px; min-width: 0; }
-.dcard__name { font-size: 15px; font-weight: 600; line-height: 1.3; overflow-wrap: anywhere; }
+.dcard__name { font-size: 16px; font-weight: 700; letter-spacing: -.015em; line-height: 1.3; overflow-wrap: anywhere; }
 .dcard__phone { font-size: 12px; color: var(--c-muted); font-variant-numeric: tabular-nums; }
 .dcard__plates { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex: none; }
 .dcard__money { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; min-height: 34px; }
-.dcard__debt { font-size: 28px; line-height: 1; font-weight: 700; letter-spacing: -.02em; color: var(--c-danger); font-variant-numeric: tabular-nums; }
+.dcard__debt { font-size: 32px; line-height: 1; font-weight: 800; letter-spacing: -.03em; color: var(--c-danger); font-variant-numeric: tabular-nums; }
 .dcard__clear { font-size: 20px; line-height: 1; font-weight: 600; letter-spacing: -.01em; }
 .dcard__unit { margin-left: 5px; font-size: 13px; font-weight: 500; letter-spacing: 0; color: var(--c-muted); }
 .dcard__tag { flex: none; font-size: 12px; color: var(--c-muted); white-space: nowrap; }
