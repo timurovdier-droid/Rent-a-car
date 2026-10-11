@@ -41,7 +41,7 @@
 
 body {
   margin: 0;
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-family: var(--font-ui);
   font-size: var(--fs-m);
   line-height: 1.5;
   color: var(--c-text);
