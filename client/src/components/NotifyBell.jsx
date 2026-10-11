@@ -16,12 +16,12 @@ export default function NotifyBell() {
   return (
     <NavLink
       to="/notifications"
-      className={({ isActive }) => `bell ${isActive ? 'bell--active' : ''}`}
+      className={({ isActive }) => `bell ${count > 0 ? 'bell--has' : ''} ${isActive ? 'bell--active' : ''}`}
       aria-label={count ? `Уведомления: ${count}` : 'Уведомления'}
       title="Уведомления"
     >
-      <NavIcon name="bell" size={24} />
       {count > 0 && <span className="bell__count">{count > 99 ? '99+' : count}</span>}
+      <NavIcon name="bell" size={count > 0 ? 18 : 24} />
     </NavLink>
   );
 }
