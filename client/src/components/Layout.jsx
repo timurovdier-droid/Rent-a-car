@@ -136,7 +136,7 @@ export default function Layout() {
               end={item.end}
               className={({ isActive }) => `nav__link ${isActive ? 'nav__link--active' : ''}`}
             >
-              <NavIcon name={item.icon} tile />
+              <NavIcon name={item.icon} />
               <span>{item.label}</span>
             </NavLink>
           ))}

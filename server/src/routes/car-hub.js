@@ -678,6 +678,67 @@ router.post('/:id/release', requireRole('ADMIN', 'DISPATCHER'), async (req, res)
   }
 });
 
+// PATCH /cars/:id/assignments/:aid/start — исправить дату выдачи у текущего водителя.
+// Аренда начисляется с новой даты; раньше другой выдачи этой машины или этого водителя дату поставить нельзя.
+router.patch('/:id/assignments/:aid/start', requireRole('ADMIN', 'DISPATCHER'), async (req, res) => {
+  const car = await loadCar(req, res, { write: true }).catch((err) => { serverError(res, 'Ошибка:', err); return null; });
+  if (!car) return;
+  const day = req.body.date;
+  const today = localToday();
+  if (!isDay(day) || day > today) return fail(res, 400, 'BAD_REQUEST', 'Неверная дата выдачи', 'date');
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const { rows } = await client.query(
+      'SELECT * FROM car_assignments WHERE id = $1 AND car_id = $2',
+      [parseInt(req.params.aid, 10), car.id]
+    );
+    const assignment = rows[0];
+    if (!assignment) {
+      await client.query('ROLLBACK');
+      return fail(res, 404, 'NOT_FOUND', 'Запись не найдена');
+    }
+    if (assignment.end_at) {
+      await client.query('ROLLBACK');
+      return fail(res, 409, 'CONFLICT', 'Машину уже вернули — дату можно менять только у текущей выдачи');
+    }
+    const oldDay = localDay(assignment.start_at);
+    if (day === oldDay) {
+      await client.query('ROLLBACK');
+      return res.json({ id: assignment.id, start_at: assignment.start_at });
+    }
+    const { rows: others } = await client.query(
+      `SELECT car_id, driver_id, start_at, end_at FROM car_assignments
+       WHERE id <> $1 AND (car_id = $2 OR driver_id = $3)`,
+      [assignment.id, car.id, assignment.driver_id]
+    );
+    const clash = others.find((row) => {
+      const from = localDay(row.start_at);
+      const to = row.end_at ? localDay(row.end_at) : today;
+      return from < oldDay && to > day;
+    });
+    if (clash) {
+      await client.query('ROLLBACK');
+      const msg = clash.car_id === car.id
+        ? 'В эти дни машина была у другого водителя'
+        : 'В эти дни водитель ездил на другой машине';
+      return fail(res, 409, 'CONFLICT', msg, 'date');
+    }
+    const startAt = stampFor(day);
+    await client.query('UPDATE car_assignments SET start_at = $1 WHERE id = $2', [startAt, assignment.id]);
+    await writeAudit(client, req.user.id, 'ASSIGNMENT_DATE_CHANGED', 'car_assignment', assignment.id,
+      { car_id: car.id, driver_id: assignment.driver_id, date: oldDay },
+      { car_id: car.id, driver_id: assignment.driver_id, date: day }, req.ip);
+    await client.query('COMMIT');
+    res.json({ id: assignment.id, start_at: startAt });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    serverError(res, 'Ошибка изменения даты выдачи:', err);
+  } finally {
+    client.release();
+  }
+});
+
 // DELETE /cars/:id/assignments/:aid — убрать ошибочную выдачу: аренда за её дни больше не начисляется.
 // Текущую выдачу могут убрать админ и диспетчер, прошлые записи истории — только админ.
 router.delete('/:id/assignments/:aid', requireRole('ADMIN', 'DISPATCHER'), async (req, res) => {

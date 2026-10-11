@@ -79,6 +79,7 @@ export default function AuditPage() {
       'DRIVER_DEPOSIT_CHANGED': 'Изменён депозит водителя',
       'DRIVER_CAR_CHANGED': 'Водитель пересел на другую машину',
       'ASSIGNMENT_DELETED': 'Удалена выдача машины',
+      'ASSIGNMENT_DATE_CHANGED': 'Изменена дата выдачи',
       'CAR_IDLE_ADDED': 'Отмечен простой машины',
       'PROFILE_UPDATED': 'Изменены имя и телефон в профиле',
       'DISPATCHER_UPDATED': 'Изменены данные диспетчера',

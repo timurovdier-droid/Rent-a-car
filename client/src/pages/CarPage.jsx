@@ -155,7 +155,7 @@ function DueBadge({ state, soon, overdue }) {
   return <span className={`badge ${state === 'OVERDUE' ? 'badge--danger' : 'badge--warn'}`}>{state === 'OVERDUE' ? overdue : soon}</span>;
 }
 
-function Summary({ role, s, onDebt }) {
+function Summary({ role, s, rate, onDebt, onRate }) {
   if (role === 'OWNER') {
     return (
       <div className="stats">
@@ -166,7 +166,14 @@ function Summary({ role, s, onDebt }) {
     );
   }
   return (
-    <div className="stats">
+    <div className="stats stats--3">
+      <Stat
+        label="Ставка аренды"
+        value={rate}
+        suffix="сум / день"
+        hint={onRate ? 'нажмите, чтобы изменить' : 'за каждый день аренды'}
+        onClick={onRate}
+      />
       <Stat label="Начислено" value={s.accrued} hint={`за ${s.accrued_days} дн. аренды`} />
       <Stat label="Получено" value={s.received} tone="ok" hint={s.pending ? `ещё ${fmtMoney(s.pending)} ждёт подтверждения` : 'подтверждено'} />
       <Stat
@@ -182,7 +189,7 @@ function Summary({ role, s, onDebt }) {
   );
 }
 
-function AddEntry({ carId, isAdmin, onDone }) {
+function AddEntry({ carId, isAdmin, onClose, onDone }) {
   const [kind, setKind] = useState('INCOME');
   const [amount, setAmount] = useState('');
   const [method, setMethod] = useState('CASH');
@@ -204,16 +211,9 @@ function AddEntry({ carId, isAdmin, onDone }) {
     setNotice(null);
     try {
       await api.post(`/cars/${carId}/transactions`, { kind, amount, method, category, tx_date: day, comment });
-      setNotice({
-        ok: true,
-        text: `${kind === 'INCOME' ? 'Доход' : 'Расход'} ${fmtMoney(amount)} сум ${isAdmin ? 'записан' : 'отправлен админу на подтверждение'}`,
-      });
-      setAmount('');
-      setComment('');
-      onDone();
+      onDone(`${kind === 'INCOME' ? 'Доход' : 'Расход'} ${fmtMoney(amount)} сум ${isAdmin ? 'записан' : 'отправлен админу на подтверждение'}`);
     } catch (err) {
       setNotice({ ok: false, text: errText(err, 'Не удалось записать') });
-    } finally {
       setSaving(false);
     }
   }
@@ -221,8 +221,8 @@ function AddEntry({ carId, isAdmin, onDone }) {
   const categories = kind === 'INCOME' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
 
   return (
-    <form className="panel" onSubmit={submit}>
-      <h3 className="panel__title">Добавить в отчёт</h3>
+    <Modal title="Добавить в отчёт" onClose={onClose}>
+    <form onSubmit={submit}>
       <div className="seg" role="tablist">
         <button type="button" className={`seg__btn seg__btn--income ${kind === 'INCOME' ? 'seg__btn--on' : ''}`} onClick={() => switchKind('INCOME')}>+ Доход</button>
         <button type="button" className={`seg__btn seg__btn--expense ${kind === 'EXPENSE' ? 'seg__btn--on' : ''}`} onClick={() => switchKind('EXPENSE')}>− Расход</button>
@@ -230,7 +230,7 @@ function AddEntry({ carId, isAdmin, onDone }) {
 
       <div className="field">
         <label className="field__label" htmlFor="tx-amount">Сумма</label>
-        <MoneyInput id="tx-amount" value={amount} onChange={setAmount} required placeholder="500 000" />
+        <MoneyInput id="tx-amount" value={amount} onChange={setAmount} required placeholder="500 000" autoFocus />
       </div>
 
       <div className="field">
@@ -265,9 +265,11 @@ function AddEntry({ carId, isAdmin, onDone }) {
       {notice && <div className={`notice ${notice.ok ? 'notice--ok' : 'notice--error'}`}>{notice.text}</div>}
       <div className="form-actions">
         <button className="btn" type="submit" disabled={saving || !amount}>{saving ? 'Записываю…' : 'Записать'}</button>
-        {!isAdmin && <span className="muted small">Сумма попадёт в отчёт после подтверждения админом</span>}
+        <button className="btn btn--quiet" type="button" onClick={onClose}>Отмена</button>
       </div>
+      {!isAdmin && <p className="muted small" style={{ marginBottom: 0 }}>Сумма попадёт в отчёт после подтверждения админом</p>}
     </form>
+    </Modal>
   );
 }
 
@@ -422,6 +424,7 @@ function DriverPanel({ hub, canWrite, onChanged }) {
   const [day, setDay] = useState(today);
   const [mileage, setMileage] = useState(car.mileage != null ? String(car.mileage) : '');
   const [releasing, setReleasing] = useState(false);
+  const [dating, setDating] = useState(false);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -474,6 +477,7 @@ function DriverPanel({ hub, canWrite, onChanged }) {
           {canWrite && (
             <div className="driver-actions">
               <button className="btn btn--quiet btn--sm" onClick={() => setReleasing(true)}>Принять машину</button>
+              <button className="btn btn--ghost btn--sm" onClick={() => setDating(true)} title="Если водитель взял машину в другой день">Изменить дату</button>
               <button className="btn btn--ghost btn--sm" onClick={cancelAssignment} title="Если записали водителя по ошибке">Убрать с машины</button>
             </div>
           )}
@@ -509,6 +513,9 @@ function DriverPanel({ hub, canWrite, onChanged }) {
 
       {releasing && current && (
         <ReleaseModal car={car} current={current} today={today} onClose={() => setReleasing(false)} onDone={() => { setReleasing(false); onChanged(); }} />
+      )}
+      {dating && current && (
+        <StartDateModal car={car} current={current} today={today} onClose={() => setDating(false)} onDone={() => { setDating(false); onChanged(); }} />
       )}
     </div>
   );
@@ -694,7 +701,46 @@ function ReleaseModal({ car, current, today, onClose, onDone }) {
   );
 }
 
-function RatePanel({ hub, role, onChanged }) {
+function StartDateModal({ car, current, today, onClose, onDone }) {
+  const [day, setDay] = useState(localDayOf(current.start_at));
+  const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  async function submit(e) {
+    e.preventDefault();
+    setSaving(true);
+    setError('');
+    try {
+      await api.patch(`/cars/${car.id}/assignments/${current.id}/start`, { date: day });
+      onDone();
+    } catch (err) {
+      setError(errText(err, 'Не удалось изменить дату'));
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Modal title="Дата выдачи" onClose={onClose}>
+      <form onSubmit={submit}>
+        <p className="muted" style={{ marginTop: 0 }}>
+          <span data-no-translate>{current.driver_name}</span> · <span>Сейчас записано с</span> {fmtDay(localDayOf(current.start_at))}
+        </p>
+        <p className="muted small">Укажите день, когда водитель на самом деле взял машину — аренда будет считаться с этого дня.</p>
+        <div className="field">
+          <label className="field__label" htmlFor="sd-date">Взял машину</label>
+          <input id="sd-date" className="field__input" type="date" value={day} max={today} onChange={(e) => setDay(e.target.value)} required />
+        </div>
+        {error && <div className="notice notice--error">{error}</div>}
+        <div className="form-actions">
+          <button className="btn" type="submit" disabled={saving || !day}>{saving ? 'Сохраняю…' : 'Сохранить'}</button>
+          <button className="btn btn--quiet" type="button" onClick={onClose}>Отмена</button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+function RateModal({ hub, onClose, onDone }) {
   const { car, rates, summary, today } = hub;
   const [rate, setRate] = useState('');
   const [from, setFrom] = useState(today);
@@ -707,53 +753,49 @@ function RatePanel({ hub, role, onChanged }) {
     setError('');
     try {
       await api.post(`/cars/${car.id}/rate`, { rate, valid_from: from });
-      setRate('');
-      onChanged();
+      onDone();
     } catch (err) {
       setError(errText(err, 'Не удалось изменить ставку'));
-    } finally {
       setSaving(false);
     }
   }
 
   return (
-    <div className="panel">
-      <h3 className="panel__title">Ставка аренды</h3>
+    <Modal title="Ставка аренды" onClose={onClose}>
       <div className="stat__value" style={{ marginTop: 0 }}>{fmtMoney(car.daily_rate)}<small>сум / день</small></div>
       <p className="muted small" style={{ margin: '4px 0 12px' }}>
         Начисляется за каждый день, пока машина у водителя, кроме выходных. Начислено всего: {fmtMoney(summary.accrued)} сум за {summary.accrued_days} дн.
       </p>
-      {role === 'ADMIN' && (
-        <>
-          <form onSubmit={submit}>
-            <div className="form-grid">
-              <div className="field">
-                <label className="field__label" htmlFor="rt-rate">Новая ставка</label>
-                <MoneyInput id="rt-rate" value={rate} onChange={setRate} required />
-              </div>
-              <div className="field">
-                <label className="field__label" htmlFor="rt-from">Действует с</label>
-                <input id="rt-from" className="field__input" type="date" value={from} onChange={(e) => setFrom(e.target.value)} required />
-              </div>
+      <form onSubmit={submit}>
+        <div className="form-grid">
+          <div className="field">
+            <label className="field__label" htmlFor="rt-rate">Новая ставка</label>
+            <MoneyInput id="rt-rate" value={rate} onChange={setRate} required suffix="сум" autoFocus />
+          </div>
+          <div className="field">
+            <label className="field__label" htmlFor="rt-from">Действует с</label>
+            <input id="rt-from" className="field__input" type="date" value={from} onChange={(e) => setFrom(e.target.value)} required />
+          </div>
+        </div>
+        {error && <div className="notice notice--error">{error}</div>}
+        <div className="form-actions">
+          <button className="btn" type="submit" disabled={saving || rate === ''}>{saving ? 'Сохраняю…' : 'Изменить ставку'}</button>
+          <button className="btn btn--quiet" type="button" onClick={onClose}>Отмена</button>
+        </div>
+      </form>
+      <p className="muted small">Старые дни считаются по старой цене — прошлые отчёты не меняются.</p>
+      {rates.length > 0 && (
+        <details>
+          <summary className="muted small" style={{ cursor: 'pointer' }}>История ставок</summary>
+          {rates.map((r) => (
+            <div key={r.id} className="car-card__row" style={{ padding: '6px 0' }}>
+              <span>{r.valid_from === '2000-01-01' ? 'С самого начала' : `с ${fmtDay(r.valid_from)}`}</span>
+              <b>{fmtMoney(r.rate)} сум</b>
             </div>
-            {error && <div className="notice notice--error">{error}</div>}
-            <button className="btn btn--quiet btn--sm" type="submit" disabled={saving || rate === ''}>Изменить ставку</button>
-          </form>
-          <p className="muted small">Старые дни считаются по старой цене — прошлые отчёты не меняются.</p>
-          {rates.length > 0 && (
-            <details>
-              <summary className="muted small" style={{ cursor: 'pointer' }}>История ставок</summary>
-              {rates.map((r) => (
-                <div key={r.id} className="car-card__row" style={{ padding: '6px 0' }}>
-                  <span>{r.valid_from === '2000-01-01' ? 'С самого начала' : `с ${fmtDay(r.valid_from)}`}</span>
-                  <b>{fmtMoney(r.rate)} сум</b>
-                </div>
-              ))}
-            </details>
-          )}
-        </>
+          ))}
+        </details>
       )}
-    </div>
+    </Modal>
   );
 }
 
@@ -1061,6 +1103,9 @@ export default function CarPage() {
   const [confirmingAll, setConfirmingAll] = useState(false);
   const [debtOpen, setDebtOpen] = useState(false);
   const [idleOpen, setIdleOpen] = useState(false);
+  const [entryOpen, setEntryOpen] = useState(false);
+  const [rateOpen, setRateOpen] = useState(false);
+  const [flash, setFlash] = useState('');
   const [searchParams, setSearchParams] = useSearchParams();
   const tabParam = searchParams.get('tab') || 'report';
   const reportView = searchParams.get('view') === 'days' ? 'days' : 'ops';
@@ -1160,6 +1205,9 @@ export default function CarPage() {
         </div>
         {canWrite && (
           <div className="form-actions">
+            <button className="btn btn--report" onClick={() => { setFlash(''); setEntryOpen(true); }}>
+              <span className="btn--report__plus" aria-hidden="true">+</span>Отчёт
+            </button>
             <button className="btn btn--quiet" onClick={() => setIdleOpen(true)} title="Машина на ремонте или водитель оставил её — без начисления аренды">Простой</button>
             <button className="btn btn--quiet" onClick={() => setEditing(true)}>Изменить данные</button>
             {role === 'ADMIN' && <button className="btn btn--ghost" onClick={() => removeCar('archive')}>В архив</button>}
@@ -1169,6 +1217,7 @@ export default function CarPage() {
       </div>
 
       {error && <div className="notice notice--error">{error}</div>}
+      {flash && <div className="notice notice--ok">{flash}</div>}
 
       {idleToday && (
         <div className="notice notice--idle">
@@ -1176,7 +1225,13 @@ export default function CarPage() {
         </div>
       )}
 
-      <Summary role={role} s={hub.summary} onDebt={canWrite ? () => setDebtOpen(true) : undefined} />
+      <Summary
+        role={role}
+        s={hub.summary}
+        rate={car.daily_rate}
+        onDebt={canWrite ? () => setDebtOpen(true) : undefined}
+        onRate={role === 'ADMIN' ? () => setRateOpen(true) : undefined}
+      />
 
       {role === 'ADMIN' && pending.length > 0 && (
         <div className="panel panel--yellow" style={{ marginTop: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
@@ -1225,21 +1280,7 @@ export default function CarPage() {
         )}
         {tab === 'report' && reportView === 'days' && <CarLedger carId={car.id} />}
         {tab === 'report' && reportView === 'ops' && (
-          canWrite ? (
-            <div className="layout-2">
-              <div>
-                <AddEntry carId={car.id} isAdmin={role === 'ADMIN'} onDone={load} />
-                <div style={{ marginTop: 12 }}>
-                  <TxList carId={car.id} items={hub.transactions} role={role} onChanged={load} />
-                </div>
-              </div>
-              <div>
-                <RatePanel hub={hub} role={role} onChanged={load} />
-              </div>
-            </div>
-          ) : (
-            <TxList carId={car.id} items={hub.transactions} role={role} onChanged={load} />
-          )
+          <TxList carId={car.id} items={hub.transactions} role={role} onChanged={load} />
         )}
 
         {tab === 'driver' && (
@@ -1288,6 +1329,17 @@ export default function CarPage() {
       {debtOpen && <DebtModal carId={car.id} onClose={() => setDebtOpen(false)} />}
       {idleOpen && (
         <IdleModal car={car} today={hub.today} onClose={() => setIdleOpen(false)} onDone={() => { setIdleOpen(false); load(); }} />
+      )}
+      {rateOpen && (
+        <RateModal hub={hub} onClose={() => setRateOpen(false)} onDone={() => { setRateOpen(false); load(); }} />
+      )}
+      {entryOpen && (
+        <AddEntry
+          carId={car.id}
+          isAdmin={role === 'ADMIN'}
+          onClose={() => setEntryOpen(false)}
+          onDone={(text) => { setEntryOpen(false); setFlash(text); openTab('report'); load(); }}
+        />
       )}
     </div>
   );

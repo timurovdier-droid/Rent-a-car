@@ -54,7 +54,7 @@
 .brand__name {
   padding-left: 12px;
   border-left: 1px solid var(--c-line-strong);
-  font-size: 15px; font-weight: 500; font-stretch: 62.5%;
+  font-size: 15px; font-weight: 700; font-stretch: 62.5%;
   letter-spacing: .22em; text-transform: uppercase;
   line-height: 1; white-space: nowrap; color: var(--c-ink);
 }
@@ -150,29 +150,6 @@ body.no-scroll { overflow: hidden; }
 .nav__link:hover .nav-icon { color: var(--c-ink); }
 .nav__link--active { background: var(--c-active); font-weight: 700; box-shadow: 0 1px 2px rgb(0 0 0 / .06); }
 .nav__link--active .nav-icon { color: var(--c-ink); }
-.nav-tile {
-  --t1: #FFD84D; --t2: #F5A300;
-  flex: none; width: 30px; height: 30px; border-radius: 9px;
-  display: grid; place-items: center;
-  background: linear-gradient(140deg, var(--t1), var(--t2));
-  box-shadow: 0 3px 8px -3px var(--t2), inset 0 1px 0 rgb(255 255 255 / .35);
-  transition: transform .15s, box-shadow .15s;
-}
-.nav__link .nav-tile .nav-icon { color: #fff; filter: drop-shadow(0 1px 0 rgb(0 0 0 / .12)); }
-.nav__link:hover .nav-tile { transform: translateY(-1px) scale(1.05); box-shadow: 0 5px 12px -4px var(--t2), inset 0 1px 0 rgb(255 255 255 / .35); }
-.nav__link--active .nav-tile { box-shadow: 0 0 0 2px var(--c-active), 0 0 0 3.5px var(--t2); }
-.nav-tile--home { --t1: #FFD84D; --t2: #F59E0B; }
-.nav-tile--bell { --t1: #FF8A80; --t2: #E5484D; }
-.nav-tile--car { --t1: #60A5FA; --t2: #2563EB; }
-.nav-tile--users { --t1: #C4B5FD; --t2: #7C3AED; }
-.nav-tile--briefcase { --t1: #FDBA74; --t2: #EA580C; }
-.nav-tile--headset { --t1: #5EEAD4; --t2: #0D9488; }
-.nav-tile--wallet { --t1: #6EE7B7; --t2: #059669; }
-.nav-tile--calendar { --t1: #F9A8D4; --t2: #DB2777; }
-.nav-tile--chart { --t1: #A5B4FC; --t2: #4F46E5; }
-.nav-tile--list { --t1: #CBD5E1; --t2: #64748B; }
-.nav-tile--sliders { --t1: #D4D4D8; --t2: #52525B; }
-.nav-tile--help { --t1: #7DD3FC; --t2: #0284C7; }
 .nav__link--active::before {
   content: ''; position: absolute; left: 0; top: 9px; bottom: 9px;
   width: 3px; border-radius: 0 3px 3px 0; background: var(--c-primary);

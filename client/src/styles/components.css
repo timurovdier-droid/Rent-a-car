@@ -15,6 +15,26 @@
 .btn--danger { background: var(--c-danger-solid); color: #fff; }
 .btn--danger:hover { background: #D23B31; }
 .btn:disabled { opacity: .55; cursor: not-allowed; }
+.btn--report {
+  min-height: 44px; padding: 0 22px 0 8px; gap: 10px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #FFE45C, #FFC800);
+  color: #1E1F22; font-size: 15px; font-weight: 800; letter-spacing: .01em;
+  box-shadow: 0 6px 18px -6px rgb(255 200 0 / .9), inset 0 1px 0 rgb(255 255 255 / .5);
+  animation: report-glow 2.4s ease-in-out infinite;
+}
+.btn--report:hover { background: linear-gradient(135deg, #FFEA70, #FFD000); transform: translateY(-1px); }
+.btn--report__plus {
+  display: grid; place-items: center;
+  width: 28px; height: 28px; border-radius: 50%;
+  background: #1E1F22; color: #FFD400;
+  font-size: 20px; font-weight: 700; line-height: 1;
+}
+@keyframes report-glow {
+  0%, 100% { box-shadow: 0 6px 18px -6px rgb(255 200 0 / .9), 0 0 0 0 rgb(255 200 0 / .45), inset 0 1px 0 rgb(255 255 255 / .5); }
+  50% { box-shadow: 0 6px 18px -6px rgb(255 200 0 / .9), 0 0 0 7px rgb(255 200 0 / 0), inset 0 1px 0 rgb(255 255 255 / .5); }
+}
+@media (prefers-reduced-motion: reduce) { .btn--report { animation: none; } }
 
 /* Поля формы (16 px, чтобы iOS не увеличивал страницу) */
 .field { display: grid; gap: .375rem; max-width: 28rem; min-width: 0; margin-bottom: var(--sp-3); }
@@ -101,6 +121,7 @@
   grid-template-columns: repeat(auto-fit, minmax(10.5rem, 1fr));
   gap: 12px;
 }
+@media (min-width: 640px) { .stats--3 { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 
 .btn--sm { min-height: 32px; padding: 0 12px; font-size: 13px; }
 .btn--ghost { background: transparent; color: var(--c-ink); }
