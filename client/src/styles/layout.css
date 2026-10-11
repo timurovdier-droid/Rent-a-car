@@ -22,8 +22,6 @@
 .topbar__btn:hover { background: var(--c-row-hover); }
 .topbar__section {
   flex: 1; min-width: 0;
-  padding-left: 14px; margin-left: 2px;
-  border-left: 1px solid var(--c-line-strong);
   font-size: 15px; font-weight: 600; color: var(--c-ink);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
@@ -168,7 +166,6 @@ body.no-scroll { overflow: hidden; }
 .page-sub { margin: 0 0 20px; color: var(--c-muted); }
 @media (max-width: 600px) {
   .page-title { font-size: var(--fs-2xl); }
-  .topbar__section { display: none; }
 }
 .section { margin-bottom: var(--sp-5); }
 .table-wrap { overflow-x: auto; }
@@ -212,7 +209,7 @@ body.no-scroll { overflow: hidden; }
   }
   .topbar__burger, .topbar__avatar, .nav-backdrop, .nav__close, .nav__brand, .nav__user, .nav__foot { display: none; }
   .topbar__tools { display: flex; }
-  .topbar__section { flex: 0 1 auto; margin-left: 22px; }
+  .topbar__section { flex: 0 1 auto; }
   .nav {
     position: sticky;
     top: 64px;

@@ -92,7 +92,6 @@ export default function Layout() {
         <button type="button" className="topbar__btn topbar__burger" onClick={() => setMenuOpen(true)} aria-label="Открыть меню">
           <NavIcon name="menu" size={22} />
         </button>
-        <Brand />
         {current && <span className="topbar__section">{current.label}</span>}
         <div className="topbar__tools">
           <LangToggle className="lang-toggle--compact" />
