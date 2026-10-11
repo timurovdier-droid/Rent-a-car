@@ -104,8 +104,7 @@ function FleetHome({ data }) {
         </>
       )}
 
-      <Attention cars={data.cars} />
-      {isAdmin && <PeriodFinance />}
+      {!isAdmin && <Attention cars={data.cars} />}
     </>
   );
 }
