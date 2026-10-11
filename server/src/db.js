@@ -85,6 +85,17 @@ function rowsOf(result) {
   });
 }
 
+const QUERY_TIMEOUT_MS = 20000;
+const LOCK_TIMEOUT_MS = 15000;
+
+function withTimeout(promise, ms, message) {
+  let timer;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error(message)), ms);
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+}
+
 async function executeOn(executor, sql, params) {
   const text = String(sql || '').trim().toUpperCase();
   if (text === 'BEGIN' || text === 'COMMIT' || text === 'ROLLBACK') {
@@ -92,7 +103,11 @@ async function executeOn(executor, sql, params) {
   }
   const prepared = prepareQuery(sql, params);
   try {
-    const result = await executor.execute({ sql: prepared.sql, args: prepared.params });
+    const result = await withTimeout(
+      executor.execute({ sql: prepared.sql, args: prepared.params }),
+      QUERY_TIMEOUT_MS,
+      'Запрос к базе выполняется слишком долго'
+    );
     return { rows: rowsOf(result) };
   } catch (err) {
     if (/UNIQUE constraint failed/i.test(err.message || '')) err.code = '23505';
@@ -132,12 +147,15 @@ class TxClient {
 
 let tail = Promise.resolve();
 
+// Очередь только для транзакций: обычные запросы в неё не встают, иначе запрос
+// внутри открытой транзакции ждёт сам себя и сервер виснет до таймаута Vercel.
 function lock() {
   let unlock;
   const gate = new Promise((resolve) => { unlock = resolve; });
   const prev = tail;
   tail = gate;
-  return prev.then(() => unlock);
+  return withTimeout(prev, LOCK_TIMEOUT_MS, 'База занята другой операцией, попробуйте ещё раз')
+    .then(() => unlock, (err) => { unlock(); throw err; });
 }
 
 async function seedIfEmpty(db) {
@@ -257,12 +275,7 @@ export function initDb() {
 export const pool = {
   async query(sql, params) {
     await initDb();
-    const unlock = await lock();
-    try {
-      return await executeOn(getClient(), sql, params);
-    } finally {
-      unlock();
-    }
+    return executeOn(getClient(), sql, params);
   },
 
   async connect() {

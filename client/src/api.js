@@ -23,7 +23,21 @@ async function request(method, path, body = null, extra = {}) {
     options.body = JSON.stringify(body);
   }
 
-  const response = await fetch(`${API_BASE_URL}${path}`, options);
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 30000);
+  options.signal = controller.signal;
+
+  let response;
+  try {
+    response = await fetch(`${API_BASE_URL}${path}`, options);
+  } catch (e) {
+    if (e.name === 'AbortError') {
+      throw new ApiError('TIMEOUT', 'Сервер долго не отвечает, обновите страницу', 0);
+    }
+    throw new ApiError('NETWORK_ERROR', 'Нет связи с сервером', 0);
+  } finally {
+    clearTimeout(timer);
+  }
 
   if (!response.ok) {
     let errData;
