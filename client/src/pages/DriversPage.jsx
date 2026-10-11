@@ -130,7 +130,7 @@ export default function DriversPage() {
                   </div>
                   <div className="badges">
                     {d.car_plate
-                      ? <span className="badge badge--wait">На машине {d.car_plate}</span>
+                      ? <span className="badge badge--ok">На машине {d.car_plate}</span>
                       : <span className="badge badge--muted">{archived ? 'В архиве' : 'Свободен'}</span>}
                     {licenseBadge(d.license_expires)}
                     {Number(d.other_debt) > 0 && <span className="badge badge--danger">Прочий долг {fmtMoney(d.other_debt)}</span>}
