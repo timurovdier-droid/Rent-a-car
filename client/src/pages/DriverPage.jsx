@@ -10,7 +10,8 @@ import DriverForm from '../components/DriverForm';
 import DriverLedger from '../components/DriverLedger';
 import DriverRentStatus from '../components/RentStatus';
 import DriverCharges from '../components/DriverCharges';
-import { fmtMoney, fmtNumber, fmtDay, fmtDateTime, localDayOf, initials, todayLocal } from '../labels';
+import { fmtMoney, fmtNumber, fmtDay, fmtDateTime, localDayOf, todayLocal } from '../labels';
+import NavIcon from '../components/NavIcon';
 import DateInput from '../components/DateInput';
 
 const errText = (err, fallback) => (err instanceof ApiError ? err.message : fallback);
@@ -286,7 +287,7 @@ export default function DriverPage() {
       <Link to="/drivers" className="back-link">← Водители</Link>
       <div className="page-head">
         <div className="person__head">
-          <div className={`avatar avatar--l ${archived ? 'avatar--muted' : ''}`}>{initials(driver.full_name)}</div>
+          <div className={`avatar avatar--l ${archived ? 'avatar--muted' : ''}`}><NavIcon name="users" size={34} /></div>
           <div>
             <h1 className="page-title" style={{ margin: 0 }}>{driver.full_name}</h1>
             <div className="badges" style={{ marginTop: 6 }}>

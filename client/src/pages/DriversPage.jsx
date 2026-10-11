@@ -4,7 +4,8 @@ import { api, ApiError } from '../api';
 import { useAuth } from '../auth';
 import DriverForm from '../components/DriverForm';
 import DriverWaitlist from '../components/DriverWaitlist';
-import { fmtMoney, fmtDay, todayLocal, shiftDay, initials } from '../labels';
+import { fmtMoney, fmtDay, todayLocal, shiftDay } from '../labels';
+import NavIcon from '../components/NavIcon';
 
 function licenseBadge(day) {
   if (!day) return null;
@@ -121,7 +122,7 @@ export default function DriversPage() {
               {shown.map((d) => (
                 <div key={d.id} className="person person--link" style={{ cursor: 'pointer' }} onClick={() => navigate(`/drivers/${d.id}`)}>
                   <div className="person__head">
-                    <div className={`avatar ${archived ? 'avatar--muted' : ''}`}>{initials(d.full_name)}</div>
+                    <div className={`avatar ${archived ? 'avatar--muted' : ''}`}><NavIcon name="users" size={24} /></div>
                     <div style={{ minWidth: 0 }}>
                       <div className="person__name">{d.full_name}</div>
                       <div className="person__sub">{d.phone || 'телефон не указан'}</div>

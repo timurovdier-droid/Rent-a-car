@@ -12,6 +12,7 @@ import { CarVisual } from '../components/CarTile';
 import DayCalendar from '../components/DayCalendar';
 import CarLedger from '../components/CarLedger';
 import DateInput from '../components/DateInput';
+import NavIcon from '../components/NavIcon';
 import {
   CATEGORY_LABELS, EXPENSE_CATEGORIES, INCOME_CATEGORIES, METHOD_LABELS, PAY_METHODS,
   FUEL_LABELS, SERVICE_TYPES, fmtMoney, fmtNumber, fmtDay, localDayOf, todayLocal,
@@ -470,7 +471,7 @@ function DriverPanel({ hub, canWrite, onChanged }) {
       <h3 className="panel__title">Водитель</h3>
       {current ? (
         <div className="person__head" style={{ marginBottom: 12 }}>
-          <div className="avatar">{(current.driver_name || '?').slice(0, 1)}</div>
+          <div className="avatar"><NavIcon name="users" size={24} /></div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div className="person__name">{current.driver_name || 'Удалённый водитель'}</div>
             <div className="person__sub">

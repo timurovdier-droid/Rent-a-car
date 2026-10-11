@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { api, ApiError } from '../api';
 import Modal from '../components/Modal';
-import { initials } from '../labels';
+import NavIcon from '../components/NavIcon';
 
 const EMPTY = { name: '', contact_person: '', phone: '', email: '', bank_details: '' };
 
@@ -117,7 +117,7 @@ export default function OwnersPage({ embedded = false }) {
             return (
               <div key={o.id} className="person">
                 <div className="person__head">
-                  <div className="avatar">{initials(o.name)}</div>
+                  <div className="avatar"><NavIcon name="users" size={24} /></div>
                   <div style={{ minWidth: 0 }}>
                     <div className="person__name">{o.name}</div>
                     <div className="person__sub">{o.contact_person || 'контакт не указан'}</div>
@@ -148,7 +148,7 @@ export default function OwnersPage({ embedded = false }) {
             {archived.map((o) => (
               <div key={o.id} className="person">
                 <div className="person__head">
-                  <div className="avatar avatar--muted">{initials(o.name)}</div>
+                  <div className="avatar avatar--muted"><NavIcon name="users" size={24} /></div>
                   <div><div className="person__name">{o.name}</div><div className="person__sub">{o.phone}</div></div>
                 </div>
               </div>
