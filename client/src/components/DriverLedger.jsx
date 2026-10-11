@@ -191,61 +191,74 @@ export function DriverDebtList({ period, onPick }) {
       data.drivers.map((d) => [d.full_name, d.phone || '', d.cars.join(', '), d.accrued, d.cash, d.transfer, d.debt, d.debt_days]));
   }
 
+  const drivers = [...data.drivers].sort((a, b) => b.debt - a.debt);
+  const debtors = drivers.filter((d) => d.debt > 0).length;
+
   return (
     <div className="ledger-box">
+      <div className="dcard-sum">
+        <div className="dcard-sum__item">
+          <span className="dcard-sum__label">Начислено</span>
+          <b>{fmtMoney(sum('accrued'))} <small>сум</small></b>
+        </div>
+        <div className="dcard-sum__item">
+          <span className="dcard-sum__label">Получено</span>
+          <b>{fmtMoney(sum('cash') + sum('transfer'))} <small>сум</small></b>
+        </div>
+        <div className={`dcard-sum__item ${debtors ? 'dcard-sum__item--debt' : 'dcard-sum__item--ok'}`}>
+          <span className="dcard-sum__label">{debtors ? `Должны ${debtors} из ${drivers.length}` : 'Долгов нет'}</span>
+          <b>{fmtMoney(sum('debt'))} <small>сум</small></b>
+        </div>
+      </div>
+
       <div className="ledger-box__head">
-        <p className="muted small ledger-box__note">Нажмите на водителя — откроются дни: когда и сколько он не доплатил.</p>
+        <p className="muted small ledger-box__note">Нажмите на карточку — откроются дни: когда и сколько водитель не доплатил.</p>
         <button type="button" className="btn btn--quiet" onClick={exportAll}>Скачать в Excel</button>
       </div>
-      <div className="table-wrap">
-        <table className="table ledger">
-          <thead>
-            <tr>
-              <th className="table__th">Водитель</th>
-              <th className="table__th">Машина</th>
-              <th className="table__th table__num">Начислено</th>
-              <th className="table__th table__num">Наличные</th>
-              <th className="table__th table__num">Карта / баланс</th>
-              <th className="table__th table__num">Долг за период</th>
-              <th className="table__th table__num">Дней с долгом</th>
-            </tr>
-          </thead>
-          <tbody>
-            {data.drivers.map((d) => (
-              <tr
-                key={d.driver_id}
-                className={`table__row ${d.debt > 0 ? 'ledger__row--debt' : ''}`}
-                style={{ cursor: 'pointer' }}
-                onClick={() => onPick(d.driver_id)}
-              >
-                <td className="table__td">
-                  <b>{d.full_name}</b>
-                  {d.phone && <div className="muted small">{d.phone}</div>}
-                </td>
-                <td className="table__td">
-                  {d.cars.map((plate) => <span key={plate} className="ledger__plate"><Plate value={plate} /></span>)}
-                </td>
-                <td className="table__td table__num">{fmtMoney(d.accrued)}</td>
-                <td className="table__td table__num">{fmtMoney(d.cash)}</td>
-                <td className="table__td table__num">{fmtMoney(d.transfer)}</td>
-                <td className="table__td table__num">
-                  {d.debt > 0 ? <span className="ledger__debt">{fmtMoney(d.debt)}</span> : <span className="muted">—</span>}
-                </td>
-                <td className="table__td table__num">{d.debt_days || <span className="muted">—</span>}</td>
-              </tr>
-            ))}
-          </tbody>
-          <tfoot>
-            <tr>
-              <td className="table__td" colSpan={2}><b>Итого</b></td>
-              <td className="table__td table__num"><b>{fmtMoney(sum('accrued'))}</b></td>
-              <td className="table__td table__num"><b>{fmtMoney(sum('cash'))}</b></td>
-              <td className="table__td table__num"><b>{fmtMoney(sum('transfer'))}</b></td>
-              <td className="table__td table__num"><b className="ledger__debt">{fmtMoney(sum('debt'))}</b></td>
-              <td className="table__td" />
-            </tr>
-          </tfoot>
-        </table>
+
+      <div className="dcards">
+        {drivers.map((d) => {
+          const debt = d.debt > 0;
+          return (
+            <button
+              key={d.driver_id}
+              type="button"
+              className={`dcard ${debt ? 'dcard--debt' : 'dcard--ok'}`}
+              onClick={() => onPick(d.driver_id)}
+            >
+              <div className="dcard__head">
+                <div className="dcard__who">
+                  <b className="dcard__name">{d.full_name}</b>
+                  {d.phone && <span className="muted small">{d.phone}</span>}
+                </div>
+                <div className="dcard__plates">
+                  {d.cars.map((plate) => <Plate key={plate} value={plate} />)}
+                </div>
+              </div>
+
+              <div className={`dcard__status ${debt ? 'dcard__status--debt' : 'dcard__status--ok'}`}>
+                {debt ? (
+                  <>
+                    <span className="dcard__status-label">Должен</span>
+                    <b className="dcard__status-sum">{fmtMoney(d.debt)} <small>сум</small></b>
+                    <span className="dcard__status-days">{`${d.debt_days} дн. с долгом`}</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="dcard__status-label">Долгов нет</span>
+                    <b className="dcard__status-sum">✓ Всё оплачено</b>
+                  </>
+                )}
+              </div>
+
+              <dl className="dcard__nums">
+                <div><dt>Начислено</dt><dd>{fmtMoney(d.accrued)}</dd></div>
+                <div><dt>Наличные</dt><dd>{fmtMoney(d.cash)}</dd></div>
+                <div><dt>Карта / баланс</dt><dd>{fmtMoney(d.transfer)}</dd></div>
+              </dl>
+            </button>
+          );
+        })}
       </div>
     </div>
   );
