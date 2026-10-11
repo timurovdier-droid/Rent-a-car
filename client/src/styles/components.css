@@ -18,21 +18,21 @@
 .btn--report {
   min-height: 44px; padding: 0 22px 0 8px; gap: 10px;
   border-radius: 999px;
-  background: linear-gradient(135deg, #FFE45C, #FFC800);
+  background: #FCE000;
   color: #1E1F22; font-size: 15px; font-weight: 800; letter-spacing: .01em;
-  box-shadow: 0 6px 18px -6px rgb(255 200 0 / .9), inset 0 1px 0 rgb(255 255 255 / .5);
+  box-shadow: 0 6px 18px -6px rgb(252 224 0 / .9), inset 0 1px 0 rgb(255 255 255 / .5);
   animation: report-glow 2.4s ease-in-out infinite;
 }
-.btn--report:hover { background: linear-gradient(135deg, #FFEA70, #FFD000); transform: translateY(-1px); }
+.btn--report:hover { background: #F5D400; transform: translateY(-1px); }
 .btn--report__plus {
   display: grid; place-items: center;
   width: 28px; height: 28px; border-radius: 50%;
-  background: #1E1F22; color: #FFD400;
+  background: #1E1F22; color: #FCE000;
   font-size: 20px; font-weight: 700; line-height: 1;
 }
 @keyframes report-glow {
-  0%, 100% { box-shadow: 0 6px 18px -6px rgb(255 200 0 / .9), 0 0 0 0 rgb(255 200 0 / .45), inset 0 1px 0 rgb(255 255 255 / .5); }
-  50% { box-shadow: 0 6px 18px -6px rgb(255 200 0 / .9), 0 0 0 7px rgb(255 200 0 / 0), inset 0 1px 0 rgb(255 255 255 / .5); }
+  0%, 100% { box-shadow: 0 6px 18px -6px rgb(252 224 0 / .9), 0 0 0 0 rgb(252 224 0 / .45), inset 0 1px 0 rgb(255 255 255 / .5); }
+  50% { box-shadow: 0 6px 18px -6px rgb(252 224 0 / .9), 0 0 0 7px rgb(252 224 0 / 0), inset 0 1px 0 rgb(255 255 255 / .5); }
 }
 @media (prefers-reduced-motion: reduce) { .btn--report { animation: none; } }
 
