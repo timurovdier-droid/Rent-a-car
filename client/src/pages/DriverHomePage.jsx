@@ -21,7 +21,7 @@ const REQUEST_STATUS = {
   REJECTED: ['badge--danger', 'Отклонено'],
 };
 
-function MyProfile({ profile }) {
+export function MyProfile({ profile }) {
   if (!profile) return null;
   return (
     <div className="panel" style={{ marginTop: 16 }}>
@@ -243,9 +243,9 @@ function StatusCard({ tone = '', label, value, hint }) {
   );
 }
 
-// Экран водителя на телефоне в духе Shazam: большая кнопка-машина по центру, статусы карточками внизу.
-function DriverHero({ data, debt, onPay }) {
-  const { car, status, profile } = data;
+// Главная водителя на телефоне: статусы карточками и плитки разделов.
+function DriverHero({ data, debt }) {
+  const { status, profile } = data;
   const [pending, setPending] = useState(0);
   useEffect(() => {
     api.get('/me/payments')
@@ -277,13 +277,6 @@ function DriverHero({ data, debt, onPay }) {
 
   return (
     <div className="dhero">
-      <div className="dhero__top">
-        <h1 className="dhero__title">{`${car.brand} ${car.model}`}</h1>
-        <p className="dhero__sub">{`машина у вас с ${fmtDay(data.since)}`}</p>
-      </div>
-      <div className="dhero__plate"><Plate value={car.plate} /></div>
-      <button type="button" className="btn dhero__pay" onClick={onPay}>Сообщить об оплате</button>
-
       <h2 className="dhero__subtitle">Мои статусы</h2>
       <div className="dstats">
         {cards.map((c) => <StatusCard key={c.label} {...c} />)}
@@ -415,8 +408,7 @@ export default function DriverHomePage({ view = 'home' }) {
     return (
       <div className="drv">
         {sentNotice}
-        <DriverHero data={data} debt={debt} onPay={openPay} />
-        <MyProfile profile={data.profile} />
+        <DriverHero data={data} debt={debt} />
         {modals}
       </div>
     );

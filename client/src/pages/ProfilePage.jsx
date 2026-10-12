@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { api, ApiError } from '../api';
 import { useAuth } from '../auth';
 import { AppControls } from '../components/Layout';
+import { MyProfile } from './DriverHomePage';
 
 export default function ProfilePage() {
   const { user, refreshUser } = useAuth();
@@ -18,6 +19,12 @@ export default function ProfilePage() {
   const [infoError, setInfoError] = useState('');
   const [infoSaving, setInfoSaving] = useState(false);
   const [infoSaved, setInfoSaved] = useState(false);
+  const [driverProfile, setDriverProfile] = useState(null);
+
+  useEffect(() => {
+    if (user?.role !== 'DRIVER') return;
+    api.get('/me/rent').then((d) => setDriverProfile(d.profile)).catch(() => {});
+  }, [user?.role]);
 
   function startEdit() {
     setInfo({ full_name: user.full_name || '', phone: user.phone || '+998' });
@@ -150,6 +157,12 @@ export default function ProfilePage() {
           {infoSaved && <p style={{ color: 'var(--c-ok)', fontWeight: 500, margin: '8px 0 0' }}>Данные сохранены</p>}
         </div>
       </div>
+
+      {user.role === 'DRIVER' && driverProfile && (
+        <div style={{ maxWidth: '32rem', marginBottom: 'var(--sp-4)' }}>
+          <MyProfile profile={driverProfile} />
+        </div>
+      )}
 
       <div className="app-controls">
         <AppControls />
