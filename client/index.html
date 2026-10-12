@@ -18,6 +18,17 @@
       var dark = saved ? saved === 'dark' : true;
       document.documentElement.dataset.theme = dark ? 'dark' : 'light';
     } catch (e) {}
+    window.addEventListener('error', function (e) {
+      var src = e.target && (e.target.src || e.target.href) || '';
+      if (src.indexOf('/assets/') === -1) return;
+      try {
+        if (sessionStorage.getItem('rac-reloaded')) return;
+        sessionStorage.setItem('rac-reloaded', '1');
+      } catch (err) {}
+      location.reload();
+    }, true);
+    window.addEventListener('vite:preloadError', function () { location.reload(); });
+    setTimeout(function () { try { sessionStorage.removeItem('rac-reloaded'); } catch (e) {} }, 15000);
   </script>
 </head>
 <body>

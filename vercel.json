@@ -6,6 +6,6 @@
   "regions": ["bom1"],
   "rewrites": [
     { "source": "/api/(.*)", "destination": "/api/server" },
-    { "source": "/((?!api/).*)", "destination": "/index.html" }
+    { "source": "/((?!api/|assets/).*)", "destination": "/index.html" }
   ]
 }
