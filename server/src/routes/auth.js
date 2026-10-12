@@ -26,11 +26,11 @@ function issueToken(user) {
   );
 }
 
-// Водитель может войти по номеру телефона в любом виде: 90 123 45 67, 998901234567, +998 90 123-45-67.
+// Любой пользователь может войти по номеру телефона в любом виде: 90 123 45 67, 998901234567, +998 90 123-45-67.
 function phoneFromLogin(value) {
   const digits = String(value || '').replace(/\D/g, '');
-  if (digits.length === 9) return `+998${digits}`;
-  if (digits.length === 12 && digits.startsWith('998')) return `+${digits}`;
+  if (digits.length === 9) return `998${digits}`;
+  if (digits.length === 12 && digits.startsWith('998')) return digits;
   return null;
 }
 
@@ -50,7 +50,8 @@ router.post('/login', async (req, res) => {
        FROM users u
        LEFT JOIN user_branches ub ON ub.user_id = u.id
        LEFT JOIN branches b ON b.id = ub.branch_id
-       WHERE u.login = $1 OR ($2 IS NOT NULL AND u.phone = $2)
+       WHERE u.login = $1
+          OR ($2 IS NOT NULL AND REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(u.phone, '+', ''), ' ', ''), '-', ''), '(', ''), ')', '') = $2)
        ORDER BY CASE WHEN u.login = $1 THEN 0 ELSE 1 END
        LIMIT 1`,
       [String(login).trim(), phoneFromLogin(login)]
