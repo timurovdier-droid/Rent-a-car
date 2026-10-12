@@ -333,7 +333,7 @@ function KmGauge({ km }) {
 
 const CONFETTI = ['#FFD000', '#1E9E4A', '#FF5A5F', '#3D7BFF', '#FFFFFF', '#FF9F1C'];
 
-function SavedBurst({ km }) {
+function SavedBurst({ line }) {
   return (
     <div className="msuccess" role="status">
       <div className="msuccess__confetti" aria-hidden="true">
@@ -351,7 +351,7 @@ function SavedBurst({ km }) {
       </div>
       <div className="msuccess__check">✓</div>
       <b className="msuccess__title">Записано!</b>
-      {km ? <span className="msuccess__km">{`+${fmtNumber(km)} км`}</span> : <span className="msuccess__km">Пробег сохранён</span>}
+      <span className="msuccess__km">{line}</span>
     </div>
   );
 }
@@ -388,7 +388,7 @@ function MileageModal({ last, onClose, onSaved }) {
   if (done) {
     return (
       <Modal title="Записать пробег" onClose={() => onSaved(done.km)}>
-        <SavedBurst km={done.km} />
+        <SavedBurst line={done.km ? `+${fmtNumber(done.km)} км` : 'Пробег сохранён'} />
       </Modal>
     );
   }
@@ -435,7 +435,7 @@ function MileageModal({ last, onClose, onSaved }) {
           <input id="ml-comment" className="field__input" value={comment} onChange={(e) => setComment(e.target.value)} maxLength={300} placeholder="если нужно" />
         </div>
         {error && <div className="notice notice--error">{error}</div>}
-        <div className="form-actions">
+        <div className="form-actions form-actions--big">
           <button className="btn" type="submit" disabled={saving}>{saving ? 'Сохраняю…' : 'Сохранить'}</button>
           <button className="btn btn--quiet" type="button" onClick={onClose}>Отмена</button>
         </div>
@@ -564,6 +564,8 @@ function entriesWord(n) {
 }
 
 const EXPENSE_ICONS = { FUEL: '⛽', GAS: '🔥', CHARGE: '⚡', WASH: '🚿', OTHER: '🧾' };
+const TANK_SIZE = { FUEL: 60, GAS: 30, CHARGE: 75 };
+const VOLUME_CHIPS = { FUEL: [10, 20, 30, 40], GAS: [5, 10, 15, 20], CHARGE: [10, 20, 40, 60] };
 
 function ExpenseModal({ onClose, onSaved }) {
   const [kind, setKind] = useState('FUEL');
@@ -575,7 +577,20 @@ function ExpenseModal({ onClose, onSaved }) {
   const [comment, setComment] = useState('');
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
+  const [done, setDone] = useState(null);
   const unit = VOLUME_UNIT[kind];
+  const today = todayLocal();
+  const yesterday = shiftDay(today, -1);
+  const sum = Number(amount) || 0;
+  const vol = Number(String(volume).replace(',', '.')) || 0;
+  const perUnit = unit && sum && vol ? Math.round(sum / vol) : null;
+  const tank = TANK_SIZE[kind];
+
+  function pickKind(value) {
+    setKind(value);
+    if (!VOLUME_UNIT[value]) setVolume('');
+    buzz();
+  }
 
   async function submit(e) {
     e.preventDefault();
@@ -583,22 +598,41 @@ function ExpenseModal({ onClose, onSaved }) {
     setError('');
     try {
       await api.post('/me/expenses', { kind, amount, volume: unit ? volume : '', odometer, date: day, time, comment });
-      onSaved();
+      buzz();
+      const line = `${EXPENSE_ICONS[kind]} −${fmtMoney(sum)} сум`;
+      setDone({ line });
+      setTimeout(() => onSaved(line), 1500);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Не удалось сохранить');
       setSaving(false);
     }
   }
 
+  if (done) {
+    return (
+      <Modal title="Записать расход" onClose={() => onSaved(done.line)}>
+        <SavedBurst line={done.line} />
+      </Modal>
+    );
+  }
+
   return (
     <Modal title="Записать расход" onClose={onClose}>
       <form onSubmit={submit}>
+        <div className={`xhead xhead--${kind.toLowerCase()}`}>
+          <span key={kind} className="xhead__icon">{EXPENSE_ICONS[kind]}</span>
+          <div className="xhead__text">
+            <span className="xhead__kind">{EXPENSE_LABELS[kind]}</span>
+            <b className={`xhead__sum ${sum ? '' : 'xhead__sum--empty'}`}><CountUp value={sum} format={fmtMoney} suffix=" сум" /></b>
+            {perUnit != null && <span className="xhead__per">{`≈ ${fmtMoney(perUnit)} сум за 1 ${unit}`}</span>}
+          </div>
+        </div>
         <div className="field">
           <span className="field__label">Что оплатили</span>
           <div className="kind-grid">
             {EXPENSE_KINDS.map(([value, label]) => (
-              <button key={value} type="button" className={`kind-btn ${kind === value ? 'kind-btn--on' : ''}`} onClick={() => setKind(value)}>
-                <span className="kind-btn__icon">{EXPENSE_ICONS[value]}</span>
+              <button key={value} type="button" className={`kind-btn ${kind === value ? 'kind-btn--on' : ''}`} onClick={() => pickKind(value)}>
+                <span key={kind === value ? 'on' : 'off'} className="kind-btn__icon">{EXPENSE_ICONS[value]}</span>
                 {label}
               </button>
             ))}
@@ -606,26 +640,46 @@ function ExpenseModal({ onClose, onSaved }) {
         </div>
         <div className="field">
           <label className="field__label" htmlFor="ex-amount">Сумма *</label>
-          <MoneyInput id="ex-amount" value={amount} onChange={setAmount} required autoFocus />
+          <MoneyInput id="ex-amount" value={amount} onChange={setAmount} required />
+          <div className="qchips">
+            {[10000, 50000, 100000].map((n) => (
+              <button key={n} type="button" className="qchip" onClick={() => { setAmount(String(sum + n)); buzz(); }}>{`+${fmtMoney(n)}`}</button>
+            ))}
+            {sum > 0 && <button type="button" className="qchip qchip--ghost" onClick={() => setAmount('')}>Сброс</button>}
+          </div>
         </div>
         {unit && (
           <div className="field">
             <label className="field__label" htmlFor="ex-volume">{`Сколько (${unit})`}</label>
             <input id="ex-volume" className="field__input" inputMode="decimal" value={volume} onChange={(e) => setVolume(e.target.value.replace(/[^\d.,]/g, ''))} placeholder="необязательно" />
+            <div className="qchips">
+              {VOLUME_CHIPS[kind].map((n) => (
+                <button key={n} type="button" className={`qchip ${vol === n ? 'qchip--on' : ''}`} onClick={() => { setVolume(String(n)); buzz(); }}>{`${n} ${unit}`}</button>
+              ))}
+            </div>
+            <div className="tank" aria-hidden="true">
+              <div className={`tank__fill tank__fill--${kind.toLowerCase()}`} style={{ width: `${Math.min(100, (vol / tank) * 100)}%` }} />
+              <span className="tank__label">{vol ? `${fmtNumber(vol)} ${unit}` : 'бак'}</span>
+            </div>
           </div>
         )}
         <div className="field">
           <label className="field__label" htmlFor="ex-odo">Пробег сейчас</label>
           <MoneyInput id="ex-odo" value={odometer} onChange={setOdometer} suffix="км" />
         </div>
-        <div className="field-row">
-          <div className="field">
-            <label className="field__label" htmlFor="ex-day">Дата</label>
-            <DateInput id="ex-day" className="field__input" value={day} max={todayLocal()} onChange={(e) => setDay(e.target.value)} required />
+        <div className="field">
+          <span className="field__label">Дата</span>
+          <div className="qchips qchips--top">
+            <button type="button" className={`qchip ${day === today ? 'qchip--on' : ''}`} onClick={() => setDay(today)}>Сегодня</button>
+            <button type="button" className={`qchip ${day === yesterday ? 'qchip--on' : ''}`} onClick={() => setDay(yesterday)}>Вчера</button>
           </div>
-          <div className="field">
-            <label className="field__label" htmlFor="ex-time">Время</label>
-            <input id="ex-time" type="time" className="field__input" value={time} onChange={(e) => setTime(e.target.value)} required />
+          <DateInput id="ex-day" className="field__input" value={day} max={today} onChange={(e) => setDay(e.target.value)} required />
+        </div>
+        <div className="field">
+          <span className="field__label">Время</span>
+          <div className="time-row">
+            <input id="ex-time" type="time" className="field__input" value={time} onChange={(e) => setTime(e.target.value)} required aria-label="Время" />
+            <button type="button" className="qchip" onClick={() => setTime(nowTime())}>Сейчас</button>
           </div>
         </div>
         <div className="field">
@@ -633,7 +687,7 @@ function ExpenseModal({ onClose, onSaved }) {
           <input id="ex-comment" className="field__input" value={comment} onChange={(e) => setComment(e.target.value)} maxLength={300} placeholder="если нужно" />
         </div>
         {error && <div className="notice notice--error">{error}</div>}
-        <div className="form-actions">
+        <div className="form-actions form-actions--big">
           <button className="btn" type="submit" disabled={saving}>{saving ? 'Сохраняю…' : 'Сохранить'}</button>
           <button className="btn btn--quiet" type="button" onClick={onClose}>Отмена</button>
         </div>
@@ -646,10 +700,12 @@ export function DriverExpensesPage() {
   const [period, setPeriod] = useState(monthPeriod);
   const [version, setVersion] = useState(0);
   const [open, setOpen] = useState(false);
+  const [toast, setToast] = useState('');
   const [data, error] = useLoad(`/me/expenses?from=${period.from}&to=${period.to}`, [version]);
   const rows = data?.rows || [];
   const total = rows.reduce((s, r) => s + r.amount, 0);
   const reload = () => setVersion((v) => v + 1);
+  const hideToast = useCallback(() => setToast(''), []);
 
   return (
     <div className="drv">
@@ -684,7 +740,8 @@ export function DriverExpensesPage() {
           ))}
         </ul>
       )}
-      {open && <ExpenseModal onClose={() => setOpen(false)} onSaved={() => { setOpen(false); reload(); }} />}
+      {open && <ExpenseModal onClose={() => setOpen(false)} onSaved={(line) => { setOpen(false); setToast(`Расход записан · ${line}`); reload(); }} />}
+      {toast && <SavedToast text={toast} onDone={hideToast} />}
     </div>
   );
 }
@@ -726,7 +783,7 @@ function IncomeModal({ onClose, onSaved }) {
           <input id="in-comment" className="field__input" value={comment} onChange={(e) => setComment(e.target.value)} maxLength={300} placeholder="например: Яндекс Такси" />
         </div>
         {error && <div className="notice notice--error">{error}</div>}
-        <div className="form-actions">
+        <div className="form-actions form-actions--big">
           <button className="btn" type="submit" disabled={saving}>{saving ? 'Сохраняю…' : 'Сохранить'}</button>
           <button className="btn btn--quiet" type="button" onClick={onClose}>Отмена</button>
         </div>
