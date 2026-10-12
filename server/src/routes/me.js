@@ -200,6 +200,332 @@ router.get('/rent', async (req, res) => {
   }
 });
 
+function readInt(value) {
+  const n = Number(String(value ?? '').replace(/\s+/g, ''));
+  return Number.isFinite(n) && n >= 0 ? Math.round(n) : NaN;
+}
+
+async function lastOdometer(driverId, carId) {
+  const { rows } = await pool.query(
+    `SELECT MAX(v) AS v FROM (
+       SELECT MAX(odometer) AS v FROM driver_mileage WHERE driver_id = $1 AND car_id = $2
+       UNION ALL
+       SELECT MAX(odometer) AS v FROM driver_expenses WHERE driver_id = $1 AND car_id = $2
+     )`,
+    [driverId, carId]
+  );
+  return rows[0]?.v == null ? null : Number(rows[0].v);
+}
+
+async function bumpCarMileage(carId, odometer) {
+  await pool.query(
+    'UPDATE cars SET mileage = $2 WHERE id = $1 AND (mileage IS NULL OR mileage < $2)',
+    [carId, odometer]
+  );
+}
+
+function periodFrom(query, today) {
+  const to = isDay(query.to) && query.to <= today ? query.to : today;
+  const from = isDay(query.from) ? query.from : `${to.slice(0, 7)}-01`;
+  return { from: from > to ? to : from, to };
+}
+
+// GET /me/car — всё о машине водителя: документы, пробег, ближайшее ТО
+router.get('/car', async (req, res) => {
+  try {
+    if (!driverOnly(req, res)) return;
+    const today = localToday();
+    const assignment = await currentCar(req.user.driver_id);
+    if (!assignment) return res.json({ car: null });
+    const carId = Number(assignment.car_id);
+    const { rows: cars } = await pool.query(
+      `SELECT id, plate, brand, model, year, color, vin, fuel_type, mileage,
+              insurance_expires, inspection_expires, photo_version
+       FROM cars WHERE id = $1`,
+      [carId]
+    );
+    const { rows: rates } = await pool.query(
+      `SELECT rate FROM car_rate_history WHERE car_id = $1 AND valid_from <= $2
+       ORDER BY valid_from DESC, id DESC LIMIT 1`,
+      [carId, today]
+    );
+    const { rows: services } = await pool.query(
+      `SELECT id, type, description, scheduled_at, due_mileage FROM service_records
+       WHERE car_id = $1 AND status = 'SCHEDULED' ORDER BY COALESCE(scheduled_at, created_at) LIMIT 5`,
+      [carId]
+    );
+    const car = cars[0];
+    res.json({
+      today,
+      car: car ? { ...car, mileage: car.mileage == null ? null : Number(car.mileage) } : null,
+      since: localDay(assignment.start_at),
+      rate: rates[0] ? Number(rates[0].rate) : 0,
+      last_odometer: await lastOdometer(req.user.driver_id, carId),
+      services,
+    });
+  } catch (err) {
+    console.error('Ошибка данных машины для водителя:', err);
+    fail(res, 500, 'INTERNAL_ERROR', 'Внутренняя ошибка сервера');
+  }
+});
+
+// GET /me/contacts — телефоны диспетчерской и адреса, которые админ заполнил в настройках
+router.get('/contacts', async (req, res) => {
+  try {
+    const { rows } = await pool.query(`SELECT key, value FROM settings WHERE key IN ('contacts', 'company_name')`);
+    const map = Object.fromEntries(rows.map((r) => [r.key, r.value]));
+    let contacts = { phones: [], locations: [], note: '' };
+    try {
+      if (map.contacts) contacts = { ...contacts, ...JSON.parse(map.contacts) };
+    } catch {
+      // испорченное значение — покажем пустые контакты
+    }
+    res.json({ company: map.company_name || 'RENT A CAR GTA', ...contacts });
+  } catch (err) {
+    console.error('Ошибка контактов:', err);
+    fail(res, 500, 'INTERNAL_ERROR', 'Внутренняя ошибка сервера');
+  }
+});
+
+// GET /me/mileage — записи пробега водителя за период (по умолчанию этот месяц)
+router.get('/mileage', async (req, res) => {
+  try {
+    if (!driverOnly(req, res)) return;
+    const { from, to } = periodFrom(req.query, localToday());
+    const { rows } = await pool.query(
+      `SELECT m.id, m.car_id, m.day, m.odometer, m.income, m.comment, m.created_at, c.plate
+       FROM driver_mileage m LEFT JOIN cars c ON c.id = m.car_id
+       WHERE m.driver_id = $1 AND m.day >= $2 AND m.day <= $3
+       ORDER BY m.day DESC, m.id DESC`,
+      [req.user.driver_id, from, to]
+    );
+    const assignment = await currentCar(req.user.driver_id);
+    const last = assignment ? await lastOdometer(req.user.driver_id, Number(assignment.car_id)) : null;
+    res.json({ from, to, last_odometer: last, rows: await withDistance(req.user.driver_id, rows) });
+  } catch (err) {
+    console.error('Ошибка пробега водителя:', err);
+    fail(res, 500, 'INTERNAL_ERROR', 'Внутренняя ошибка сервера');
+  }
+});
+
+// Сколько проехал с прошлой записи на той же машине
+async function withDistance(driverId, rows) {
+  const out = [];
+  for (const r of rows) {
+    const { rows: prev } = await pool.query(
+      `SELECT odometer FROM driver_mileage
+       WHERE driver_id = $1 AND car_id = $2 AND (day < $3 OR (day = $3 AND id < $4))
+       ORDER BY day DESC, id DESC LIMIT 1`,
+      [driverId, r.car_id, r.day, r.id]
+    );
+    const km = prev.length ? Number(r.odometer) - Number(prev[0].odometer) : null;
+    out.push({ ...r, odometer: Number(r.odometer), income: Number(r.income || 0), km: km != null && km >= 0 ? km : null });
+  }
+  return out;
+}
+
+// POST /me/mileage — показания одометра на конец смены и заработок за день
+router.post('/mileage', async (req, res) => {
+  try {
+    if (!driverOnly(req, res)) return;
+    const today = localToday();
+    const day = req.body.date || today;
+    const odometer = readInt(req.body.odometer);
+    const income = req.body.income === '' || req.body.income == null ? 0 : readInt(req.body.income);
+    const comment = req.body.comment ? String(req.body.comment).trim().slice(0, 300) : null;
+    if (!isDay(day) || day > today) return fail(res, 400, 'BAD_REQUEST', 'Неверная дата', 'date');
+    if (Number.isNaN(odometer) || odometer <= 0 || odometer > 5e6) return fail(res, 400, 'BAD_REQUEST', 'Укажите пробег по одометру', 'odometer');
+    if (Number.isNaN(income) || income > 1e9) return fail(res, 400, 'BAD_REQUEST', 'Неверная сумма заработка', 'income');
+    const carId = await carOnDay(req.user.driver_id, day, today);
+    if (!carId) return fail(res, 409, 'CONFLICT', 'В этот день за вами не было машины', 'date');
+    const { rows: before } = await pool.query(
+      `SELECT MAX(odometer) AS v FROM driver_mileage WHERE driver_id = $1 AND car_id = $2 AND day <= $3`,
+      [req.user.driver_id, carId, day]
+    );
+    if (before[0]?.v != null && odometer < Number(before[0].v)) {
+      return fail(res, 400, 'BAD_REQUEST', `Пробег меньше прошлой записи (${Number(before[0].v).toLocaleString('ru-RU')} км)`, 'odometer');
+    }
+    const { rows } = await pool.query(
+      `INSERT INTO driver_mileage (driver_id, car_id, day, odometer, income, comment)
+       VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
+      [req.user.driver_id, carId, day, odometer, income, comment]
+    );
+    await bumpCarMileage(carId, odometer);
+    res.status(201).json({ id: rows[0].id });
+  } catch (err) {
+    console.error('Ошибка записи пробега:', err);
+    fail(res, 500, 'INTERNAL_ERROR', 'Внутренняя ошибка сервера');
+  }
+});
+
+router.delete('/mileage/:id', async (req, res) => {
+  try {
+    if (!driverOnly(req, res)) return;
+    const { rows } = await pool.query(
+      'DELETE FROM driver_mileage WHERE id = $1 AND driver_id = $2 RETURNING id',
+      [parseInt(req.params.id, 10), req.user.driver_id]
+    );
+    if (!rows.length) return fail(res, 404, 'NOT_FOUND', 'Запись не найдена');
+    res.json({ id: rows[0].id, deleted: true });
+  } catch (err) {
+    console.error('Ошибка удаления пробега:', err);
+    fail(res, 500, 'INTERNAL_ERROR', 'Внутренняя ошибка сервера');
+  }
+});
+
+const EXPENSE_KINDS = ['FUEL', 'GAS', 'CHARGE', 'WASH', 'OTHER'];
+
+// GET /me/expenses — расходы водителя на заправку, зарядку, мойку
+router.get('/expenses', async (req, res) => {
+  try {
+    if (!driverOnly(req, res)) return;
+    const { from, to } = periodFrom(req.query, localToday());
+    const { rows } = await pool.query(
+      `SELECT e.id, e.day, e.kind, e.amount, e.volume, e.odometer, e.comment, e.created_at, c.plate
+       FROM driver_expenses e LEFT JOIN cars c ON c.id = e.car_id
+       WHERE e.driver_id = $1 AND e.day >= $2 AND e.day <= $3
+       ORDER BY e.day DESC, e.id DESC`,
+      [req.user.driver_id, from, to]
+    );
+    res.json({
+      from,
+      to,
+      rows: rows.map((r) => ({
+        ...r,
+        amount: Number(r.amount),
+        volume: r.volume == null ? null : Number(r.volume),
+        odometer: r.odometer == null ? null : Number(r.odometer),
+      })),
+    });
+  } catch (err) {
+    console.error('Ошибка расходов водителя:', err);
+    fail(res, 500, 'INTERNAL_ERROR', 'Внутренняя ошибка сервера');
+  }
+});
+
+// POST /me/expenses — заправка или зарядка: сумма, литры/кВт·ч и пробег на момент записи
+router.post('/expenses', async (req, res) => {
+  try {
+    if (!driverOnly(req, res)) return;
+    const today = localToday();
+    const day = req.body.date || today;
+    const kind = req.body.kind || 'FUEL';
+    const amount = readAmount(req.body.amount);
+    const volume = req.body.volume === '' || req.body.volume == null ? null : Number(String(req.body.volume).replace(',', '.'));
+    const odometer = req.body.odometer === '' || req.body.odometer == null ? null : readInt(req.body.odometer);
+    const comment = req.body.comment ? String(req.body.comment).trim().slice(0, 300) : null;
+    if (!EXPENSE_KINDS.includes(kind)) return fail(res, 400, 'BAD_REQUEST', 'Выберите вид расхода', 'kind');
+    if (Number.isNaN(amount) || amount > 1e9) return fail(res, 400, 'BAD_REQUEST', 'Укажите сумму', 'amount');
+    if (volume != null && (!Number.isFinite(volume) || volume <= 0 || volume > 10000)) return fail(res, 400, 'BAD_REQUEST', 'Неверное количество', 'volume');
+    if (odometer != null && (Number.isNaN(odometer) || odometer > 5e6)) return fail(res, 400, 'BAD_REQUEST', 'Неверный пробег', 'odometer');
+    if (!isDay(day) || day > today) return fail(res, 400, 'BAD_REQUEST', 'Неверная дата', 'date');
+    const carId = await carOnDay(req.user.driver_id, day, today);
+    if (!carId) return fail(res, 409, 'CONFLICT', 'В этот день за вами не было машины', 'date');
+    const { rows } = await pool.query(
+      `INSERT INTO driver_expenses (driver_id, car_id, day, kind, amount, volume, odometer, comment)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
+      [req.user.driver_id, carId, day, kind, amount, volume, odometer, comment]
+    );
+    if (odometer) await bumpCarMileage(carId, odometer);
+    res.status(201).json({ id: rows[0].id });
+  } catch (err) {
+    console.error('Ошибка записи расхода:', err);
+    fail(res, 500, 'INTERNAL_ERROR', 'Внутренняя ошибка сервера');
+  }
+});
+
+router.delete('/expenses/:id', async (req, res) => {
+  try {
+    if (!driverOnly(req, res)) return;
+    const { rows } = await pool.query(
+      'DELETE FROM driver_expenses WHERE id = $1 AND driver_id = $2 RETURNING id',
+      [parseInt(req.params.id, 10), req.user.driver_id]
+    );
+    if (!rows.length) return fail(res, 404, 'NOT_FOUND', 'Запись не найдена');
+    res.json({ id: rows[0].id, deleted: true });
+  } catch (err) {
+    console.error('Ошибка удаления расхода:', err);
+    fail(res, 500, 'INTERNAL_ERROR', 'Внутренняя ошибка сервера');
+  }
+});
+
+// GET /me/report?from&to — сколько водитель заработал чистыми: заработок минус аренда и заправки
+router.get('/report', async (req, res) => {
+  try {
+    if (!driverOnly(req, res)) return;
+    const driverId = req.user.driver_id;
+    const { from, to } = periodFrom(req.query, localToday());
+    if (daysBetween(from, to).length > 366) return fail(res, 400, 'BAD_REQUEST', 'Не больше года за раз', 'from');
+
+    const { rows: miles } = await pool.query(
+      `SELECT car_id, day, odometer, income FROM driver_mileage
+       WHERE driver_id = $1 AND day >= $2 AND day <= $3 ORDER BY day, id`,
+      [driverId, from, to]
+    );
+    const { rows: exp } = await pool.query(
+      `SELECT kind, SUM(amount) AS amount, SUM(volume) AS volume, COUNT(*) AS n FROM driver_expenses
+       WHERE driver_id = $1 AND day >= $2 AND day <= $3 GROUP BY kind`,
+      [driverId, from, to]
+    );
+
+    // Аренда начисляется по каждой машине, на которой водитель ездил в эти дни
+    const { rows: assigns } = await pool.query(
+      'SELECT DISTINCT car_id FROM car_assignments WHERE driver_id = $1',
+      [driverId]
+    );
+    let rent = 0;
+    let rentPaid = 0;
+    for (const a of assigns) {
+      const ledger = await carDailyLedger(pool, Number(a.car_id), from, to, { driverId });
+      rent += ledger.totals.accrued;
+      rentPaid += ledger.totals.paid;
+    }
+
+    // Пробег: разница показаний одометра внутри периода плюс от последней записи до периода
+    let km = 0;
+    const byCar = new Map();
+    for (const m of miles) {
+      const list = byCar.get(Number(m.car_id)) || [];
+      list.push(Number(m.odometer));
+      byCar.set(Number(m.car_id), list);
+    }
+    for (const [carId, list] of byCar) {
+      const { rows: prev } = await pool.query(
+        `SELECT odometer FROM driver_mileage WHERE driver_id = $1 AND car_id = $2 AND day < $3
+         ORDER BY day DESC, id DESC LIMIT 1`,
+        [driverId, carId, from]
+      );
+      const start = prev.length ? Number(prev[0].odometer) : list[0];
+      km += Math.max(0, Math.max(...list) - start);
+    }
+
+    const income = miles.reduce((s, m) => s + Number(m.income || 0), 0);
+    const expenses = exp.map((e) => ({ kind: e.kind, amount: Number(e.amount), volume: e.volume == null ? null : Number(e.volume), count: Number(e.n) }));
+    const spent = expenses.reduce((s, e) => s + e.amount, 0);
+    const workDays = new Set(miles.filter((m) => Number(m.income) > 0).map((m) => m.day)).size;
+    const net = income - rent - spent;
+
+    res.json({
+      from,
+      to,
+      income,
+      rent,
+      rent_paid: rentPaid,
+      expenses,
+      spent,
+      net,
+      km,
+      work_days: workDays,
+      per_km: km > 0 ? Math.round(spent / km) : null,
+      net_per_day: workDays > 0 ? Math.round(net / workDays) : null,
+      entries: miles.length,
+    });
+  } catch (err) {
+    console.error('Ошибка отчёта водителя:', err);
+    fail(res, 500, 'INTERNAL_ERROR', 'Внутренняя ошибка сервера');
+  }
+});
+
 // GET /me/car-photo — фото машины, на которой водитель ездит сейчас
 router.get('/car-photo', async (req, res) => {
   try {

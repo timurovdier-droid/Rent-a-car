@@ -21,8 +21,13 @@ const ROLE_LABELS = {
 function menuFor(role, isPhone) {
   if (role === 'DRIVER') {
     return [
-      { to: '/', label: 'Моя аренда', icon: 'car', end: true },
-      { to: '/payments', label: 'Оплаты', icon: 'wallet' },
+      { to: '/', label: 'Моя аренда', icon: 'home', end: true },
+      { to: '/my-car', label: 'Автомобиль', icon: 'car' },
+      { to: '/contacts', label: 'Диспетчер', icon: 'headset' },
+      { to: '/mileage', label: 'Пробег', icon: 'calendar' },
+      { to: '/fuel', label: 'Заправка и зарядка', icon: 'wallet' },
+      { to: '/my-report', label: 'Мой заработок', icon: 'chart' },
+      { to: '/payments', label: 'Оплаты аренды', icon: 'list' },
     ];
   }
   if (role === 'DISPATCHER') {

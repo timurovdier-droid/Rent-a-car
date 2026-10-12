@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { api, ApiError } from '../api';
 import { useAuth } from '../auth';
 import Plate from '../components/Plate';
@@ -295,9 +296,28 @@ function DriverHero({ data, debt, onPay }) {
       <div className="dstats">
         {cards.map((c) => <StatusCard key={c.label} {...c} />)}
       </div>
+
+      <div className="mtiles dhero__tiles">
+        {DRIVER_TILES.map((t) => (
+          <Link key={t.to} to={t.to} className={`mtile ${t.wide ? 'mtile--wide' : ''}`}>
+            <span className="mtile__card">
+              <img className="mtile__img" src={`/tiles/${t.img}.webp`} alt="" decoding="async" />
+            </span>
+            <span className="mtile__label">{t.label}</span>
+          </Link>
+        ))}
+      </div>
     </div>
   );
 }
+
+const DRIVER_TILES = [
+  { to: '/my-car', label: 'Автомобиль', img: 'cars' },
+  { to: '/contacts', label: 'Диспетчер', img: 'dispatchers' },
+  { to: '/mileage', label: 'Пробег', img: 'mileage' },
+  { to: '/fuel', label: 'Заправка и зарядка', img: 'fuel' },
+  { to: '/my-report', label: 'Мой заработок', img: 'earnings', wide: true },
+];
 
 export default function DriverHomePage({ view = 'home' }) {
   const { user } = useAuth();
@@ -336,6 +356,7 @@ export default function DriverHomePage({ view = 'home' }) {
       <div>
         <h1 className="page-title">Моя аренда</h1>
         <div className="empty">Сейчас за вами не закреплена машина. Когда диспетчер выдаст машину, здесь появится аренда и оплаты.</div>
+        <p><Link to="/contacts" className="btn btn--quiet">Контакты диспетчера</Link></p>
         <OtherDebts charges={data.charges} />
         <MyPayments version={payVersion} onChanged={() => setPayVersion((v) => v + 1)} />
         <MyProfile profile={data.profile} />

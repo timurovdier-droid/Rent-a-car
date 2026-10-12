@@ -13,6 +13,93 @@ const FIELDS = [
   { key: 'remind_km', label: 'Напоминать о ТО за', type: 'number', suffix: 'км' },
 ];
 
+function parseContacts(value) {
+  try {
+    const c = value ? JSON.parse(value) : {};
+    return { phones: c.phones || [], locations: c.locations || [], telegram: c.telegram || '', note: c.note || '' };
+  } catch {
+    return { phones: [], locations: [], telegram: '', note: '' };
+  }
+}
+
+// Контакты и адреса, которые водители видят в разделе «Диспетчер»
+function ContactsEditor({ value, onSaved }) {
+  const [c, setC] = useState(() => parseContacts(value));
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState('');
+  const [error, setError] = useState('');
+
+  const setItem = (list, i, patch) => setC({ ...c, [list]: c[list].map((x, j) => (j === i ? { ...x, ...patch } : x)) });
+  const addItem = (list, item) => setC({ ...c, [list]: [...c[list], item] });
+  const dropItem = (list, i) => setC({ ...c, [list]: c[list].filter((_, j) => j !== i) });
+
+  async function save(e) {
+    e.preventDefault();
+    setSaving(true);
+    setError('');
+    setMessage('');
+    const clean = {
+      phones: c.phones.filter((p) => p.phone.trim()),
+      locations: c.locations.filter((l) => l.address.trim() || l.name.trim()),
+      telegram: c.telegram.trim(),
+      note: c.note.trim(),
+    };
+    try {
+      const updated = await api.patch('/settings', { contacts: JSON.stringify(clean) });
+      setC(parseContacts(updated.contacts));
+      onSaved(updated);
+      setMessage('Контакты сохранены — водители уже их видят');
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Ошибка сохранения');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <form onSubmit={save} className="panel" style={{ maxWidth: '40rem', marginBottom: 'var(--sp-5)' }}>
+      <h2 className="panel__title">Контакты для водителей</h2>
+      <p className="muted small" style={{ marginTop: 0 }}>Водители видят это в разделе «Диспетчер»: могут позвонить в одно касание и открыть адрес на карте.</p>
+
+      <h3 className="field__label">Телефоны</h3>
+      {c.phones.map((p, i) => (
+        <div key={i} className="contacts-row">
+          <input className="field__input" placeholder="Кто (например: Диспетчер Азиз)" value={p.label} onChange={(e) => setItem('phones', i, { label: e.target.value })} maxLength={60} />
+          <input className="field__input" placeholder="+998 90 123 45 67" inputMode="tel" value={p.phone} onChange={(e) => setItem('phones', i, { phone: e.target.value })} maxLength={30} />
+          <button type="button" className="btn btn--quiet btn--sm" onClick={() => dropItem('phones', i)}>Убрать</button>
+        </div>
+      ))}
+      <button type="button" className="btn btn--quiet btn--sm" onClick={() => addItem('phones', { label: '', phone: '' })}>+ Телефон</button>
+
+      <div className="field" style={{ marginTop: 16 }}>
+        <label className="field__label" htmlFor="ct-tg">Telegram</label>
+        <input id="ct-tg" className="field__input" placeholder="@gta_rent или ссылка" value={c.telegram} onChange={(e) => setC({ ...c, telegram: e.target.value })} maxLength={100} />
+      </div>
+
+      <h3 className="field__label">Адреса</h3>
+      {c.locations.map((l, i) => (
+        <div key={i} className="contacts-loc">
+          <input className="field__input" placeholder="Название (например: Офис, Стоянка)" value={l.name} onChange={(e) => setItem('locations', i, { name: e.target.value })} maxLength={60} />
+          <input className="field__input" placeholder="Адрес" value={l.address} onChange={(e) => setItem('locations', i, { address: e.target.value })} maxLength={200} />
+          <input className="field__input" placeholder="Часы работы (например: 9:00–20:00)" value={l.hours || ''} onChange={(e) => setItem('locations', i, { hours: e.target.value })} maxLength={60} />
+          <input className="field__input" placeholder="Ссылка на карту (необязательно)" value={l.map || ''} onChange={(e) => setItem('locations', i, { map: e.target.value })} maxLength={500} />
+          <button type="button" className="btn btn--quiet btn--sm" onClick={() => dropItem('locations', i)}>Убрать адрес</button>
+        </div>
+      ))}
+      <button type="button" className="btn btn--quiet btn--sm" onClick={() => addItem('locations', { name: '', address: '', hours: '', map: '' })}>+ Адрес</button>
+
+      <div className="field" style={{ marginTop: 16 }}>
+        <label className="field__label" htmlFor="ct-note">Примечание</label>
+        <textarea id="ct-note" className="field__input" rows={2} placeholder="например: при ДТП сначала звоните диспетчеру" value={c.note} onChange={(e) => setC({ ...c, note: e.target.value })} maxLength={500} />
+      </div>
+
+      {error && <p className="field__error">{error}</p>}
+      {message && <p style={{ color: 'var(--c-ok)', fontWeight: 500 }}>{message}</p>}
+      <button className="btn" type="submit" disabled={saving}>{saving ? 'Сохранение...' : 'Сохранить контакты'}</button>
+    </form>
+  );
+}
+
 export default function SettingsPage() {
   const [settings, setSettings] = useState(null);
   const [draft, setDraft] = useState({});
@@ -42,7 +129,8 @@ export default function SettingsPage() {
     setSuccess('');
     setSaving(true);
     try {
-      const updated = await api.patch('/settings', draft);
+      const fields = Object.fromEntries(FIELDS.map((f) => [f.key, draft[f.key] ?? '']));
+      const updated = await api.patch('/settings', fields);
       setSettings(updated);
       setDraft(updated);
       setSuccess('Настройки сохранены');
@@ -70,6 +158,8 @@ export default function SettingsPage() {
       <div className="app-controls">
         <AppControls />
       </div>
+
+      <ContactsEditor value={settings?.contacts} onSaved={(s) => { setSettings(s); setDraft((d) => ({ ...d, contacts: s.contacts })); }} />
 
       <form onSubmit={handleSave} style={{ maxWidth: '32rem' }}>
         {FIELDS.map((f) => (

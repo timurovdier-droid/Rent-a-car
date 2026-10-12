@@ -237,6 +237,30 @@ CREATE TABLE IF NOT EXISTS driver_payment_requests (
 );
 CREATE INDEX IF NOT EXISTS idx_driver_payment_requests_status ON driver_payment_requests (status, created_at);
 CREATE INDEX IF NOT EXISTS idx_driver_payment_requests_driver ON driver_payment_requests (driver_id, created_at);
+CREATE TABLE IF NOT EXISTS driver_mileage (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  driver_id INTEGER NOT NULL,
+  car_id INTEGER NOT NULL,
+  day TEXT NOT NULL,
+  odometer INTEGER NOT NULL,
+  income INTEGER NOT NULL DEFAULT 0,
+  comment TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_driver_mileage_driver ON driver_mileage (driver_id, day);
+CREATE TABLE IF NOT EXISTS driver_expenses (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  driver_id INTEGER NOT NULL,
+  car_id INTEGER NOT NULL,
+  day TEXT NOT NULL,
+  kind TEXT NOT NULL,
+  amount INTEGER NOT NULL,
+  volume REAL,
+  odometer INTEGER,
+  comment TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_driver_expenses_driver ON driver_expenses (driver_id, day);
 `;
 
 export const SCHEMA_VERSION = 4;

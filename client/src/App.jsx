@@ -11,6 +11,7 @@ import DriverPage from './pages/DriverPage';
 import CarPage from './pages/CarPage';
 import DriverHomePage from './pages/DriverHomePage';
 import MobileHome from './pages/MobileHome';
+import { DriverCarPage, DriverContactsPage, DriverMileagePage, DriverExpensesPage, DriverEarningsPage } from './pages/DriverSections';
 import useIsPhone from './components/useIsPhone';
 import DriverReportPage from './pages/DriverReportPage';
 import PaymentsQueuePage from './pages/PaymentsQueuePage';
@@ -71,6 +72,11 @@ export default function App() {
             path="/payments"
             element={<Guard roles={['DRIVER']}><DriverHomePage view="payments" /></Guard>}
           />
+          <Route path="/my-car" element={<Guard roles={['DRIVER']}><DriverCarPage /></Guard>} />
+          <Route path="/contacts" element={<Guard roles={['DRIVER']}><DriverContactsPage /></Guard>} />
+          <Route path="/mileage" element={<Guard roles={['DRIVER']}><DriverMileagePage /></Guard>} />
+          <Route path="/fuel" element={<Guard roles={['DRIVER']}><DriverExpensesPage /></Guard>} />
+          <Route path="/my-report" element={<Guard roles={['DRIVER']}><DriverEarningsPage /></Guard>} />
           
           <Route
             path="/driver-report"

@@ -155,18 +155,77 @@
     overflow-x: auto; scroll-snap-type: x mandatory; scroll-padding: 0 16px; scrollbar-width: none;
   }
   .dstats::-webkit-scrollbar { display: none; }
-  .dstat {
-    flex: none; min-width: 148px; scroll-snap-align: start;
-    display: grid; gap: 4px; padding: 14px 16px; box-sizing: border-box;
-    border-radius: 22px; background: var(--c-soft); text-align: left;
-  }
-  .dstat__label { color: var(--c-muted); font-size: 13px; font-weight: 600; }
-  .dstat__value { font-size: 19px; font-weight: 800; letter-spacing: -.02em; white-space: nowrap; }
-  .dstat__hint { color: var(--c-muted); font-size: 12px; }
-  .dstat--bad .dstat__value { color: var(--c-danger); }
-  .dstat--ok .dstat__value { color: var(--c-ok); }
-  .dstat--wait .dstat__value { color: var(--c-signal); }
+  .dhero__tiles { align-self: stretch; text-align: left; margin-bottom: 8px; }
+  .dsec__head .btn { width: 100%; }
 }
+
+.dstat {
+  flex: none; min-width: 148px; scroll-snap-align: start;
+  display: grid; gap: 4px; padding: 14px 16px; box-sizing: border-box;
+  border-radius: 22px; background: var(--c-soft); text-align: left;
+}
+.dstat__label { color: var(--c-muted); font-size: 13px; font-weight: 600; }
+.dstat__value { font-size: 19px; font-weight: 800; letter-spacing: -.02em; white-space: nowrap; }
+.dstat__hint { color: var(--c-muted); font-size: 12px; }
+.dstat--bad .dstat__value { color: var(--c-danger); }
+.dstat--ok .dstat__value { color: var(--c-ok); }
+.dstat--wait .dstat__value { color: var(--c-signal); }
+.dstats.dstats--wrap {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px;
+  margin: 0 0 16px; padding: 0; overflow: visible;
+}
+.dstats--wrap .dstat { min-width: 0; }
+
+/* Разделы кабинета водителя */
+.dsec__back {
+  display: inline-flex; align-items: center; gap: 4px; margin-bottom: 6px;
+  color: var(--c-muted); font-weight: 600; text-decoration: none;
+}
+.dsec__back span { font-size: 22px; line-height: 1; }
+.dsec__warn { color: var(--c-signal); font-weight: 600; }
+.dsec__carpic {
+  display: grid; justify-items: center; gap: 10px; margin: 0 0 16px; padding: 18px;
+  border-radius: 26px; background: var(--c-soft);
+}
+.dsec__carpic img { width: min(320px, 90%); max-height: 200px; object-fit: contain; }
+.dsec__carpic img.dsec__carphoto { width: 100%; max-height: 240px; object-fit: cover; border-radius: 18px; }
+.dsec__list { display: grid; gap: 8px; margin-bottom: 18px; }
+.dsec__contact {
+  display: flex; align-items: center; gap: 12px; padding: 14px;
+  border-radius: 20px; background: var(--c-soft); color: var(--c-ink); text-decoration: none;
+}
+.dsec__icon {
+  flex: none; width: 46px; height: 46px; border-radius: 50%;
+  display: grid; place-items: center; font-size: 20px;
+  background: var(--c-primary); color: #21201F;
+}
+.dsec__icon--tg { background: #2AABEE; color: #FFFFFF; }
+.dsec__icon--map { background: #3DD68C; color: #0F3D26; }
+.dsec__text { flex: 1; min-width: 0; display: grid; }
+.dsec__text span { color: var(--c-muted); font-size: 14px; overflow-wrap: anywhere; }
+.dsec__action { flex: none; font-weight: 700; font-size: 14px; }
+.dsec__note { white-space: pre-line; }
+.seg--wrap { display: flex; flex-wrap: wrap; }
+
+.dnet {
+  display: grid; gap: 4px; margin: 0 0 16px; padding: 20px;
+  border-radius: 26px; background: var(--c-primary); color: #21201F;
+}
+.dnet--minus { background: var(--c-danger-solid); color: #FFFFFF; }
+.dnet__label { font-weight: 600; opacity: .8; }
+.dnet__value { font-size: 34px; font-weight: 800; letter-spacing: -.03em; }
+.dnet__hint { font-size: 14px; opacity: .8; }
+.dnet__calc { grid-template-columns: 1fr; gap: 0; }
+.dnet__calc > div { display: flex; justify-content: space-between; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--c-line); }
+.dnet__calc dd { margin: 0; }
+.dnet__calc dt { font-size: 15px; color: var(--c-ink); }
+.dnet__total { border-bottom: 0 !important; font-size: 17px; }
+.dnet__total dt, .dnet__total dd { font-weight: 800; }
+
+.contacts-row { display: grid; grid-template-columns: 1fr 1fr auto; gap: 8px; margin-bottom: 8px; align-items: center; }
+.contacts-loc { display: grid; gap: 8px; margin-bottom: 12px; padding: 12px; border-radius: 14px; background: var(--c-soft); }
+.contacts-loc .btn { justify-self: start; }
+@media (max-width: 600px) { .contacts-row { grid-template-columns: 1fr; } }
 
 @keyframes orb-pulse {
   0% { transform: scale(1); opacity: .45; }

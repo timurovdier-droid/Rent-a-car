@@ -19,6 +19,7 @@ const DEFAULTS = {
   timezone: 'Asia/Tashkent',
   remind_days: '7',
   remind_km: '1000',
+  contacts: '',
 };
 
 // GET / — Получить все настройки

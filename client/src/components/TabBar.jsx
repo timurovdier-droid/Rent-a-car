@@ -16,8 +16,9 @@ const TABS = {
     { to: '/profile', label: 'Профиль', icon: 'users' },
   ],
   DRIVER: [
-    { to: '/', label: 'Машина', icon: 'car', end: true },
+    { to: '/', label: 'Главная', icon: 'home', end: true },
     { to: '/payments', label: 'Оплаты', icon: 'wallet' },
+    { to: '/my-report', label: 'Заработок', icon: 'chart' },
     { to: '/profile', label: 'Профиль', icon: 'users' },
   ],
   OWNER: [
