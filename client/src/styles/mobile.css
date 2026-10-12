@@ -194,6 +194,13 @@
 .dnet__calc dd { margin: 0; }
 .dnet__calc dt { font-size: 15px; color: var(--c-ink); }
 
+.earn-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.earn-actions .shero__btn { margin-bottom: 16px; }
+html .earn-actions .earn-actions__in { background: #1E9E4A; border-color: #1E9E4A; color: #FFFFFF; }
+html .earn-actions .earn-actions__out { background: #E53935; border-color: #E53935; color: #FFFFFF; }
+.dnet__calc > .dnet__sub { padding: 6px 0 6px 14px; border-bottom: 0; }
+.dnet__calc > .dnet__sub dt { font-size: 14px; color: var(--c-muted); }
+.dnet__calc > .dnet__sub dd { font-size: 14px; color: var(--c-muted); }
 .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 
 .shero {
@@ -232,6 +239,10 @@
 .eitem__body { display: grid; gap: 3px; flex: 1; min-width: 0; }
 .eitem__body b { font-size: 18px; font-weight: 800; letter-spacing: -.01em; }
 .eitem__body span { color: var(--c-muted); font-size: 14px; overflow-wrap: anywhere; }
+.eitem__body b > span { font-size: inherit; }
+.eitem__body b > .num-plus { color: var(--c-ok); }
+.eitem__body b > .num-minus { color: var(--c-danger); }
+.eitem__body b > .eitem__plus { font-size: 15px; }
 .eitem__plus { color: var(--c-success, #1E9E4A); font-size: 15px; font-weight: 700; }
 .eitem__del {
   flex: none; width: 40px; height: 40px; border: 0; border-radius: 50%;

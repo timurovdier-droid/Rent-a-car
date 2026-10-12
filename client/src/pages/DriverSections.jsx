@@ -795,11 +795,18 @@ function IncomeModal({ onClose, onSaved }) {
 export function DriverEarningsPage() {
   const [period, setPeriod] = useState(monthPeriod);
   const [version, setVersion] = useState(0);
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(null);
+  const [toast, setToast] = useState('');
   const [data, error] = useLoad(`/me/report?from=${period.from}&to=${period.to}`, [version]);
   const [income] = useLoad(`/me/income?from=${period.from}&to=${period.to}`, [version]);
+  const [spent] = useLoad(`/me/expenses?from=${period.from}&to=${period.to}`, [version]);
   const reload = () => setVersion((v) => v + 1);
+  const hideToast = useCallback(() => setToast(''), []);
   const net = data?.net ?? 0;
+  const history = [
+    ...(income?.rows || []).map((r) => ({ ...r, type: 'in' })),
+    ...(spent?.rows || []).map((r) => ({ ...r, type: 'out' })),
+  ].sort((a, b) => (b.day + (b.time || '')).localeCompare(a.day + (a.time || '')) || b.id - a.id);
 
   return (
     <div className="drv">
@@ -809,9 +816,11 @@ export function DriverEarningsPage() {
         label="Чистыми за период"
         value={data ? <CountUp value={net} format={signedMoney} suffix=" сум" /> : '…'}
         hint={data?.net_per_day != null ? `в среднем ${fmtMoney(data.net_per_day)} сум в день` : 'заработок минус аренда и расходы'}
-        action="Записать заработок"
-        onAction={() => setOpen(true)}
       />
+      <div className="earn-actions">
+        <button type="button" className="btn shero__btn earn-actions__in" onClick={() => setOpen('in')}><span aria-hidden="true">+</span>Заработок</button>
+        <button type="button" className="btn shero__btn earn-actions__out" onClick={() => setOpen('out')}><span aria-hidden="true">−</span>Расход</button>
+      </div>
       <PeriodPicker value={period} onChange={setPeriod} />
       {error && <div className="notice notice--error">{error}</div>}
       {data && (
@@ -820,12 +829,22 @@ export function DriverEarningsPage() {
             <dl className="kv dnet__calc">
               <div><dt>Заработали</dt><dd className="num-plus">{`+${fmtMoney(data.income)} сум`}</dd></div>
               <div><dt>Аренда машины</dt><dd className="num-minus">{`−${fmtMoney(data.rent)} сум`}</dd></div>
+              <div>
+                <dt>Расходы (заправка, мойка…)</dt>
+                <dd className="num-minus">{`−${fmtMoney(data.spent)} сум`}</dd>
+              </div>
               {data.expenses.map((e) => (
-                <div key={e.kind}>
-                  <dt>{`${EXPENSE_LABELS[e.kind] || e.kind}${e.count > 1 ? ` (${e.count} раз)` : ''}`}</dt>
-                  <dd className="num-minus">{`−${fmtMoney(e.amount)} сум`}</dd>
+                <div key={e.kind} className="dnet__sub">
+                  <dt>{`${EXPENSE_ICONS[e.kind] || ''} ${EXPENSE_LABELS[e.kind] || e.kind}${e.count > 1 ? ` · ${e.count} раз` : ''}`}</dt>
+                  <dd>{`−${fmtMoney(e.amount)} сум`}</dd>
                 </div>
               ))}
+              {!data.expenses.length && (
+                <div className="dnet__sub">
+                  <dt>Расходов пока нет</dt>
+                  <dd><button type="button" className="link-btn" onClick={() => setOpen('out')}>записать</button></dd>
+                </div>
+              )}
               <div className="dnet__total"><dt>Итого чистыми</dt><dd>{`${net < 0 ? '−' : ''}${fmtMoney(Math.abs(net))} сум`}</dd></div>
             </dl>
           </div>
@@ -838,27 +857,38 @@ export function DriverEarningsPage() {
           </div>
         </>
       )}
-      {income?.rows?.length > 0 && (
+      {history.length > 0 && (
         <>
-          <h2 className="drv__title" style={{ marginTop: 20 }}>Записи заработка</h2>
+          <h2 className="drv__title" style={{ marginTop: 20 }}>История</h2>
           <ul className="elist">
-            {income.rows.map((r, i) => (
+            {history.map((r, i) => (r.type === 'in' ? (
               <EntryItem
-                key={r.id}
+                key={`in${r.id}`}
                 index={i}
                 icon="💰"
-                title={`+${fmtMoney(r.amount)} сум`}
-                meta={[fmtDay(r.day), r.comment].filter(Boolean).join(' · ')}
+                title={<span className="num-plus">{`+${fmtMoney(r.amount)} сум`}</span>}
+                meta={['Заработок', fmtDay(r.day), r.comment].filter(Boolean).join(' · ')}
                 onDelete={() => removeEntry(`/me/income/${r.id}`, 'Удалить эту запись заработка?', reload)}
               />
-            ))}
+            ) : (
+              <EntryItem
+                key={`out${r.id}`}
+                index={i}
+                icon={EXPENSE_ICONS[r.kind] || '🧾'}
+                title={<span className="num-minus">{`−${fmtMoney(r.amount)} сум`}</span>}
+                meta={[EXPENSE_LABELS[r.kind] || r.kind, whenText(r.day, r.time), r.comment].filter(Boolean).join(' · ')}
+                onDelete={() => removeEntry(`/me/expenses/${r.id}`, 'Удалить этот расход?', reload)}
+              />
+            )))}
           </ul>
         </>
       )}
-      {income && !income.rows.length && data?.entries === 0 && (
-        <EmptyBlock img="earnings" title="Заработок ещё не записан" text="Нажмите «Записать заработок» в конце дня — и увидите, сколько получилось чистыми" />
+      {income && spent && !history.length && data?.entries === 0 && (
+        <EmptyBlock img="earnings" title="Записей пока нет" text="Записывайте заработок в конце дня и расходы на заправку — и увидите, сколько получилось чистыми" />
       )}
-      {open && <IncomeModal onClose={() => setOpen(false)} onSaved={() => { setOpen(false); reload(); }} />}
+      {open === 'in' && <IncomeModal onClose={() => setOpen(null)} onSaved={() => { setOpen(null); setToast('Заработок записан'); reload(); }} />}
+      {open === 'out' && <ExpenseModal onClose={() => setOpen(null)} onSaved={(line) => { setOpen(null); setToast(`Расход записан · ${line}`); reload(); }} />}
+      {toast && <SavedToast text={toast} onDone={hideToast} />}
     </div>
   );
 }
