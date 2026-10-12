@@ -1,15 +1,147 @@
 import { useCallback, useEffect, useState } from 'react';
-import { api } from '../api';
+import { api, ApiError } from '../api';
 import { useAuth } from '../auth';
 import Plate from '../components/Plate';
 import Modal from '../components/Modal';
+import MoneyInput from '../components/MoneyInput';
+import DateInput from '../components/DateInput';
 import PeriodPicker from '../components/PeriodPicker';
 import { BrandLogo, CarVisual } from '../components/CarTile';
 import { LedgerSummary, LedgerTable } from '../components/CarLedger';
 import { RentStatusView } from '../components/RentStatus';
-import { fmtMoney, fmtDay, todayLocal, shiftDay, CHARGE_LABELS } from '../labels';
+import { fmtMoney, fmtDay, fmtDateTime, todayLocal, shiftDay, CHARGE_LABELS, PAY_METHODS, METHOD_LABELS } from '../labels';
 
 const HOUR = 60 * 60 * 1000;
+
+const REQUEST_STATUS = {
+  PENDING: ['badge--wait', 'Ждёт проверки'],
+  CONFIRMED: ['badge--ok', 'Принято'],
+  REJECTED: ['badge--danger', 'Отклонено'],
+};
+
+function MyProfile({ profile }) {
+  if (!profile) return null;
+  return (
+    <div className="panel" style={{ marginTop: 16 }}>
+      <h3 className="panel__title">Мои данные</h3>
+      <dl className="kv">
+        <div><dt>ФИО</dt><dd>{profile.full_name}</dd></div>
+        <div><dt>Телефон</dt><dd>{profile.phone || '—'}</dd></div>
+        <div><dt>Водительское удостоверение</dt><dd>{profile.license_no || '—'}</dd></div>
+        <div><dt>ВУ действует до</dt><dd>{profile.license_expires ? fmtDay(profile.license_expires) : '—'}</dd></div>
+        <div><dt>Паспорт</dt><dd>{profile.passport || '—'}</dd></div>
+        <div><dt>Депозит</dt><dd><b>{`${fmtMoney(profile.deposit)} сум`}</b></dd></div>
+      </dl>
+      <p className="muted small" style={{ marginBottom: 0 }}>Если что-то неверно — скажите диспетчеру, он исправит.</p>
+    </div>
+  );
+}
+
+function PayModal({ suggested, onClose, onSent }) {
+  const [amount, setAmount] = useState(suggested > 0 ? String(suggested) : '');
+  const [method, setMethod] = useState('CASH');
+  const [day, setDay] = useState(todayLocal());
+  const [comment, setComment] = useState('');
+  const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  async function submit(e) {
+    e.preventDefault();
+    setSaving(true);
+    setError('');
+    try {
+      await api.post('/me/payments', { amount, method, date: day, comment });
+      onSent();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Не удалось отправить');
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Modal title="Сообщить об оплате" onClose={onClose}>
+      <form onSubmit={submit}>
+        <p className="muted" style={{ marginTop: 0 }}>Диспетчер проверит, что деньги пришли, и оплата попадёт в ваш учёт.</p>
+        <div className="field">
+          <label className="field__label" htmlFor="pay-amount">Сумма *</label>
+          <MoneyInput id="pay-amount" value={amount} onChange={setAmount} required autoFocus />
+        </div>
+        <div className="field">
+          <span className="field__label">Как оплатили</span>
+          <div className="seg">
+            {PAY_METHODS.map(([value, label]) => (
+              <button key={value} type="button" className={`seg__btn ${method === value ? 'seg__btn--on' : ''}`} onClick={() => setMethod(value)}>{label}</button>
+            ))}
+          </div>
+        </div>
+        <div className="field">
+          <label className="field__label" htmlFor="pay-day">Дата оплаты</label>
+          <DateInput id="pay-day" className="field__input" value={day} max={todayLocal()} onChange={(e) => setDay(e.target.value)} required />
+        </div>
+        <div className="field">
+          <label className="field__label" htmlFor="pay-comment">Комментарий</label>
+          <input id="pay-comment" className="field__input" value={comment} onChange={(e) => setComment(e.target.value)} maxLength={300} placeholder="например: перевёл на карту Иванова" />
+        </div>
+        {error && <div className="notice notice--error">{error}</div>}
+        <div className="form-actions">
+          <button className="btn" type="submit" disabled={saving}>{saving ? 'Отправляю…' : 'Отправить'}</button>
+          <button className="btn btn--quiet" type="button" onClick={onClose}>Отмена</button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+function MyPayments({ version, onChanged }) {
+  const [list, setList] = useState(null);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    api.get('/me/payments').then(setList).catch((err) => setError(err.message || 'Не удалось загрузить'));
+  }, [version]);
+
+  async function cancel(p) {
+    if (!window.confirm(`Отменить оплату ${fmtMoney(p.amount)} сум?`)) return;
+    try {
+      await api.delete(`/me/payments/${p.id}`);
+      onChanged();
+    } catch (err) {
+      setError(err.message || 'Не получилось');
+    }
+  }
+
+  if (!list?.length && !error) return null;
+  return (
+    <div className="panel" style={{ marginTop: 16 }}>
+      <h3 className="panel__title">Мои отправленные оплаты</h3>
+      {error && <div className="notice notice--error">{error}</div>}
+      <ul className="tx-list">
+        {(list || []).map((p) => {
+          const [cls, label] = REQUEST_STATUS[p.status] || ['badge--muted', p.status];
+          return (
+            <li key={p.id} className="tx">
+              <div>
+                <div className="tx__title">{`${fmtMoney(p.amount)} сум · ${METHOD_LABELS[p.method] || p.method}`}</div>
+                <div className="tx__meta">
+                  {`за ${fmtDay(p.day)} · отправлено ${fmtDateTime(p.created_at)}`}
+                  {p.plate && <> · <Plate value={p.plate} /></>}
+                  {p.comment ? ` · ${p.comment}` : ''}
+                  {p.status === 'REJECTED' && p.reject_reason ? ` · Причина: ${p.reject_reason}` : ''}
+                </div>
+              </div>
+              <div className="tx__right">
+                <span className={`badge ${cls}`}>{label}</span>
+                {p.status === 'PENDING' && (
+                  <button type="button" className="btn btn--quiet btn--sm" onClick={() => cancel(p)}>Отменить</button>
+                )}
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
 
 function OtherDebts({ charges }) {
   if (!charges?.length) return null;
@@ -104,6 +236,9 @@ export default function DriverHomePage() {
   const [period, setPeriod] = useState(lastPeriod);
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
+  const [payOpen, setPayOpen] = useState(false);
+  const [payVersion, setPayVersion] = useState(0);
+  const [sent, setSent] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -133,6 +268,8 @@ export default function DriverHomePage() {
         <h1 className="page-title">Моя аренда</h1>
         <div className="empty">Сейчас за вами не закреплена машина. Когда диспетчер выдаст машину, здесь появится аренда и оплаты.</div>
         <OtherDebts charges={data.charges} />
+        <MyPayments version={payVersion} onChanged={() => setPayVersion((v) => v + 1)} />
+        <MyProfile profile={data.profile} />
       </div>
     );
   }
@@ -148,10 +285,14 @@ export default function DriverHomePage() {
           <h1 className="page-title">Моя аренда</h1>
           <p className="page-sub">{`${fmtDay(data.today)} · машина у вас с ${fmtDay(data.since)}`}</p>
         </div>
-        <NotifyButton />
+        <div className="form-actions">
+          <button type="button" className="btn" onClick={() => { setSent(false); setPayOpen(true); }}>Сообщить об оплате</button>
+          <NotifyButton />
+        </div>
       </div>
 
       {error && <div className="notice notice--error">{error}</div>}
+      {sent && <div className="notice notice--ok">Оплата отправлена. Когда диспетчер её проверит, она появится в таблице ниже.</div>}
 
       <div className="drv__top">
         <article className="ct drv__car">
@@ -193,6 +334,7 @@ export default function DriverHomePage() {
       </div>
 
       <OtherDebts charges={data.charges} />
+      <MyPayments version={payVersion} onChanged={() => setPayVersion((v) => v + 1)} />
 
       <h2 className="drv__title">Оплаты по дням</h2>
       <PeriodPicker value={period} onChange={setPeriod} />
@@ -200,6 +342,16 @@ export default function DriverHomePage() {
         <LedgerSummary totals={data.ledger.totals} />
         <LedgerTable ledger={data.ledger} showDriver={false} />
       </div>
+
+      <MyProfile profile={data.profile} />
+
+      {payOpen && (
+        <PayModal
+          suggested={debt > 0 ? debt : data.rate}
+          onClose={() => setPayOpen(false)}
+          onSent={() => { setPayOpen(false); setSent(true); setPayVersion((v) => v + 1); }}
+        />
+      )}
 
       {reminderOpen && (
         <Modal title="Напоминание об оплате" onClose={closeReminder}>

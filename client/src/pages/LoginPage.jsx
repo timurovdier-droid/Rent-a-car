@@ -50,11 +50,11 @@ export default function LoginPage() {
       <div className="login__card">
       <div className="login__brand"><Brand big /></div>
       <h1 className="page-title login__title">Вход в систему</h1>
-      <p className="page-sub login__sub">Введите логин и пароль</p>
+      <p className="page-sub login__sub">Введите логин или номер телефона и пароль</p>
 
       <form onSubmit={handleSubmit}>
         <div className="field">
-          <label className="field__label" htmlFor="login">Логин</label>
+          <label className="field__label" htmlFor="login">Логин или телефон</label>
           <input
             id="login"
             className="field__input"

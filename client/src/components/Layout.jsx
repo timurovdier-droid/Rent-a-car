@@ -51,7 +51,7 @@ function menuFor(role) {
 const PREFETCH = {
   '/': ['/dashboard'],
   '/cars': ['/cars', '/dashboard'],
-  '/drivers': ['/drivers', '/driver-waitlist'],
+  '/drivers': ['/drivers', '/driver-waitlist', '/drivers/payment-requests'],
   '/users': ['/owners', '/dispatchers'],
   '/driver-report': ['/drivers'],
   '/reports': ['/cars', '/dashboard'],

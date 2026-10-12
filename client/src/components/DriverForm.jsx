@@ -83,8 +83,8 @@ export default function DriverForm({ driver, onClose, onSaved }) {
             />
           </div>
           <div className="field">
-            <label className="field__label" htmlFor="df-login">Логин *</label>
-            <input id="df-login" className="field__input" value={form.login} onChange={set('login')} required autoComplete="off" />
+            <label className="field__label" htmlFor="df-login">Логин</label>
+            <input id="df-login" className="field__input" value={form.login} onChange={set('login')} autoComplete="off" placeholder="если пусто — номер телефона" />
           </div>
           <div className="field">
             <label className="field__label" htmlFor="df-password">{driver ? 'Новый пароль' : 'Пароль *'}</label>
@@ -100,7 +100,7 @@ export default function DriverForm({ driver, onClose, onSaved }) {
             </div>
           )}
         </div>
-        <p className="muted small" style={{ marginTop: 0 }}>По этому логину и паролю водитель входит в свой кабинет «Моя аренда».</p>
+        <p className="muted small" style={{ marginTop: 0 }}>Водитель входит в свой кабинет по номеру телефона (или логину) и этому паролю. При первом входе сайт попросит его придумать свой пароль.</p>
         {error && <div className="notice notice--error">{error}</div>}
         <div className="form-actions">
           <button className="btn" type="submit" disabled={saving}>{saving ? 'Сохраняю…' : driver ? 'Сохранить' : 'Добавить водителя'}</button>

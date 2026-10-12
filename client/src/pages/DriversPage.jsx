@@ -4,6 +4,7 @@ import { api, ApiError } from '../api';
 import { useAuth } from '../auth';
 import DriverForm from '../components/DriverForm';
 import DriverWaitlist from '../components/DriverWaitlist';
+import DriverPaymentRequests from '../components/DriverPaymentRequests';
 import { fmtMoney, fmtDay, todayLocal, shiftDay } from '../labels';
 import NavIcon from '../components/NavIcon';
 
@@ -92,6 +93,8 @@ export default function DriversPage() {
         {mode === 'active' && <button className="btn" onClick={() => setCreating(true)}>+ Добавить водителя</button>}
         {waitlist && <button className="btn" onClick={() => setAddingWait(true)}>+ Записать в ожидание</button>}
       </div>
+
+      {mode === 'active' && <DriverPaymentRequests />}
 
       <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center', marginBottom: 16 }}>
         <input

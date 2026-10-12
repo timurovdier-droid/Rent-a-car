@@ -120,6 +120,105 @@ router.get('/debts', async (req, res) => {
   }
 });
 
+// GET /payment-requests — оплаты, которые водители отправили из кабинета и которые ждут проверки
+router.get('/payment-requests', async (req, res) => {
+  try {
+    const params = [];
+    const { rows } = await pool.query(
+      `SELECT r.id, r.driver_id, r.car_id, r.amount, r.method, r.day, r.comment, r.created_at,
+              u.full_name, u.phone, c.plate
+       FROM driver_payment_requests r
+       JOIN drivers d ON d.id = r.driver_id
+       JOIN users u ON u.id = d.user_id
+       LEFT JOIN cars c ON c.id = r.car_id
+       WHERE r.status = 'PENDING'${branchFilter(req.user, 'd', params)}
+       ORDER BY r.id`,
+      params
+    );
+    res.json(rows);
+  } catch (err) {
+    serverError(res, 'Ошибка списка оплат от водителей:', err);
+  }
+});
+
+async function loadRequest(req, res) {
+  const params = [parseInt(req.params.rid, 10)];
+  const { rows } = await pool.query(
+    `SELECT r.* FROM driver_payment_requests r JOIN drivers d ON d.id = r.driver_id
+     WHERE r.id = $1${branchFilter(req.user, 'd', params)}`,
+    params
+  );
+  if (!rows.length) {
+    fail(res, 404, 'NOT_FOUND', 'Оплата не найдена');
+    return null;
+  }
+  if (rows[0].status !== 'PENDING') {
+    fail(res, 409, 'CONFLICT', 'Эту оплату уже проверили');
+    return null;
+  }
+  return rows[0];
+}
+
+// POST /payment-requests/:rid/confirm — деньги получены: оплата попадает в учёт аренды машины
+router.post('/payment-requests/:rid/confirm', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const request = await loadRequest(req, res);
+    if (!request) return;
+    const amount = req.body.amount === undefined ? Number(request.amount) : readMoney(req.body.amount);
+    if (!amount || Number.isNaN(amount)) return fail(res, 400, 'BAD_REQUEST', 'Укажите полученную сумму', 'amount');
+    await client.query('BEGIN');
+    const note = ['Оплата из кабинета водителя', request.comment].filter(Boolean).join(' · ').slice(0, 500);
+    const { rows } = await client.query(
+      `INSERT INTO car_transactions
+         (car_id, kind, category, amount, method, tx_date, comment, status, created_by, confirmed_by, confirmed_at)
+       VALUES ($1, 'INCOME', 'RENT', $2, $3, $4, $5, 'CONFIRMED', $6, $6, datetime('now'))
+       RETURNING id`,
+      [request.car_id, amount, request.method, request.day, note, req.user.id]
+    );
+    const { rows: done } = await client.query(
+      `UPDATE driver_payment_requests
+       SET status = 'CONFIRMED', amount = $1, tx_id = $2, decided_by = $3, decided_at = datetime('now')
+       WHERE id = $4 AND status = 'PENDING' RETURNING id`,
+      [amount, rows[0].id, req.user.id, request.id]
+    );
+    if (!done.length) {
+      await client.query('ROLLBACK');
+      return fail(res, 409, 'CONFLICT', 'Эту оплату уже проверили');
+    }
+    await writeAudit(client, req.user.id, 'DRIVER_PAYMENT_CONFIRMED', 'driver', request.driver_id, null,
+      { request_id: request.id, tx_id: rows[0].id, amount, declared: Number(request.amount), day: request.day }, req.ip);
+    await client.query('COMMIT');
+    res.json({ id: request.id, status: 'CONFIRMED', tx_id: rows[0].id });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    serverError(res, 'Ошибка подтверждения оплаты водителя:', err);
+  } finally {
+    client.release();
+  }
+});
+
+// POST /payment-requests/:rid/reject — денег нет: водитель увидит причину в кабинете
+router.post('/payment-requests/:rid/reject', async (req, res) => {
+  try {
+    const request = await loadRequest(req, res);
+    if (!request) return;
+    const reason = String(req.body.reason || '').trim().slice(0, 300);
+    if (!reason) return fail(res, 400, 'BAD_REQUEST', 'Напишите причину — водитель её увидит', 'reason');
+    await pool.query(
+      `UPDATE driver_payment_requests
+       SET status = 'REJECTED', reject_reason = $1, decided_by = $2, decided_at = datetime('now')
+       WHERE id = $3 AND status = 'PENDING'`,
+      [reason, req.user.id, request.id]
+    );
+    await writeAudit(pool, req.user.id, 'DRIVER_PAYMENT_REJECTED', 'driver', request.driver_id, null,
+      { request_id: request.id, amount: Number(request.amount), reason }, req.ip);
+    res.json({ id: request.id, status: 'REJECTED' });
+  } catch (err) {
+    serverError(res, 'Ошибка отклонения оплаты водителя:', err);
+  }
+});
+
 async function loadDriver(req, res) {
   const params = [parseInt(req.params.id, 10)];
   const query = `${DRIVER_SELECT} WHERE d.id = $1${branchFilter(req.user, 'd', params)}`;
@@ -306,12 +405,13 @@ router.get('/:id/ledger', async (req, res) => {
 
 // POST / — Создание водителя (админ и диспетчер)
 router.post('/', async (req, res) => {
-  const { full_name, phone, login, password, passport, license_no, license_expires } = req.body;
+  const { full_name, phone, password, passport, license_no, license_expires } = req.body;
+  const login = String(req.body.login || '').trim() || phone;
   const pinfl = readPinfl(req.body.pinfl);
   const deposit = readMoney(req.body.deposit);
 
   if (!full_name || !String(full_name).trim()) return fail(res, 400, 'BAD_REQUEST', 'Укажите ФИО', 'full_name');
-  if (!login || !String(login).trim()) return fail(res, 400, 'BAD_REQUEST', 'Укажите логин', 'login');
+  if (!login) return fail(res, 400, 'BAD_REQUEST', 'Укажите телефон или логин — по нему водитель входит в кабинет', 'phone');
   if (!password || String(password).length < 6) return fail(res, 400, 'BAD_REQUEST', 'Пароль — минимум 6 символов', 'password');
   if (phone && !/^\+998[0-9]{9}$/.test(phone)) return fail(res, 400, 'BAD_REQUEST', 'Телефон в формате +998XXXXXXXXX', 'phone');
   if (license_expires && !isDay(license_expires)) return fail(res, 400, 'BAD_REQUEST', 'Неверная дата ВУ', 'license_expires');
@@ -363,7 +463,9 @@ router.patch('/:id', async (req, res) => {
   try {
     const driver = await loadDriver(req, res);
     if (!driver) return;
-    const { passport, license_no, license_expires, full_name, phone, login, password } = req.body;
+    const { passport, license_no, license_expires, full_name, phone, password } = req.body;
+    const login = req.body.login === undefined ? undefined
+      : String(req.body.login || '').trim() || (phone === undefined ? driver.phone : phone) || '';
     const pinfl = readPinfl(req.body.pinfl);
 
     if (full_name !== undefined && !String(full_name).trim()) return fail(res, 400, 'BAD_REQUEST', 'Укажите ФИО', 'full_name');
@@ -796,6 +898,7 @@ router.delete('/:id', requireRole('ADMIN'), async (req, res) => {
         [driver.id]
       );
       await client.query('DELETE FROM driver_charges WHERE driver_id = $1', [driver.id]);
+      await client.query('DELETE FROM driver_payment_requests WHERE driver_id = $1', [driver.id]);
       await client.query('DELETE FROM drivers WHERE id = $1', [driver.id]);
       await client.query('DELETE FROM user_branches WHERE user_id = $1', [driver.user_id]);
       await client.query('DELETE FROM users WHERE id = $1', [driver.user_id]);

@@ -159,7 +159,7 @@ function makePassword() {
 }
 
 function PasswordModal({ driver, onClose, onDone }) {
-  const [login, setLogin] = useState(driver.login || '');
+  const [login, setLogin] = useState(driver.login || driver.phone || '');
   const [password, setPassword] = useState(makePassword);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
@@ -187,6 +187,7 @@ function PasswordModal({ driver, onClose, onDone }) {
         <dl className="kv">
           <div><dt>Сайт</dt><dd>{window.location.origin}</dd></div>
           <div><dt>Логин</dt><dd><b>{saved.login}</b></dd></div>
+          {driver.phone && saved.login !== driver.phone && <div><dt>или телефон</dt><dd><b>{driver.phone}</b></dd></div>}
           <div><dt>Пароль</dt><dd><b>{saved.password}</b></dd></div>
         </dl>
         <div className="form-actions">
@@ -200,7 +201,7 @@ function PasswordModal({ driver, onClose, onDone }) {
     <Modal title="Вход в кабинет водителя" onClose={onClose}>
       <form onSubmit={submit}>
         <p className="muted" style={{ marginTop: 0 }}>
-          В кабинете водитель видит свою машину, долг по аренде и оплаты по дням. Если долг есть, сайт напоминает ему каждый час.
+          В кабинете водитель видит свою машину, долг, оплаты по дням и свои данные, а ещё может сам отправить оплату — она попадёт в учёт после вашей проверки. Входить можно по логину или по номеру телефона.
         </p>
         <div className="field">
           <label className="field__label" htmlFor="pw-login">Логин</label>
@@ -324,6 +325,7 @@ export default function DriverPage() {
             <h3 className="panel__title">Вход в кабинет водителя</h3>
             <dl className="kv">
               <div><dt>Логин</dt><dd>{driver.login || '—'}</dd></div>
+              {driver.phone && <div><dt>Или телефон</dt><dd>{driver.phone}</dd></div>}
             </dl>
             {!archived && (
               <button className="btn btn--quiet btn--sm" style={{ marginTop: 10 }} onClick={() => setPasswordOpen(true)}>

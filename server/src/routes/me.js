@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { pool } from '../db.js';
 import { authenticate } from '../middleware/auth.js';
+import { writeAudit } from '../middleware/audit.js';
 import { localDay, localToday, isDay, addDays, daysBetween, carDailyLedger, rentStatus } from '../carMoney.js';
 
 const router = Router();
@@ -44,6 +45,107 @@ function driverOnly(req, res) {
   return true;
 }
 
+async function driverProfile(driverId) {
+  const { rows } = await pool.query(
+    `SELECT u.full_name, u.phone, u.login, d.license_no, d.license_expires, d.passport, d.pinfl, d.deposit
+     FROM drivers d JOIN users u ON u.id = d.user_id WHERE d.id = $1`,
+    [driverId]
+  );
+  const p = rows[0];
+  return p ? { ...p, deposit: Number(p.deposit || 0) } : null;
+}
+
+const DRIVER_PAY_METHODS = ['CASH', 'CARD', 'BALANCE'];
+
+function readAmount(value) {
+  const n = Number(String(value ?? '').replace(/\s+/g, ''));
+  return Number.isFinite(n) && n > 0 ? Math.round(n) : NaN;
+}
+
+async function carOnDay(driverId, day, today) {
+  const { rows } = await pool.query(
+    'SELECT car_id, start_at, end_at FROM car_assignments WHERE driver_id = $1 ORDER BY start_at DESC, id DESC',
+    [driverId]
+  );
+  const hit = rows.find((a) => {
+    const from = localDay(a.start_at);
+    const to = a.end_at ? localDay(a.end_at) : today;
+    return from && from <= day && day <= to;
+  });
+  return hit ? Number(hit.car_id) : null;
+}
+
+// GET /me/payments — оплаты, которые водитель отправил сам: ждут проверки, приняты или отклонены
+router.get('/payments', async (req, res) => {
+  try {
+    if (!driverOnly(req, res)) return;
+    const { rows } = await pool.query(
+      `SELECT r.id, r.amount, r.method, r.day, r.comment, r.status, r.reject_reason, r.created_at, r.decided_at,
+              c.plate, u.full_name AS decided_by_name
+       FROM driver_payment_requests r
+       LEFT JOIN cars c ON c.id = r.car_id
+       LEFT JOIN users u ON u.id = r.decided_by
+       WHERE r.driver_id = $1 ORDER BY r.id DESC LIMIT 50`,
+      [req.user.driver_id]
+    );
+    res.json(rows);
+  } catch (err) {
+    console.error('Ошибка списка оплат водителя:', err);
+    fail(res, 500, 'INTERNAL_ERROR', 'Внутренняя ошибка сервера');
+  }
+});
+
+// POST /me/payments — водитель сообщает об оплате; в учёт она попадает после подтверждения диспетчером
+router.post('/payments', async (req, res) => {
+  try {
+    if (!driverOnly(req, res)) return;
+    const today = localToday();
+    const amount = readAmount(req.body.amount);
+    const method = req.body.method || 'CASH';
+    const day = req.body.date || today;
+    const comment = req.body.comment ? String(req.body.comment).trim().slice(0, 300) : null;
+    if (Number.isNaN(amount) || amount > 1e9) return fail(res, 400, 'BAD_REQUEST', 'Укажите сумму', 'amount');
+    if (!DRIVER_PAY_METHODS.includes(method)) return fail(res, 400, 'BAD_REQUEST', 'Выберите способ оплаты', 'method');
+    if (!isDay(day) || day > today) return fail(res, 400, 'BAD_REQUEST', 'Неверная дата', 'date');
+    const carId = await carOnDay(req.user.driver_id, day, today);
+    if (!carId) return fail(res, 409, 'CONFLICT', 'В этот день за вами не было машины', 'date');
+    const { rows: open } = await pool.query(
+      `SELECT COUNT(*) AS n FROM driver_payment_requests WHERE driver_id = $1 AND status = 'PENDING'`,
+      [req.user.driver_id]
+    );
+    if (Number(open[0].n) >= 10) {
+      return fail(res, 409, 'CONFLICT', 'Уже 10 оплат ждут проверки. Дождитесь, пока диспетчер их проверит.');
+    }
+    const { rows } = await pool.query(
+      `INSERT INTO driver_payment_requests (driver_id, car_id, amount, method, day, comment)
+       VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
+      [req.user.driver_id, carId, amount, method, day, comment]
+    );
+    await writeAudit(pool, req.user.id, 'DRIVER_PAYMENT_REQUESTED', 'driver', req.user.driver_id, null,
+      { request_id: rows[0].id, amount, method, day, car_id: carId }, req.ip);
+    res.status(201).json({ id: rows[0].id });
+  } catch (err) {
+    console.error('Ошибка отправки оплаты водителем:', err);
+    fail(res, 500, 'INTERNAL_ERROR', 'Внутренняя ошибка сервера');
+  }
+});
+
+// DELETE /me/payments/:id — отменить свою оплату, пока её не проверили
+router.delete('/payments/:id', async (req, res) => {
+  try {
+    if (!driverOnly(req, res)) return;
+    const { rows } = await pool.query(
+      `DELETE FROM driver_payment_requests WHERE id = $1 AND driver_id = $2 AND status = 'PENDING' RETURNING id`,
+      [parseInt(req.params.id, 10), req.user.driver_id]
+    );
+    if (!rows.length) return fail(res, 409, 'CONFLICT', 'Эту оплату уже проверили — отменить нельзя');
+    res.json({ id: rows[0].id, deleted: true });
+  } catch (err) {
+    console.error('Ошибка отмены оплаты водителем:', err);
+    fail(res, 500, 'INTERNAL_ERROR', 'Внутренняя ошибка сервера');
+  }
+});
+
 // GET /me/rent?from&to — машина водителя, его долг за всё время и таблица по дням
 router.get('/rent', async (req, res) => {
   try {
@@ -52,7 +154,8 @@ router.get('/rent', async (req, res) => {
     const today = localToday();
     const assignment = await currentCar(driverId);
     const charges = await openCharges(driverId);
-    if (!assignment) return res.json({ today, car: null, charges });
+    const profile = await driverProfile(driverId);
+    if (!assignment) return res.json({ today, car: null, charges, profile });
 
     const carId = Number(assignment.car_id);
     const { rows: cars } = await pool.query(
@@ -89,6 +192,7 @@ router.get('/rent', async (req, res) => {
       status: await rentStatus(pool, driverId),
       ledger,
       charges,
+      profile,
     });
   } catch (err) {
     console.error('Ошибка кабинета водителя:', err);

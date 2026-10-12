@@ -220,6 +220,23 @@ CREATE TABLE IF NOT EXISTS driver_charge_payments (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_driver_charge_payments_charge ON driver_charge_payments (charge_id);
+CREATE TABLE IF NOT EXISTS driver_payment_requests (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  driver_id INTEGER NOT NULL,
+  car_id INTEGER NOT NULL,
+  amount INTEGER NOT NULL,
+  method TEXT NOT NULL,
+  day TEXT NOT NULL,
+  comment TEXT,
+  status TEXT NOT NULL DEFAULT 'PENDING',
+  reject_reason TEXT,
+  tx_id INTEGER,
+  decided_by INTEGER,
+  decided_at TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_driver_payment_requests_status ON driver_payment_requests (status, created_at);
+CREATE INDEX IF NOT EXISTS idx_driver_payment_requests_driver ON driver_payment_requests (driver_id, created_at);
 `;
 
 export const SCHEMA_VERSION = 4;
