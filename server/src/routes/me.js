@@ -200,6 +200,13 @@ router.get('/rent', async (req, res) => {
   }
 });
 
+function readTime(value) {
+  if (value == null || value === '') return null;
+  const m = /^(\d{1,2}):(\d{2})$/.exec(String(value).trim());
+  if (!m || Number(m[1]) > 23 || Number(m[2]) > 59) return undefined;
+  return `${m[1].padStart(2, '0')}:${m[2]}`;
+}
+
 function readInt(value) {
   const n = Number(String(value ?? '').replace(/\s+/g, ''));
   return Number.isFinite(n) && n >= 0 ? Math.round(n) : NaN;
@@ -293,10 +300,10 @@ router.get('/mileage', async (req, res) => {
     if (!driverOnly(req, res)) return;
     const { from, to } = periodFrom(req.query, localToday());
     const { rows } = await pool.query(
-      `SELECT m.id, m.car_id, m.day, m.odometer, m.income, m.comment, m.created_at, c.plate
+      `SELECT m.id, m.car_id, m.day, m.time, m.odometer, m.income, m.comment, m.created_at, c.plate
        FROM driver_mileage m LEFT JOIN cars c ON c.id = m.car_id
        WHERE m.driver_id = $1 AND m.day >= $2 AND m.day <= $3
-       ORDER BY m.day DESC, m.id DESC`,
+       ORDER BY m.day DESC, m.time DESC, m.id DESC`,
       [req.user.driver_id, from, to]
     );
     const assignment = await currentCar(req.user.driver_id);
@@ -324,18 +331,18 @@ async function withDistance(driverId, rows) {
   return out;
 }
 
-// POST /me/mileage — показания одометра на конец смены и заработок за день
+// POST /me/mileage — показания одометра: дата, время и комментарий
 router.post('/mileage', async (req, res) => {
   try {
     if (!driverOnly(req, res)) return;
     const today = localToday();
     const day = req.body.date || today;
+    const time = readTime(req.body.time);
     const odometer = readInt(req.body.odometer);
-    const income = req.body.income === '' || req.body.income == null ? 0 : readInt(req.body.income);
     const comment = req.body.comment ? String(req.body.comment).trim().slice(0, 300) : null;
     if (!isDay(day) || day > today) return fail(res, 400, 'BAD_REQUEST', 'Неверная дата', 'date');
+    if (time === undefined) return fail(res, 400, 'BAD_REQUEST', 'Неверное время', 'time');
     if (Number.isNaN(odometer) || odometer <= 0 || odometer > 5e6) return fail(res, 400, 'BAD_REQUEST', 'Укажите пробег по одометру', 'odometer');
-    if (Number.isNaN(income) || income > 1e9) return fail(res, 400, 'BAD_REQUEST', 'Неверная сумма заработка', 'income');
     const carId = await carOnDay(req.user.driver_id, day, today);
     if (!carId) return fail(res, 409, 'CONFLICT', 'В этот день за вами не было машины', 'date');
     const { rows: before } = await pool.query(
@@ -346,9 +353,9 @@ router.post('/mileage', async (req, res) => {
       return fail(res, 400, 'BAD_REQUEST', `Пробег меньше прошлой записи (${Number(before[0].v).toLocaleString('ru-RU')} км)`, 'odometer');
     }
     const { rows } = await pool.query(
-      `INSERT INTO driver_mileage (driver_id, car_id, day, odometer, income, comment)
+      `INSERT INTO driver_mileage (driver_id, car_id, day, time, odometer, comment)
        VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
-      [req.user.driver_id, carId, day, odometer, income, comment]
+      [req.user.driver_id, carId, day, time, odometer, comment]
     );
     await bumpCarMileage(carId, odometer);
     res.status(201).json({ id: rows[0].id });
@@ -381,10 +388,10 @@ router.get('/expenses', async (req, res) => {
     if (!driverOnly(req, res)) return;
     const { from, to } = periodFrom(req.query, localToday());
     const { rows } = await pool.query(
-      `SELECT e.id, e.day, e.kind, e.amount, e.volume, e.odometer, e.comment, e.created_at, c.plate
+      `SELECT e.id, e.day, e.time, e.kind, e.amount, e.volume, e.odometer, e.comment, e.created_at, c.plate
        FROM driver_expenses e LEFT JOIN cars c ON c.id = e.car_id
        WHERE e.driver_id = $1 AND e.day >= $2 AND e.day <= $3
-       ORDER BY e.day DESC, e.id DESC`,
+       ORDER BY e.day DESC, e.time DESC, e.id DESC`,
       [req.user.driver_id, from, to]
     );
     res.json({
@@ -414,6 +421,8 @@ router.post('/expenses', async (req, res) => {
     const volume = req.body.volume === '' || req.body.volume == null ? null : Number(String(req.body.volume).replace(',', '.'));
     const odometer = req.body.odometer === '' || req.body.odometer == null ? null : readInt(req.body.odometer);
     const comment = req.body.comment ? String(req.body.comment).trim().slice(0, 300) : null;
+    const time = readTime(req.body.time);
+    if (time === undefined) return fail(res, 400, 'BAD_REQUEST', 'Неверное время', 'time');
     if (!EXPENSE_KINDS.includes(kind)) return fail(res, 400, 'BAD_REQUEST', 'Выберите вид расхода', 'kind');
     if (Number.isNaN(amount) || amount > 1e9) return fail(res, 400, 'BAD_REQUEST', 'Укажите сумму', 'amount');
     if (volume != null && (!Number.isFinite(volume) || volume <= 0 || volume > 10000)) return fail(res, 400, 'BAD_REQUEST', 'Неверное количество', 'volume');
@@ -422,9 +431,9 @@ router.post('/expenses', async (req, res) => {
     const carId = await carOnDay(req.user.driver_id, day, today);
     if (!carId) return fail(res, 409, 'CONFLICT', 'В этот день за вами не было машины', 'date');
     const { rows } = await pool.query(
-      `INSERT INTO driver_expenses (driver_id, car_id, day, kind, amount, volume, odometer, comment)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
-      [req.user.driver_id, carId, day, kind, amount, volume, odometer, comment]
+      `INSERT INTO driver_expenses (driver_id, car_id, day, time, kind, amount, volume, odometer, comment)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id`,
+      [req.user.driver_id, carId, day, time, kind, amount, volume, odometer, comment]
     );
     if (odometer) await bumpCarMileage(carId, odometer);
     res.status(201).json({ id: rows[0].id });
@@ -445,6 +454,58 @@ router.delete('/expenses/:id', async (req, res) => {
     res.json({ id: rows[0].id, deleted: true });
   } catch (err) {
     console.error('Ошибка удаления расхода:', err);
+    fail(res, 500, 'INTERNAL_ERROR', 'Внутренняя ошибка сервера');
+  }
+});
+
+// GET /me/income — заработок водителя по дням (видит только он сам)
+router.get('/income', async (req, res) => {
+  try {
+    if (!driverOnly(req, res)) return;
+    const { from, to } = periodFrom(req.query, localToday());
+    const { rows } = await pool.query(
+      `SELECT id, day, amount, comment, created_at FROM driver_income
+       WHERE driver_id = $1 AND day >= $2 AND day <= $3 ORDER BY day DESC, id DESC`,
+      [req.user.driver_id, from, to]
+    );
+    res.json({ from, to, rows: rows.map((r) => ({ ...r, amount: Number(r.amount) })) });
+  } catch (err) {
+    console.error('Ошибка заработка водителя:', err);
+    fail(res, 500, 'INTERNAL_ERROR', 'Внутренняя ошибка сервера');
+  }
+});
+
+router.post('/income', async (req, res) => {
+  try {
+    if (!driverOnly(req, res)) return;
+    const today = localToday();
+    const day = req.body.date || today;
+    const amount = readAmount(req.body.amount);
+    const comment = req.body.comment ? String(req.body.comment).trim().slice(0, 300) : null;
+    if (Number.isNaN(amount) || amount > 1e9) return fail(res, 400, 'BAD_REQUEST', 'Укажите сумму', 'amount');
+    if (!isDay(day) || day > today) return fail(res, 400, 'BAD_REQUEST', 'Неверная дата', 'date');
+    const { rows } = await pool.query(
+      'INSERT INTO driver_income (driver_id, day, amount, comment) VALUES ($1, $2, $3, $4) RETURNING id',
+      [req.user.driver_id, day, amount, comment]
+    );
+    res.status(201).json({ id: rows[0].id });
+  } catch (err) {
+    console.error('Ошибка записи заработка:', err);
+    fail(res, 500, 'INTERNAL_ERROR', 'Внутренняя ошибка сервера');
+  }
+});
+
+router.delete('/income/:id', async (req, res) => {
+  try {
+    if (!driverOnly(req, res)) return;
+    const { rows } = await pool.query(
+      'DELETE FROM driver_income WHERE id = $1 AND driver_id = $2 RETURNING id',
+      [parseInt(req.params.id, 10), req.user.driver_id]
+    );
+    if (!rows.length) return fail(res, 404, 'NOT_FOUND', 'Запись не найдена');
+    res.json({ id: rows[0].id, deleted: true });
+  } catch (err) {
+    console.error('Ошибка удаления заработка:', err);
     fail(res, 500, 'INTERNAL_ERROR', 'Внутренняя ошибка сервера');
   }
 });
@@ -499,10 +560,18 @@ router.get('/report', async (req, res) => {
       km += Math.max(0, Math.max(...list) - start);
     }
 
-    const income = miles.reduce((s, m) => s + Number(m.income || 0), 0);
+    const { rows: earned } = await pool.query(
+      'SELECT day, amount FROM driver_income WHERE driver_id = $1 AND day >= $2 AND day <= $3',
+      [driverId, from, to]
+    );
+    const income = earned.reduce((s, r) => s + Number(r.amount), 0)
+      + miles.reduce((s, m) => s + Number(m.income || 0), 0);
     const expenses = exp.map((e) => ({ kind: e.kind, amount: Number(e.amount), volume: e.volume == null ? null : Number(e.volume), count: Number(e.n) }));
     const spent = expenses.reduce((s, e) => s + e.amount, 0);
-    const workDays = new Set(miles.filter((m) => Number(m.income) > 0).map((m) => m.day)).size;
+    const workDays = new Set([
+      ...earned.map((r) => r.day),
+      ...miles.filter((m) => Number(m.income) > 0).map((m) => m.day),
+    ]).size;
     const net = income - rent - spent;
 
     res.json({
@@ -518,7 +587,7 @@ router.get('/report', async (req, res) => {
       work_days: workDays,
       per_km: km > 0 ? Math.round(spent / km) : null,
       net_per_day: workDays > 0 ? Math.round(net / workDays) : null,
-      entries: miles.length,
+      entries: earned.length + miles.filter((m) => Number(m.income) > 0).length,
     });
   } catch (err) {
     console.error('Ошибка отчёта водителя:', err);

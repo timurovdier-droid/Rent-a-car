@@ -261,6 +261,15 @@ CREATE TABLE IF NOT EXISTS driver_expenses (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_driver_expenses_driver ON driver_expenses (driver_id, day);
+CREATE TABLE IF NOT EXISTS driver_income (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  driver_id INTEGER NOT NULL,
+  day TEXT NOT NULL,
+  amount INTEGER NOT NULL,
+  comment TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_driver_income_driver ON driver_income (driver_id, day);
 `;
 
 export const SCHEMA_VERSION = 4;

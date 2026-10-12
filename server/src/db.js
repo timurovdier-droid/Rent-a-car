@@ -259,6 +259,12 @@ async function migrate() {
   if (offInfo.rows.length && !offInfo.rows.some((row) => row.name === 'reason')) {
     await db.execute('ALTER TABLE car_days_off ADD COLUMN reason TEXT');
   }
+  for (const table of ['driver_mileage', 'driver_expenses']) {
+    const info = await db.execute(`SELECT name FROM pragma_table_info('${table}')`);
+    if (info.rows.length && !info.rows.some((row) => row.name === 'time')) {
+      await db.execute(`ALTER TABLE ${table} ADD COLUMN time TEXT`);
+    }
+  }
   console.log(`База Qween готова (${config.tursoUrl.startsWith('file:') ? 'локальный файл' : 'Turso'})`);
 }
 

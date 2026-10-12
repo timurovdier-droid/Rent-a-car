@@ -187,10 +187,57 @@ export function DriverContactsPage() {
   );
 }
 
+function nowTime() {
+  return new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Tashkent', hour: '2-digit', minute: '2-digit' }).format(new Date());
+}
+
+function SectionHero({ img, label, value, hint, action, onAction }) {
+  return (
+    <>
+      <div className="shero">
+        <div className="shero__text">
+          <span className="shero__label">{label}</span>
+          <b className="shero__value">{value}</b>
+          {hint && <span className="shero__hint">{hint}</span>}
+        </div>
+        <img className="shero__img" src={`/tiles/${img}.webp`} alt="" />
+      </div>
+      {action && <button type="button" className="btn shero__btn" onClick={onAction}><span aria-hidden="true">+</span>{action}</button>}
+    </>
+  );
+}
+
+function EmptyBlock({ img, title, text }) {
+  return (
+    <div className="eempty">
+      <img src={`/tiles/${img}.webp`} alt="" />
+      <b>{title}</b>
+      <span>{text}</span>
+    </div>
+  );
+}
+
+function EntryItem({ icon, img, title, meta, onDelete }) {
+  return (
+    <li className="eitem">
+      <span className="eitem__icon">{img ? <img src={`/tiles/${img}.webp`} alt="" /> : icon}</span>
+      <div className="eitem__body">
+        <b>{title}</b>
+        <span>{meta}</span>
+      </div>
+      {onDelete && <button type="button" className="eitem__del" onClick={onDelete} aria-label="Удалить">×</button>}
+    </li>
+  );
+}
+
+function whenText(day, time) {
+  return time ? `${fmtDay(day)}, ${time}` : fmtDay(day);
+}
+
 function MileageModal({ last, onClose, onSaved }) {
   const [day, setDay] = useState(todayLocal());
+  const [time, setTime] = useState(nowTime());
   const [odometer, setOdometer] = useState('');
-  const [income, setIncome] = useState('');
   const [comment, setComment] = useState('');
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
@@ -201,7 +248,7 @@ function MileageModal({ last, onClose, onSaved }) {
     setSaving(true);
     setError('');
     try {
-      await api.post('/me/mileage', { date: day, odometer, income, comment });
+      await api.post('/me/mileage', { date: day, time, odometer, comment });
       onSaved();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Не удалось сохранить');
@@ -222,18 +269,19 @@ function MileageModal({ last, onClose, onSaved }) {
             </p>
           )}
         </div>
-        <div className="field">
-          <label className="field__label" htmlFor="ml-income">Сколько заработали за день</label>
-          <MoneyInput id="ml-income" value={income} onChange={setIncome} />
-          <p className="muted small" style={{ margin: '6px 0 0' }}>Нужно для отчёта «сколько чистыми». Видите только вы.</p>
-        </div>
-        <div className="field">
-          <label className="field__label" htmlFor="ml-day">Дата</label>
-          <DateInput id="ml-day" className="field__input" value={day} max={todayLocal()} onChange={(e) => setDay(e.target.value)} required />
+        <div className="field-row">
+          <div className="field">
+            <label className="field__label" htmlFor="ml-day">Дата</label>
+            <DateInput id="ml-day" className="field__input" value={day} max={todayLocal()} onChange={(e) => setDay(e.target.value)} required />
+          </div>
+          <div className="field">
+            <label className="field__label" htmlFor="ml-time">Время</label>
+            <input id="ml-time" type="time" className="field__input" value={time} onChange={(e) => setTime(e.target.value)} required />
+          </div>
         </div>
         <div className="field">
           <label className="field__label" htmlFor="ml-comment">Комментарий</label>
-          <input id="ml-comment" className="field__input" value={comment} onChange={(e) => setComment(e.target.value)} maxLength={300} />
+          <input id="ml-comment" className="field__input" value={comment} onChange={(e) => setComment(e.target.value)} maxLength={300} placeholder="если нужно" />
         </div>
         {error && <div className="notice notice--error">{error}</div>}
         <div className="form-actions">
@@ -262,52 +310,49 @@ export function DriverMileagePage() {
   const [data, error] = useLoad(`/me/mileage?from=${period.from}&to=${period.to}`, [version]);
   const rows = data?.rows || [];
   const totalKm = rows.reduce((s, r) => s + (r.km || 0), 0);
-  const totalIncome = rows.reduce((s, r) => s + r.income, 0);
+  const reload = () => setVersion((v) => v + 1);
 
   return (
     <div className="drv">
-      <SectionHead title="Пробег" sub="Записывайте пробег по одометру в конце смены">
-        <button type="button" className="btn" onClick={() => setOpen(true)}>Записать пробег</button>
-      </SectionHead>
-      {data?.last_odometer != null && (
-        <div className="dstats dstats--wrap">
-          <div className="dstat"><span className="dstat__label">Сейчас на одометре</span><b className="dstat__value">{`${fmtNumber(data.last_odometer)} км`}</b></div>
-          <div className="dstat"><span className="dstat__label">Проехали за период</span><b className="dstat__value">{`${fmtNumber(totalKm)} км`}</b></div>
-          <div className="dstat dstat--ok"><span className="dstat__label">Заработали</span><b className="dstat__value">{`${fmtMoney(totalIncome)} сум`}</b></div>
-        </div>
-      )}
+      <SectionHead title="Пробег" />
+      <SectionHero
+        img="mileage"
+        label="Сейчас на одометре"
+        value={data?.last_odometer != null ? `${fmtNumber(data.last_odometer)} км` : '— км'}
+        hint={rows.length ? `за период проехали ${fmtNumber(totalKm)} км` : 'запишите пробег в конце смены'}
+        action="Записать пробег"
+        onAction={() => setOpen(true)}
+      />
       <PeriodPicker value={period} onChange={setPeriod} />
       {error && <div className="notice notice--error">{error}</div>}
-      {data && !rows.length && <div className="empty">За этот период записей нет. Нажмите «Записать пробег».</div>}
+      {data && !rows.length && <EmptyBlock img="mileage" title="Записей пока нет" text="Посмотрите на одометр и нажмите «Записать пробег»" />}
       {rows.length > 0 && (
-        <ul className="tx-list panel">
+        <ul className="elist">
           {rows.map((r) => (
-            <li key={r.id} className="tx">
-              <div>
-                <div className="tx__title">{`${fmtNumber(r.odometer)} км`}{r.km != null && <span className="muted">{` · +${fmtNumber(r.km)} км`}</span>}</div>
-                <div className="tx__meta">
-                  {fmtDay(r.day)}
-                  {r.income > 0 && ` · заработок ${fmtMoney(r.income)} сум`}
-                  {r.comment ? ` · ${r.comment}` : ''}
-                </div>
-              </div>
-              <div className="tx__right">
-                <button type="button" className="btn btn--quiet btn--sm" onClick={() => removeEntry(`/me/mileage/${r.id}`, 'Удалить запись пробега?', () => setVersion((v) => v + 1))}>Удалить</button>
-              </div>
-            </li>
+            <EntryItem
+              key={r.id}
+              img="mileage"
+              title={<>{`${fmtNumber(r.odometer)} км`}{r.km != null && <span className="eitem__plus">{` +${fmtNumber(r.km)}`}</span>}</>}
+              meta={[whenText(r.day, r.time), r.comment].filter(Boolean).join(' · ')}
+              onDelete={() => removeEntry(`/me/mileage/${r.id}`, 'Удалить запись пробега?', reload)}
+            />
           ))}
         </ul>
       )}
-      {open && (
-        <MileageModal
-          last={data?.last_odometer ?? null}
-          onClose={() => setOpen(false)}
-          onSaved={() => { setOpen(false); setVersion((v) => v + 1); }}
-        />
-      )}
+      {open && <MileageModal last={data?.last_odometer ?? null} onClose={() => setOpen(false)} onSaved={() => { setOpen(false); reload(); }} />}
     </div>
   );
 }
+
+function entriesWord(n) {
+  const d = n % 10;
+  const dd = n % 100;
+  if (d === 1 && dd !== 11) return 'запись';
+  if (d >= 2 && d <= 4 && (dd < 12 || dd > 14)) return 'записи';
+  return 'записей';
+}
+
+const EXPENSE_ICONS = { FUEL: '⛽', GAS: '🔥', CHARGE: '⚡', WASH: '🚿', OTHER: '🧾' };
 
 function ExpenseModal({ onClose, onSaved }) {
   const [kind, setKind] = useState('FUEL');
@@ -315,6 +360,7 @@ function ExpenseModal({ onClose, onSaved }) {
   const [volume, setVolume] = useState('');
   const [odometer, setOdometer] = useState('');
   const [day, setDay] = useState(todayLocal());
+  const [time, setTime] = useState(nowTime());
   const [comment, setComment] = useState('');
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
@@ -325,7 +371,7 @@ function ExpenseModal({ onClose, onSaved }) {
     setSaving(true);
     setError('');
     try {
-      await api.post('/me/expenses', { kind, amount, volume: unit ? volume : '', odometer, date: day, comment });
+      await api.post('/me/expenses', { kind, amount, volume: unit ? volume : '', odometer, date: day, time, comment });
       onSaved();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Не удалось сохранить');
@@ -338,9 +384,12 @@ function ExpenseModal({ onClose, onSaved }) {
       <form onSubmit={submit}>
         <div className="field">
           <span className="field__label">Что оплатили</span>
-          <div className="seg seg--wrap">
+          <div className="kind-grid">
             {EXPENSE_KINDS.map(([value, label]) => (
-              <button key={value} type="button" className={`seg__btn ${kind === value ? 'seg__btn--on' : ''}`} onClick={() => setKind(value)}>{label}</button>
+              <button key={value} type="button" className={`kind-btn ${kind === value ? 'kind-btn--on' : ''}`} onClick={() => setKind(value)}>
+                <span className="kind-btn__icon">{EXPENSE_ICONS[value]}</span>
+                {label}
+              </button>
             ))}
           </div>
         </div>
@@ -357,15 +406,20 @@ function ExpenseModal({ onClose, onSaved }) {
         <div className="field">
           <label className="field__label" htmlFor="ex-odo">Пробег сейчас</label>
           <MoneyInput id="ex-odo" value={odometer} onChange={setOdometer} suffix="км" />
-          <p className="muted small" style={{ margin: '6px 0 0' }}>Посмотрите на одометр — так видно, сколько проехали между заправками.</p>
         </div>
-        <div className="field">
-          <label className="field__label" htmlFor="ex-day">Дата</label>
-          <DateInput id="ex-day" className="field__input" value={day} max={todayLocal()} onChange={(e) => setDay(e.target.value)} required />
+        <div className="field-row">
+          <div className="field">
+            <label className="field__label" htmlFor="ex-day">Дата</label>
+            <DateInput id="ex-day" className="field__input" value={day} max={todayLocal()} onChange={(e) => setDay(e.target.value)} required />
+          </div>
+          <div className="field">
+            <label className="field__label" htmlFor="ex-time">Время</label>
+            <input id="ex-time" type="time" className="field__input" value={time} onChange={(e) => setTime(e.target.value)} required />
+          </div>
         </div>
         <div className="field">
           <label className="field__label" htmlFor="ex-comment">Комментарий</label>
-          <input id="ex-comment" className="field__input" value={comment} onChange={(e) => setComment(e.target.value)} maxLength={300} placeholder="например: АЗС на Чиланзаре" />
+          <input id="ex-comment" className="field__input" value={comment} onChange={(e) => setComment(e.target.value)} maxLength={300} placeholder="если нужно" />
         </div>
         {error && <div className="notice notice--error">{error}</div>}
         <div className="form-actions">
@@ -384,69 +438,115 @@ export function DriverExpensesPage() {
   const [data, error] = useLoad(`/me/expenses?from=${period.from}&to=${period.to}`, [version]);
   const rows = data?.rows || [];
   const total = rows.reduce((s, r) => s + r.amount, 0);
-  const withOdo = rows.filter((r) => r.odometer).sort((a, b) => a.odometer - b.odometer);
+  const reload = () => setVersion((v) => v + 1);
 
   return (
     <div className="drv">
-      <SectionHead title="Заправка и зарядка" sub="Записывайте каждую заправку, зарядку и мойку">
-        <button type="button" className="btn" onClick={() => setOpen(true)}>Записать расход</button>
-      </SectionHead>
-      <div className="dstats dstats--wrap">
-        <div className="dstat dstat--bad"><span className="dstat__label">Потрачено за период</span><b className="dstat__value">{`${fmtMoney(total)} сум`}</b></div>
-        <div className="dstat"><span className="dstat__label">Записей</span><b className="dstat__value">{rows.length}</b></div>
-        {withOdo.length > 1 && (
-          <div className="dstat">
-            <span className="dstat__label">Проехали между записями</span>
-            <b className="dstat__value">{`${fmtNumber(withOdo[withOdo.length - 1].odometer - withOdo[0].odometer)} км`}</b>
-          </div>
-        )}
-      </div>
+      <SectionHead title="Заправка и зарядка" />
+      <SectionHero
+        img="fuel"
+        label="Потрачено за период"
+        value={`${fmtMoney(total)} сум`}
+        hint={rows.length ? `${rows.length} ${entriesWord(rows.length)}` : 'записывайте каждую заправку'}
+        action="Записать расход"
+        onAction={() => setOpen(true)}
+      />
       <PeriodPicker value={period} onChange={setPeriod} />
       {error && <div className="notice notice--error">{error}</div>}
-      {data && !rows.length && <div className="empty">За этот период расходов нет.</div>}
+      {data && !rows.length && <EmptyBlock img="fuel" title="Расходов пока нет" text="Заправились или зарядились — нажмите «Записать расход»" />}
       {rows.length > 0 && (
-        <ul className="tx-list panel">
+        <ul className="elist">
           {rows.map((r) => (
-            <li key={r.id} className="tx">
-              <div>
-                <div className="tx__title">{`${EXPENSE_LABELS[r.kind] || r.kind} · ${fmtMoney(r.amount)} сум`}</div>
-                <div className="tx__meta">
-                  {fmtDay(r.day)}
-                  {r.volume ? ` · ${fmtNumber(r.volume)} ${VOLUME_UNIT[r.kind] || ''}` : ''}
-                  {r.odometer ? ` · пробег ${fmtNumber(r.odometer)} км` : ''}
-                  {r.comment ? ` · ${r.comment}` : ''}
-                </div>
-              </div>
-              <div className="tx__right">
-                <button type="button" className="btn btn--quiet btn--sm" onClick={() => removeEntry(`/me/expenses/${r.id}`, 'Удалить этот расход?', () => setVersion((v) => v + 1))}>Удалить</button>
-              </div>
-            </li>
+            <EntryItem
+              key={r.id}
+              icon={EXPENSE_ICONS[r.kind] || '🧾'}
+              title={`${EXPENSE_LABELS[r.kind] || r.kind} · ${fmtMoney(r.amount)} сум`}
+              meta={[
+                whenText(r.day, r.time),
+                r.volume ? `${fmtNumber(r.volume)} ${VOLUME_UNIT[r.kind] || ''}` : null,
+                r.odometer ? `пробег ${fmtNumber(r.odometer)} км` : null,
+                r.comment,
+              ].filter(Boolean).join(' · ')}
+              onDelete={() => removeEntry(`/me/expenses/${r.id}`, 'Удалить этот расход?', reload)}
+            />
           ))}
         </ul>
       )}
-      {open && <ExpenseModal onClose={() => setOpen(false)} onSaved={() => { setOpen(false); setVersion((v) => v + 1); }} />}
+      {open && <ExpenseModal onClose={() => setOpen(false)} onSaved={() => { setOpen(false); reload(); }} />}
     </div>
+  );
+}
+
+function IncomeModal({ onClose, onSaved }) {
+  const [amount, setAmount] = useState('');
+  const [day, setDay] = useState(todayLocal());
+  const [comment, setComment] = useState('');
+  const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  async function submit(e) {
+    e.preventDefault();
+    setSaving(true);
+    setError('');
+    try {
+      await api.post('/me/income', { amount, date: day, comment });
+      onSaved();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Не удалось сохранить');
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Modal title="Записать заработок" onClose={onClose}>
+      <form onSubmit={submit}>
+        <p className="muted" style={{ marginTop: 0 }}>Сколько вы заработали за день. Это видите только вы.</p>
+        <div className="field">
+          <label className="field__label" htmlFor="in-amount">Сумма *</label>
+          <MoneyInput id="in-amount" value={amount} onChange={setAmount} required autoFocus />
+        </div>
+        <div className="field">
+          <label className="field__label" htmlFor="in-day">Дата</label>
+          <DateInput id="in-day" className="field__input" value={day} max={todayLocal()} onChange={(e) => setDay(e.target.value)} required />
+        </div>
+        <div className="field">
+          <label className="field__label" htmlFor="in-comment">Комментарий</label>
+          <input id="in-comment" className="field__input" value={comment} onChange={(e) => setComment(e.target.value)} maxLength={300} placeholder="например: Яндекс Такси" />
+        </div>
+        {error && <div className="notice notice--error">{error}</div>}
+        <div className="form-actions">
+          <button className="btn" type="submit" disabled={saving}>{saving ? 'Сохраняю…' : 'Сохранить'}</button>
+          <button className="btn btn--quiet" type="button" onClick={onClose}>Отмена</button>
+        </div>
+      </form>
+    </Modal>
   );
 }
 
 export function DriverEarningsPage() {
   const [period, setPeriod] = useState(monthPeriod);
-  const [data, error] = useLoad(`/me/report?from=${period.from}&to=${period.to}`);
+  const [version, setVersion] = useState(0);
+  const [open, setOpen] = useState(false);
+  const [data, error] = useLoad(`/me/report?from=${period.from}&to=${period.to}`, [version]);
+  const [income] = useLoad(`/me/income?from=${period.from}&to=${period.to}`, [version]);
+  const reload = () => setVersion((v) => v + 1);
+  const net = data?.net ?? 0;
 
   return (
     <div className="drv">
-      <SectionHead title="Мой заработок" sub="Сколько вы заработали чистыми: заработок минус аренда и расходы на машину" />
+      <SectionHead title="Мой заработок" />
+      <SectionHero
+        img="earnings"
+        label="Чистыми за период"
+        value={data ? `${net < 0 ? '−' : ''}${fmtMoney(Math.abs(net))} сум` : '…'}
+        hint={data?.net_per_day != null ? `в среднем ${fmtMoney(data.net_per_day)} сум в день` : 'заработок минус аренда и расходы'}
+        action="Записать заработок"
+        onAction={() => setOpen(true)}
+      />
       <PeriodPicker value={period} onChange={setPeriod} />
       {error && <div className="notice notice--error">{error}</div>}
-      {!data && !error && <div className="muted">Считаю…</div>}
       {data && (
         <>
-          <div className={`dnet ${data.net < 0 ? 'dnet--minus' : ''}`}>
-            <span className="dnet__label">Чистыми за период</span>
-            <b className="dnet__value">{`${data.net < 0 ? '−' : ''}${fmtMoney(Math.abs(data.net))} сум`}</b>
-            {data.net_per_day != null && <span className="dnet__hint">{`в среднем ${fmtMoney(data.net_per_day)} сум за рабочий день`}</span>}
-          </div>
-
           <div className="panel">
             <dl className="kv dnet__calc">
               <div><dt>Заработали</dt><dd className="num-plus">{`+${fmtMoney(data.income)} сум`}</dd></div>
@@ -457,7 +557,7 @@ export function DriverEarningsPage() {
                   <dd className="num-minus">{`−${fmtMoney(e.amount)} сум`}</dd>
                 </div>
               ))}
-              <div className="dnet__total"><dt>Итого чистыми</dt><dd>{`${data.net < 0 ? '−' : ''}${fmtMoney(Math.abs(data.net))} сум`}</dd></div>
+              <div className="dnet__total"><dt>Итого чистыми</dt><dd>{`${net < 0 ? '−' : ''}${fmtMoney(Math.abs(net))} сум`}</dd></div>
             </dl>
           </div>
 
@@ -467,15 +567,28 @@ export function DriverEarningsPage() {
             {data.per_km != null && <div className="dstat"><span className="dstat__label">Расходы на 1 км</span><b className="dstat__value">{`${fmtMoney(data.per_km)} сум`}</b></div>}
             <div className="dstat"><span className="dstat__label">Оплатили аренды</span><b className="dstat__value">{`${fmtMoney(data.rent_paid)} сум`}</b></div>
           </div>
-
-          {data.entries === 0 && (
-            <div className="notice notice--idle" style={{ marginTop: 16 }}>
-              {'Чтобы видеть заработок, каждый день в разделе «Пробег» указывайте, сколько заработали. '}
-              <Link to="/mileage">Записать пробег</Link>
-            </div>
-          )}
         </>
       )}
+      {income?.rows?.length > 0 && (
+        <>
+          <h2 className="drv__title" style={{ marginTop: 20 }}>Записи заработка</h2>
+          <ul className="elist">
+            {income.rows.map((r) => (
+              <EntryItem
+                key={r.id}
+                icon="💰"
+                title={`+${fmtMoney(r.amount)} сум`}
+                meta={[fmtDay(r.day), r.comment].filter(Boolean).join(' · ')}
+                onDelete={() => removeEntry(`/me/income/${r.id}`, 'Удалить эту запись заработка?', reload)}
+              />
+            ))}
+          </ul>
+        </>
+      )}
+      {income && !income.rows.length && data?.entries === 0 && (
+        <EmptyBlock img="earnings" title="Заработок ещё не записан" text="Нажмите «Записать заработок» в конце дня — и увидите, сколько получилось чистыми" />
+      )}
+      {open && <IncomeModal onClose={() => setOpen(false)} onSaved={() => { setOpen(false); reload(); }} />}
     </div>
   );
 }
