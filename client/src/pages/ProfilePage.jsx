@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { api, ApiError } from '../api';
 import { useAuth } from '../auth';
+import { AppControls } from '../components/Layout';
 
 export default function ProfilePage() {
   const { user, refreshUser } = useAuth();
@@ -148,6 +149,10 @@ export default function ProfilePage() {
           )}
           {infoSaved && <p style={{ color: 'var(--c-ok)', fontWeight: 500, margin: '8px 0 0' }}>Данные сохранены</p>}
         </div>
+      </div>
+
+      <div className="app-controls">
+        <AppControls />
       </div>
 
       <h2 className="page-title" style={{ fontSize: 'var(--fs-l)' }}>Смена пароля</h2>

@@ -85,6 +85,7 @@ export function AppControls() {
     <>
       <LangToggle />
       <ThemeToggle />
+      <SoundToggle />
       <button type="button" className="btn btn--quiet nav__logout" onClick={handleLogout}>Выйти</button>
     </>
   );
@@ -285,11 +286,9 @@ export default function Layout() {
           ))}
         </nav>
 
-        {user?.role !== 'ADMIN' && (
-          <div className="nav__foot">
-            <AppControls />
-          </div>
-        )}
+        <div className="nav__foot">
+          <AppControls />
+        </div>
       </aside>
 
       <main className="main" ref={mainRef}>
