@@ -252,7 +252,6 @@ function DriverHero({ data, debt, onPay }) {
       .then((list) => setPending(list.filter((p) => p.status === 'PENDING').length))
       .catch(() => {});
   }, []);
-  const photo = car.photo_version ? `/api/v1/me/car-photo?v=${car.photo_version}` : '/tiles/cars.webp';
   const otherDebt = (data.charges || []).reduce((s, c) => s + c.left, 0);
   const overpaid = Number(status?.overpaid ?? data.overpaid ?? 0);
   const cards = [];
@@ -282,11 +281,8 @@ function DriverHero({ data, debt, onPay }) {
         <h1 className="dhero__title">{`${car.brand} ${car.model}`}</h1>
         <p className="dhero__sub">{`машина у вас с ${fmtDay(data.since)}`}</p>
       </div>
-      <button type="button" className="dhero__car" onClick={onPay} aria-label="Сообщить об оплате">
-        <img src={photo} alt={`${car.brand} ${car.model}`} className={car.photo_version ? 'dhero__photo' : 'dhero__pic'} />
-      </button>
       <div className="dhero__plate"><Plate value={car.plate} /></div>
-      <p className="dhero__tap">Нажмите на машину, чтобы сообщить об оплате</p>
+      <button type="button" className="btn dhero__pay" onClick={onPay}>Сообщить об оплате</button>
 
       <h2 className="dhero__subtitle">Мои статусы</h2>
       <div className="dstats">
