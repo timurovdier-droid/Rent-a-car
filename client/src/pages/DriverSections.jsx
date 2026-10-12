@@ -290,6 +290,72 @@ function whenText(day, time) {
   return time ? `${fmtDay(day)}, ${time}` : fmtDay(day);
 }
 
+function OdoDisplay({ value, ghost, onClick }) {
+  const empty = !value;
+  const digits = String((empty ? ghost : value) || '').replace(/\D/g, '');
+  const padded = digits.padStart(Math.max(6, digits.length), '0');
+  const lead = padded.length - digits.length;
+  return (
+    <button type="button" className={`odo ${empty ? 'odo--ghost' : ''}`} onClick={onClick} tabIndex={-1} aria-hidden="true">
+      {padded.split('').map((d, i) => (
+        <span key={padded.length - i} className={`odo__cell ${i < lead ? 'odo__cell--lead' : ''}`}>
+          <span className="odo__strip" style={{ transform: `translateY(${-Number(d) * 10}%)` }}>
+            {'0123456789'.split('').map((n) => <span key={n}>{n}</span>)}
+          </span>
+        </span>
+      ))}
+      <span className="odo__unit">км</span>
+    </button>
+  );
+}
+
+function KmGauge({ km }) {
+  const max = km > 500 ? Math.ceil(km / 100) * 100 : 500;
+  const share = Math.max(0, Math.min(1, km / max));
+  const arc = 'M15 100 A85 85 0 0 1 185 100';
+  return (
+    <div className="kgauge">
+      <svg viewBox="0 0 200 108" aria-hidden="true">
+        <path d={arc} className="kgauge__track" pathLength="100" />
+        <path d={arc} className="kgauge__fill" pathLength="100" style={{ strokeDasharray: `${share * 100} 200`, opacity: share ? 1 : 0 }} />
+        <g className="kgauge__needle" style={{ transform: `rotate(${share * 180 - 90}deg)` }}>
+          <line x1="100" y1="100" x2="100" y2="28" />
+          <circle cx="100" cy="100" r="8" />
+        </g>
+      </svg>
+      <div className="kgauge__text">
+        <b>{fmtNumber(km)}</b>
+        <span>км проехали</span>
+      </div>
+    </div>
+  );
+}
+
+const CONFETTI = ['#FFD000', '#1E9E4A', '#FF5A5F', '#3D7BFF', '#FFFFFF', '#FF9F1C'];
+
+function SavedBurst({ km }) {
+  return (
+    <div className="msuccess" role="status">
+      <div className="msuccess__confetti" aria-hidden="true">
+        {Array.from({ length: 18 }, (_, i) => (
+          <span
+            key={i}
+            style={{
+              '--x': `${(((i * 37) % 100) - 50) * 3}px`,
+              '--r': `${(i * 67) % 360}deg`,
+              '--d': `${(i % 6) * 60}ms`,
+              background: CONFETTI[i % CONFETTI.length],
+            }}
+          />
+        ))}
+      </div>
+      <div className="msuccess__check">✓</div>
+      <b className="msuccess__title">Записано!</b>
+      {km ? <span className="msuccess__km">{`+${fmtNumber(km)} км`}</span> : <span className="msuccess__km">Пробег сохранён</span>}
+    </div>
+  );
+}
+
 function MileageModal({ last, onClose, onSaved }) {
   const [day, setDay] = useState(todayLocal());
   const [time, setTime] = useState(nowTime());
@@ -297,6 +363,7 @@ function MileageModal({ last, onClose, onSaved }) {
   const [comment, setComment] = useState('');
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
+  const [done, setDone] = useState(null);
   const km = last != null && odometer ? Number(odometer) - last : null;
 
   const today = todayLocal();
@@ -309,16 +376,27 @@ function MileageModal({ last, onClose, onSaved }) {
     try {
       await api.post('/me/mileage', { date: day, time, odometer, comment });
       buzz();
-      onSaved(km != null && km > 0 ? km : null);
+      const driven = km != null && km > 0 ? km : null;
+      setDone({ km: driven });
+      setTimeout(() => onSaved(driven), 1500);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Не удалось сохранить');
       setSaving(false);
     }
   }
 
+  if (done) {
+    return (
+      <Modal title="Записать пробег" onClose={() => onSaved(done.km)}>
+        <SavedBurst km={done.km} />
+      </Modal>
+    );
+  }
+
   return (
     <Modal title="Записать пробег" onClose={onClose}>
       <form onSubmit={submit}>
+        <OdoDisplay value={odometer} ghost={last} onClick={() => document.getElementById('ml-odo')?.focus()} />
         <div className="field">
           <label className="field__label" htmlFor="ml-odo">Пробег по одометру *</label>
           <MoneyInput id="ml-odo" value={odometer} onChange={setOdometer} suffix="км" required autoFocus placeholder={last != null ? fmtNumber(last) : '0'} />
@@ -332,12 +410,9 @@ function MileageModal({ last, onClose, onSaved }) {
               <p className="muted small" style={{ margin: '8px 0 0' }}>{`Прошлая запись: ${fmtNumber(last)} км`}</p>
             </>
           )}
-          {km != null && (
-            <div key={km < 0 ? 'bad' : 'ok'} className={`kmbadge ${km < 0 ? 'kmbadge--bad' : ''}`}>
-              {km < 0
-                ? `Меньше прошлой записи на ${fmtNumber(-km)} км`
-                : <>Проехали <b>{`${fmtNumber(km)} км`}</b></>}
-            </div>
+          {last != null && (km == null || km >= 0) && <KmGauge km={km || 0} />}
+          {km != null && km < 0 && (
+            <div key="bad" className="kmbadge kmbadge--bad">{`Меньше прошлой записи на ${fmtNumber(-km)} км`}</div>
           )}
         </div>
         <div className="field">
