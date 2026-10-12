@@ -1012,6 +1012,17 @@ export const DICT = {
   'Пароль задан': 'Parol oʻrnatildi',
   'Готово': 'Tayyor',
   'Скопировать': 'Nusxalash',
+  'Включить уведомления о долге?': 'Qarz haqida bildirishnomalarni yoqasizmi?',
+  'Да, включить': 'Ha, yoqish',
+  'Позже': 'Keyinroq',
+  'Понятно': 'Tushunarli',
+  'Включаем уведомления': 'Bildirishnomalarni yoqamiz',
+  'Уведомления о долге': 'Qarz haqida bildirishnomalar',
+  'Включить напоминания о долге по аренде? Они будут приходить на телефон каждые 2 часа, пока долг есть, кроме ночи.':
+    'Ijara qarzi haqida eslatmalarni yoqasizmi? Ular qarz bor ekan, har 2 soatda telefoningizga keladi, tunda kelmaydi.',
+  'После «Да» телефон спросит разрешение — нажмите «Разрешить».': '«Ha» dan keyin telefon ruxsat soʻraydi — «Ruxsat berish» ni bosing.',
+  'Так требует Apple: на iPhone уведомления приходят только от сайтов, добавленных на экран «Домой».':
+    'Bu Apple talabi: iPhone da bildirishnomalar faqat «Uy» ekraniga qoʻshilgan saytlardan keladi.',
   'Скопировано ✓': 'Nusxalandi ✓',
   'Пароль сброшен': 'Parol tiklandi',
   'Диспетчер создан': 'Dispetcher yaratildi',
