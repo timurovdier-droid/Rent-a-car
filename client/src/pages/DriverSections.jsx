@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api, ApiError } from '../api';
 import Plate from '../components/Plate';
@@ -191,7 +191,57 @@ function nowTime() {
   return new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Tashkent', hour: '2-digit', minute: '2-digit' }).format(new Date());
 }
 
+function shiftDay(day, n) {
+  const d = new Date(`${day}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+
+const WEEKDAYS = ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'];
+
+function CountUp({ value, format = fmtNumber, suffix = '' }) {
+  const [shown, setShown] = useState(0);
+  const current = useRef(0);
+  useEffect(() => {
+    const start = current.current;
+    const t0 = performance.now();
+    let raf;
+    const step = (t) => {
+      const p = Math.min(1, (t - t0) / 800);
+      const v = Math.round(start + (value - start) * (1 - (1 - p) ** 3));
+      current.current = v;
+      setShown(v);
+      if (p < 1) raf = requestAnimationFrame(step);
+    };
+    raf = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(raf);
+  }, [value]);
+  return <>{format(shown)}{suffix}</>;
+}
+
+function signedMoney(v) {
+  return `${v < 0 ? '−' : ''}${fmtMoney(Math.abs(v))}`;
+}
+
+function buzz() {
+  if (navigator.vibrate) navigator.vibrate(25);
+}
+
+function SavedToast({ text, onDone }) {
+  useEffect(() => {
+    const t = setTimeout(onDone, 2600);
+    return () => clearTimeout(t);
+  }, [text, onDone]);
+  return (
+    <div className="stoast" role="status">
+      <span className="stoast__check" aria-hidden="true">✓</span>
+      {text}
+    </div>
+  );
+}
+
 function SectionHero({ img, label, value, hint, action, onAction }) {
+  const [pops, setPops] = useState(0);
   return (
     <>
       <div className="shero">
@@ -200,7 +250,13 @@ function SectionHero({ img, label, value, hint, action, onAction }) {
           <b className="shero__value">{value}</b>
           {hint && <span className="shero__hint">{hint}</span>}
         </div>
-        <img className="shero__img" src={`/tiles/${img}.webp`} alt="" />
+        <img
+          key={pops}
+          className={`shero__img ${pops ? 'shero__img--pop' : ''}`}
+          src={`/tiles/${img}.webp`}
+          alt=""
+          onClick={() => { setPops((p) => p + 1); buzz(); }}
+        />
       </div>
       {action && <button type="button" className="btn shero__btn" onClick={onAction}><span aria-hidden="true">+</span>{action}</button>}
     </>
@@ -217,9 +273,9 @@ function EmptyBlock({ img, title, text }) {
   );
 }
 
-function EntryItem({ icon, img, title, meta, onDelete }) {
+function EntryItem({ icon, img, title, meta, onDelete, index = 0 }) {
   return (
-    <li className="eitem">
+    <li className="eitem" style={{ '--i': Math.min(index, 10) }}>
       <span className="eitem__icon">{img ? <img src={`/tiles/${img}.webp`} alt="" /> : icon}</span>
       <div className="eitem__body">
         <b>{title}</b>
@@ -243,13 +299,17 @@ function MileageModal({ last, onClose, onSaved }) {
   const [saving, setSaving] = useState(false);
   const km = last != null && odometer ? Number(odometer) - last : null;
 
+  const today = todayLocal();
+  const yesterday = shiftDay(today, -1);
+
   async function submit(e) {
     e.preventDefault();
     setSaving(true);
     setError('');
     try {
       await api.post('/me/mileage', { date: day, time, odometer, comment });
-      onSaved();
+      buzz();
+      onSaved(km != null && km > 0 ? km : null);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Не удалось сохранить');
       setSaving(false);
@@ -263,20 +323,36 @@ function MileageModal({ last, onClose, onSaved }) {
           <label className="field__label" htmlFor="ml-odo">Пробег по одометру *</label>
           <MoneyInput id="ml-odo" value={odometer} onChange={setOdometer} suffix="км" required autoFocus placeholder={last != null ? fmtNumber(last) : '0'} />
           {last != null && (
-            <p className="muted small" style={{ margin: '6px 0 0' }}>
-              {`Прошлая запись: ${fmtNumber(last)} км`}
-              {km != null && km >= 0 && <b>{` · проехали ${fmtNumber(km)} км`}</b>}
-            </p>
+            <>
+              <div className="qchips">
+                {[50, 100, 200, 300].map((n) => (
+                  <button key={n} type="button" className="qchip" onClick={() => { setOdometer(String(last + n)); buzz(); }}>{`+${n}`}</button>
+                ))}
+              </div>
+              <p className="muted small" style={{ margin: '8px 0 0' }}>{`Прошлая запись: ${fmtNumber(last)} км`}</p>
+            </>
+          )}
+          {km != null && (
+            <div key={km < 0 ? 'bad' : 'ok'} className={`kmbadge ${km < 0 ? 'kmbadge--bad' : ''}`}>
+              {km < 0
+                ? `Меньше прошлой записи на ${fmtNumber(-km)} км`
+                : <>Проехали <b>{`${fmtNumber(km)} км`}</b></>}
+            </div>
           )}
         </div>
-        <div className="field-row">
-          <div className="field">
-            <label className="field__label" htmlFor="ml-day">Дата</label>
-            <DateInput id="ml-day" className="field__input" value={day} max={todayLocal()} onChange={(e) => setDay(e.target.value)} required />
+        <div className="field">
+          <span className="field__label">Дата</span>
+          <div className="qchips qchips--top">
+            <button type="button" className={`qchip ${day === today ? 'qchip--on' : ''}`} onClick={() => setDay(today)}>Сегодня</button>
+            <button type="button" className={`qchip ${day === yesterday ? 'qchip--on' : ''}`} onClick={() => setDay(yesterday)}>Вчера</button>
           </div>
-          <div className="field">
-            <label className="field__label" htmlFor="ml-time">Время</label>
-            <input id="ml-time" type="time" className="field__input" value={time} onChange={(e) => setTime(e.target.value)} required />
+          <DateInput id="ml-day" className="field__input" value={day} max={today} onChange={(e) => setDay(e.target.value)} required />
+        </div>
+        <div className="field">
+          <span className="field__label">Время</span>
+          <div className="time-row">
+            <input id="ml-time" type="time" className="field__input" value={time} onChange={(e) => setTime(e.target.value)} required aria-label="Время" />
+            <button type="button" className="qchip" onClick={() => setTime(nowTime())}>Сейчас</button>
           </div>
         </div>
         <div className="field">
@@ -307,10 +383,16 @@ export function DriverMileagePage() {
   const [period, setPeriod] = useState(monthPeriod);
   const [version, setVersion] = useState(0);
   const [open, setOpen] = useState(false);
+  const [toast, setToast] = useState('');
+  const [picked, setPicked] = useState(null);
+  const today = todayLocal();
   const [data, error] = useLoad(`/me/mileage?from=${period.from}&to=${period.to}`, [version]);
+  const [week] = useLoad(`/me/mileage?from=${shiftDay(today, -7)}&to=${today}`, [version]);
   const rows = data?.rows || [];
   const totalKm = rows.reduce((s, r) => s + (r.km || 0), 0);
+  const shown = picked ? (week?.rows || []).filter((r) => r.day === picked) : rows;
   const reload = () => setVersion((v) => v + 1);
+  const hideToast = useCallback(() => setToast(''), []);
 
   return (
     <div className="drv">
@@ -318,19 +400,31 @@ export function DriverMileagePage() {
       <SectionHero
         img="mileage"
         label="Сейчас на одометре"
-        value={data?.last_odometer != null ? `${fmtNumber(data.last_odometer)} км` : '— км'}
-        hint={rows.length ? `за период проехали ${fmtNumber(totalKm)} км` : 'запишите пробег в конце смены'}
+        value={data?.last_odometer != null ? <CountUp value={data.last_odometer} suffix=" км" /> : '— км'}
+        hint={rows.length ? <>за период проехали <CountUp value={totalKm} suffix=" км" /></> : 'запишите пробег в конце смены'}
         action="Записать пробег"
         onAction={() => setOpen(true)}
       />
-      <PeriodPicker value={period} onChange={setPeriod} />
+      {week && <MileageWeek rows={week.rows} today={today} picked={picked} onPick={(d) => { setPicked(d); buzz(); }} />}
+      {!picked && <PeriodPicker value={period} onChange={setPeriod} />}
+      {picked && (
+        <div className="picked">
+          <span>{`Записи за ${fmtDay(picked)}`}</span>
+          <button type="button" className="qchip" onClick={() => setPicked(null)}>Показать все</button>
+        </div>
+      )}
       {error && <div className="notice notice--error">{error}</div>}
-      {data && !rows.length && <EmptyBlock img="mileage" title="Записей пока нет" text="Посмотрите на одометр и нажмите «Записать пробег»" />}
-      {rows.length > 0 && (
-        <ul className="elist">
-          {rows.map((r) => (
+      {data && !shown.length && (
+        picked
+          ? <p className="muted" style={{ textAlign: 'center', margin: '20px 0' }}>В этот день записей нет</p>
+          : <EmptyBlock img="mileage" title="Записей пока нет" text="Посмотрите на одометр и нажмите «Записать пробег»" />
+      )}
+      {shown.length > 0 && (
+        <ul className="elist" key={picked || period.from + period.to}>
+          {shown.map((r, i) => (
             <EntryItem
               key={r.id}
+              index={i}
               img="mileage"
               title={<>{`${fmtNumber(r.odometer)} км`}{r.km != null && <span className="eitem__plus">{` +${fmtNumber(r.km)}`}</span>}</>}
               meta={[whenText(r.day, r.time), r.comment].filter(Boolean).join(' · ')}
@@ -339,7 +433,49 @@ export function DriverMileagePage() {
           ))}
         </ul>
       )}
-      {open && <MileageModal last={data?.last_odometer ?? null} onClose={() => setOpen(false)} onSaved={() => { setOpen(false); reload(); }} />}
+      {open && (
+        <MileageModal
+          last={data?.last_odometer ?? null}
+          onClose={() => setOpen(false)}
+          onSaved={(km) => { setOpen(false); setPicked(null); setToast(km ? `Пробег записан · +${fmtNumber(km)} км` : 'Пробег записан'); reload(); }}
+        />
+      )}
+      {toast && <SavedToast text={toast} onDone={hideToast} />}
+    </div>
+  );
+}
+
+function MileageWeek({ rows, today, picked, onPick }) {
+  const days = Array.from({ length: 7 }, (_, i) => shiftDay(today, i - 6));
+  const km = Object.fromEntries(days.map((d) => [d, 0]));
+  rows.forEach((r) => { if (r.km && km[r.day] != null) km[r.day] += r.km; });
+  const total = days.reduce((s, d) => s + km[d], 0);
+  const max = Math.max(1, ...days.map((d) => km[d]));
+
+  return (
+    <div className="mweek">
+      <div className="mweek__head">
+        <b>За 7 дней</b>
+        <span><CountUp value={total} suffix=" км" /></span>
+      </div>
+      <div className={`mweek__bars ${picked ? 'mweek__bars--picked' : ''}`}>
+        {days.map((d, i) => (
+          <button
+            key={d}
+            type="button"
+            className={`mweek__bar ${picked === d ? 'mweek__bar--on' : ''} ${d === today ? 'mweek__bar--today' : ''}`}
+            onClick={() => onPick(picked === d ? null : d)}
+            aria-label={`${fmtDay(d)}: ${fmtNumber(km[d])} км`}
+          >
+            <span className="mweek__val">{km[d] ? fmtNumber(km[d]) : ''}</span>
+            <span className="mweek__col">
+              <span style={{ height: `${Math.max(6, (km[d] / max) * 100)}%`, animationDelay: `${i * 50}ms` }} className={km[d] ? '' : 'mweek__empty'} />
+            </span>
+            <span className="mweek__day">{d === today ? 'Сег' : WEEKDAYS[new Date(`${d}T00:00:00Z`).getUTCDay()]}</span>
+          </button>
+        ))}
+      </div>
+      <p className="mweek__hint">Нажмите на день, чтобы увидеть его записи</p>
     </div>
   );
 }
@@ -446,7 +582,7 @@ export function DriverExpensesPage() {
       <SectionHero
         img="fuel"
         label="Потрачено за период"
-        value={`${fmtMoney(total)} сум`}
+        value={<CountUp value={total} format={fmtMoney} suffix=" сум" />}
         hint={rows.length ? `${rows.length} ${entriesWord(rows.length)}` : 'записывайте каждую заправку'}
         action="Записать расход"
         onAction={() => setOpen(true)}
@@ -456,9 +592,10 @@ export function DriverExpensesPage() {
       {data && !rows.length && <EmptyBlock img="fuel" title="Расходов пока нет" text="Заправились или зарядились — нажмите «Записать расход»" />}
       {rows.length > 0 && (
         <ul className="elist">
-          {rows.map((r) => (
+          {rows.map((r, i) => (
             <EntryItem
               key={r.id}
+              index={i}
               icon={EXPENSE_ICONS[r.kind] || '🧾'}
               title={`${EXPENSE_LABELS[r.kind] || r.kind} · ${fmtMoney(r.amount)} сум`}
               meta={[
@@ -538,7 +675,7 @@ export function DriverEarningsPage() {
       <SectionHero
         img="earnings"
         label="Чистыми за период"
-        value={data ? `${net < 0 ? '−' : ''}${fmtMoney(Math.abs(net))} сум` : '…'}
+        value={data ? <CountUp value={net} format={signedMoney} suffix=" сум" /> : '…'}
         hint={data?.net_per_day != null ? `в среднем ${fmtMoney(data.net_per_day)} сум в день` : 'заработок минус аренда и расходы'}
         action="Записать заработок"
         onAction={() => setOpen(true)}
@@ -573,9 +710,10 @@ export function DriverEarningsPage() {
         <>
           <h2 className="drv__title" style={{ marginTop: 20 }}>Записи заработка</h2>
           <ul className="elist">
-            {income.rows.map((r) => (
+            {income.rows.map((r, i) => (
               <EntryItem
                 key={r.id}
+                index={i}
                 icon="💰"
                 title={`+${fmtMoney(r.amount)} сум`}
                 meta={[fmtDay(r.day), r.comment].filter(Boolean).join(' · ')}
