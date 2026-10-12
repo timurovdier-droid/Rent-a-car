@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 
-const QUERY = '(max-width: 600px)';
+const QUERY = '(max-width: 1023px)';
 
 export default function useIsPhone() {
   const [phone, setPhone] = useState(() => typeof window !== 'undefined' && window.matchMedia(QUERY).matches);

@@ -10,7 +10,6 @@ import { api } from '../api';
 import useTableLabels from './useTableLabels';
 import useIsPhone from './useIsPhone';
 import TabBar from './TabBar';
-import { playChime, playTap, setSoundOn, soundOn } from '../sound';
 import { fmtMoney } from '../labels';
 const ROLE_LABELS = {
   DRIVER: 'Водитель',
@@ -85,34 +84,14 @@ export function AppControls() {
     <>
       <LangToggle />
       <ThemeToggle />
-      <SoundToggle />
       <button type="button" className="btn btn--quiet nav__logout" onClick={handleLogout}>Выйти</button>
     </>
   );
 }
 
-function SoundToggle() {
-  const [on, setOn] = useState(soundOn);
-  return (
-    <div className="umenu__row">
-      <span>Звук</span>
-      <button
-        type="button"
-        role="switch"
-        aria-checked={on}
-        aria-label="Звук"
-        className={`switch ${on ? 'switch--on' : ''}`}
-        onClick={() => { setSoundOn(!on); setOn(!on); if (!on) playTap(); }}
-      >
-        <span className="switch__knob" />
-      </button>
-    </div>
-  );
-}
-
 const SEEN_KEY = 'rac-seen-payment-request';
 
-// Админ и диспетчер слышат сигнал, когда водитель отправил новую оплату из кабинета.
+// Админ и диспетчер видят всплывающее уведомление, когда водитель отправил новую оплату из кабинета.
 function usePaymentRequestAlert(role) {
   const navigate = useNavigate();
   const [toast, setToast] = useState(null);
@@ -129,7 +108,6 @@ function usePaymentRequestAlert(role) {
           localStorage.setItem(SEEN_KEY, String(maxId));
           if (seen > 0) {
             const last = list.find((r) => Number(r.id) === maxId);
-            playChime();
             setToast(last);
           }
         }
@@ -191,7 +169,6 @@ function UserMenu({ user, onLogout }) {
             <LangToggle className="lang-toggle--compact" />
           </div>
           <ThemeToggle />
-          <SoundToggle />
           <button type="button" className="umenu__item umenu__logout" onClick={onLogout}>Выйти</button>
         </div>
       )}
@@ -240,15 +217,6 @@ export default function Layout() {
 
   const handleLogout = useLogout();
   const paymentToast = usePaymentRequestAlert(user?.role);
-
-  useEffect(() => {
-    if (!isPhone) return undefined;
-    const onDown = (e) => {
-      if (e.target.closest?.('.tabbar a, .tabbar button, .mtile, .btn, .dhero__orb, .search-hit, .nav__link')) playTap();
-    };
-    document.addEventListener('pointerdown', onDown, { passive: true });
-    return () => document.removeEventListener('pointerdown', onDown);
-  }, [isPhone]);
 
   return (
     <div className={`shell ${menuOpen ? 'shell--menu' : ''}`}>

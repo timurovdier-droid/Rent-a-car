@@ -10,7 +10,6 @@ import { BrandLogo, CarVisual } from '../components/CarTile';
 import { LedgerSummary, LedgerTable } from '../components/CarLedger';
 import { RentStatusView } from '../components/RentStatus';
 import useIsPhone from '../components/useIsPhone';
-import { playAlert } from '../sound';
 import { fmtMoney, fmtDay, fmtDateTime, todayLocal, shiftDay, CHARGE_LABELS, PAY_METHODS, METHOD_LABELS } from '../labels';
 
 const HOUR = 60 * 60 * 1000;
@@ -202,7 +201,6 @@ function useDebtReminder(userId, debt) {
       localStorage.setItem(key, String(Date.now()));
       sessionStorage.setItem(sessionKey, '1');
       setOpen(true);
-      playAlert();
       if (document.hidden && 'Notification' in window && Notification.permission === 'granted') {
         try {
           new Notification('Оплатите аренду', { body: `Ваш долг: ${fmtMoney(debt)} сум`, tag: 'rac-debt' });
