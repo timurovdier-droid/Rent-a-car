@@ -10,6 +10,8 @@ import DriversPage from './pages/DriversPage';
 import DriverPage from './pages/DriverPage';
 import CarPage from './pages/CarPage';
 import DriverHomePage from './pages/DriverHomePage';
+import MobileHome from './pages/MobileHome';
+import useIsPhone from './components/useIsPhone';
 import DriverReportPage from './pages/DriverReportPage';
 import PaymentsQueuePage from './pages/PaymentsQueuePage';
 import AssignmentsPage from './pages/AssignmentsPage';
@@ -49,6 +51,8 @@ function DriverReportRoute() {
 
 function HomeRoute() {
   const { user } = useAuth();
+  const isPhone = useIsPhone();
+  if (isPhone && (user?.role === 'ADMIN' || user?.role === 'DISPATCHER')) return <MobileHome />;
   if (user?.role === 'ADMIN') return <Navigate to="/reports?tab=summary" replace />;
   return user?.role === 'DRIVER' ? <DriverHomePage /> : <DashboardPage />;
 }
@@ -62,6 +66,11 @@ export default function App() {
         
         <Route element={<Guard><Layout /></Guard>}>
           <Route path="/" element={<HomeRoute />} />
+
+          <Route
+            path="/payments"
+            element={<Guard roles={['DRIVER']}><DriverHomePage view="payments" /></Guard>}
+          />
           
           <Route
             path="/driver-report"

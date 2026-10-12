@@ -8,6 +8,10 @@ import UpdateBanner from './UpdateBanner';
 import NotifyBell from './NotifyBell';
 import { api } from '../api';
 import useTableLabels from './useTableLabels';
+import useIsPhone from './useIsPhone';
+import TabBar from './TabBar';
+import { playChime, playTap, setSoundOn, soundOn } from '../sound';
+import { fmtMoney } from '../labels';
 const ROLE_LABELS = {
   DRIVER: 'Водитель',
   DISPATCHER: 'Диспетчер',
@@ -17,7 +21,10 @@ const ROLE_LABELS = {
 
 function menuFor(role) {
   if (role === 'DRIVER') {
-    return [{ to: '/', label: 'Моя аренда', icon: 'car', end: true }];
+    return [
+      { to: '/', label: 'Моя аренда', icon: 'car', end: true },
+      { to: '/payments', label: 'Оплаты', icon: 'wallet' },
+    ];
   }
   if (role === 'DISPATCHER') {
     return [
@@ -83,6 +90,65 @@ export function AppControls() {
   );
 }
 
+function SoundToggle() {
+  const [on, setOn] = useState(soundOn);
+  return (
+    <div className="umenu__row">
+      <span>Звук</span>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={on}
+        className={`switch ${on ? 'switch--on' : ''}`}
+        onClick={() => { setSoundOn(!on); setOn(!on); if (!on) playTap(); }}
+      >
+        <span className="switch__knob" />
+      </button>
+    </div>
+  );
+}
+
+const SEEN_KEY = 'rac-seen-payment-request';
+
+// Админ и диспетчер слышат сигнал, когда водитель отправил новую оплату из кабинета.
+function usePaymentRequestAlert(role) {
+  const navigate = useNavigate();
+  const [toast, setToast] = useState(null);
+  useEffect(() => {
+    if (role !== 'ADMIN' && role !== 'DISPATCHER') return undefined;
+    let alive = true;
+    async function check() {
+      try {
+        const list = await api.fresh('/drivers/payment-requests');
+        if (!alive || !Array.isArray(list)) return;
+        const maxId = list.reduce((m, r) => Math.max(m, Number(r.id)), 0);
+        const seen = Number(localStorage.getItem(SEEN_KEY) || 0);
+        if (maxId > seen) {
+          localStorage.setItem(SEEN_KEY, String(maxId));
+          if (seen > 0) {
+            const last = list.find((r) => Number(r.id) === maxId);
+            playChime();
+            setToast(last);
+          }
+        }
+      } catch {
+        // нет связи — проверим в следующий раз
+      }
+    }
+    check();
+    const timer = setInterval(check, 30000);
+    return () => { alive = false; clearInterval(timer); };
+  }, [role]);
+
+  if (!toast) return null;
+  return (
+    <button type="button" className="ptoast" onClick={() => { setToast(null); navigate('/drivers'); }}>
+      <b>Новая оплата от водителя</b>
+      <span>{`${toast.full_name} · ${fmtMoney(toast.amount)} сум — нажмите, чтобы проверить`}</span>
+    </button>
+  );
+}
+
 function AvatarLogo() {
   return <img src="/logo.png" alt="GTA" className="avatar-logo" width={24} height={6} />;
 }
@@ -123,6 +189,7 @@ function UserMenu({ user, onLogout }) {
             <LangToggle className="lang-toggle--compact" />
           </div>
           <ThemeToggle />
+          <SoundToggle />
           <button type="button" className="umenu__item umenu__logout" onClick={onLogout}>Выйти</button>
         </div>
       )}
@@ -143,6 +210,7 @@ export default function Layout() {
   const { pathname } = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
   const mainRef = useRef(null);
+  const isPhone = useIsPhone();
   useTableLabels(mainRef);
   const menuItems = menuFor(user?.role);
   const current = menuItems.find((item) => (item.end ? pathname === item.to : pathname.startsWith(item.to)));
@@ -169,6 +237,16 @@ export default function Layout() {
   }, [menuOpen]);
 
   const handleLogout = useLogout();
+  const paymentToast = usePaymentRequestAlert(user?.role);
+
+  useEffect(() => {
+    if (!isPhone) return undefined;
+    const onDown = (e) => {
+      if (e.target.closest?.('.tabbar a, .tabbar button, .mtile, .btn, .dhero__orb, .search-hit, .nav__link')) playTap();
+    };
+    document.addEventListener('pointerdown', onDown, { passive: true });
+    return () => document.removeEventListener('pointerdown', onDown);
+  }, [isPhone]);
 
   return (
     <div className={`shell ${menuOpen ? 'shell--menu' : ''}`}>
@@ -218,6 +296,8 @@ export default function Layout() {
         <Outlet />
       </main>
       {user?.role === 'ADMIN' && <NotifyBell />}
+      {isPhone && <TabBar role={user?.role} />}
+      {paymentToast}
       <UpdateBanner />
     </div>
   );

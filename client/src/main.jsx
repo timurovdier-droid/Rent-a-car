@@ -8,6 +8,7 @@ import './styles/tokens.css';
 import './styles/layout.css';
 import './styles/components.css';
 import './styles/theme-dark.css';
+import './styles/mobile.css';
 
 import App from './App.jsx';
 import { startTranslator } from './i18n';

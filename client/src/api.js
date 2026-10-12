@@ -104,6 +104,7 @@ function mutate(method, path, body, extra) {
 
 export const api = {
   get: cachedGet,
+  fresh: (path) => fetchFresh(path).then(copy),
   prefetch: (path) => { cachedGet(path).catch(() => {}); },
   post: (path, body, extra) => mutate('POST', path, body, extra),
   patch: (path, body, extra) => mutate('PATCH', path, body, extra),

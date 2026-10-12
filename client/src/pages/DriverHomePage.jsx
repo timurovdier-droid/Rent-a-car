@@ -9,6 +9,8 @@ import PeriodPicker from '../components/PeriodPicker';
 import { BrandLogo, CarVisual } from '../components/CarTile';
 import { LedgerSummary, LedgerTable } from '../components/CarLedger';
 import { RentStatusView } from '../components/RentStatus';
+import useIsPhone from '../components/useIsPhone';
+import { playAlert } from '../sound';
 import { fmtMoney, fmtDay, fmtDateTime, todayLocal, shiftDay, CHARGE_LABELS, PAY_METHODS, METHOD_LABELS } from '../labels';
 
 const HOUR = 60 * 60 * 1000;
@@ -200,6 +202,7 @@ function useDebtReminder(userId, debt) {
       localStorage.setItem(key, String(Date.now()));
       sessionStorage.setItem(sessionKey, '1');
       setOpen(true);
+      playAlert();
       if (document.hidden && 'Notification' in window && Notification.permission === 'granted') {
         try {
           new Notification('Оплатите аренду', { body: `Ваш долг: ${fmtMoney(debt)} сум`, tag: 'rac-debt' });
@@ -231,8 +234,76 @@ function NotifyButton() {
   );
 }
 
-export default function DriverHomePage() {
+function StatusCard({ tone = '', label, value, hint }) {
+  return (
+    <div className={`dstat ${tone ? `dstat--${tone}` : ''}`}>
+      <span className="dstat__label">{label}</span>
+      <b className="dstat__value">{value}</b>
+      {hint && <span className="dstat__hint">{hint}</span>}
+    </div>
+  );
+}
+
+// Экран водителя на телефоне в духе Shazam: большая кнопка-машина по центру, статусы карточками внизу.
+function DriverHero({ data, debt, onPay }) {
+  const { car, status, profile } = data;
+  const [pending, setPending] = useState(0);
+  useEffect(() => {
+    api.get('/me/payments')
+      .then((list) => setPending(list.filter((p) => p.status === 'PENDING').length))
+      .catch(() => {});
+  }, []);
+  const photo = car.photo_version ? `/api/v1/me/car-photo?v=${car.photo_version}` : '/tiles/cars.webp';
+  const otherDebt = (data.charges || []).reduce((s, c) => s + c.left, 0);
+  const overpaid = status ? 0 : data.overpaid;
+  const cards = [];
+
+  if (debt > 0) {
+    cards.push({ tone: 'bad', label: 'Долг по аренде', value: `${fmtMoney(debt)} сум`, hint: status?.debt_from ? `с ${fmtDay(status.debt_from)}` : null });
+  } else {
+    const ahead = status?.ahead_until && status.ahead_until > data.today;
+    cards.push({
+      tone: 'ok',
+      label: 'Аренда',
+      value: ahead ? `до ${fmtDay(status.ahead_until)}` : overpaid > 0 ? `+${fmtMoney(overpaid)} сум` : 'Оплачено',
+      hint: ahead ? 'оплачено вперёд' : 'долгов нет',
+    });
+  }
+  cards.push({ label: 'Аренда в день', value: `${fmtMoney(data.rate)} сум` });
+  if (pending > 0 || status?.pending > 0) {
+    cards.push({ tone: 'wait', label: 'Ждут проверки', value: pending > 0 ? `${pending} опл.` : `${fmtMoney(status.pending)} сум`, hint: 'диспетчер проверяет' });
+  }
+  if (otherDebt > 0) cards.push({ tone: 'bad', label: 'Другие долги', value: `${fmtMoney(otherDebt)} сум`, hint: 'ремонт, штрафы' });
+  if (profile) cards.push({ label: 'Депозит', value: `${fmtMoney(profile.deposit)} сум` });
+  if (profile?.license_expires) cards.push({ label: 'ВУ действует до', value: fmtDay(profile.license_expires) });
+
+  return (
+    <div className="dhero">
+      <div className="dhero__top">
+        <h1 className="dhero__title">{`${car.brand} ${car.model}`}</h1>
+        <p className="dhero__sub">{`машина у вас с ${fmtDay(data.since)}`}</p>
+      </div>
+      <button type="button" className={`dhero__orb ${debt > 0 ? 'dhero__orb--debt' : ''}`} onClick={onPay} aria-label="Сообщить об оплате">
+        <span className="dhero__ring" aria-hidden="true" />
+        <span className="dhero__ring dhero__ring--2" aria-hidden="true" />
+        <span className="dhero__disc">
+          <img src={photo} alt="" className={car.photo_version ? 'dhero__photo' : 'dhero__pic'} />
+        </span>
+      </button>
+      <div className="dhero__plate"><Plate value={car.plate} /></div>
+      <p className="dhero__tap">Нажмите на машину, чтобы сообщить об оплате</p>
+
+      <h2 className="dhero__subtitle">Мои статусы</h2>
+      <div className="dstats">
+        {cards.map((c) => <StatusCard key={c.label} {...c} />)}
+      </div>
+    </div>
+  );
+}
+
+export default function DriverHomePage({ view = 'home' }) {
   const { user } = useAuth();
+  const isPhone = useIsPhone();
   const [period, setPeriod] = useState(lastPeriod);
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
@@ -277,6 +348,68 @@ export default function DriverHomePage() {
   const photo = car.photo_version ? `/api/v1/me/car-photo?v=${car.photo_version}` : null;
   const hasDebt = debt > 0;
   const debtDays = hasDebt && data.rate > 0 ? Math.ceil(debt / data.rate) : 0;
+  const openPay = () => { setSent(false); setPayOpen(true); };
+
+  const modals = (
+    <>
+      {payOpen && (
+        <PayModal
+          suggested={debt > 0 ? debt : data.rate}
+          onClose={() => setPayOpen(false)}
+          onSent={() => { setPayOpen(false); setSent(true); setPayVersion((v) => v + 1); }}
+        />
+      )}
+      {reminderOpen && (
+        <Modal title="Напоминание об оплате" onClose={closeReminder}>
+          <div className="drv-remind">
+            <p className="drv-remind__sum">{fmtMoney(debt)} сум</p>
+            <p>{`У вас долг по аренде машины ${car.brand} ${car.model} (${car.plate})${debtDays ? `, примерно ${debtDays} дн. аренды` : ''}.`}</p>
+            <p>Пожалуйста, оплатите диспетчеру наличными или переводом.</p>
+            <div className="form-actions">
+              <button type="button" className="btn" onClick={() => { closeReminder(); openPay(); }}>Сообщить об оплате</button>
+              <button type="button" className="btn btn--quiet" onClick={closeReminder}>Понятно</button>
+            </div>
+          </div>
+        </Modal>
+      )}
+    </>
+  );
+  const sentNotice = sent && <div className="notice notice--ok">Оплата отправлена. Когда диспетчер её проверит, она появится в разделе «Оплаты».</div>;
+
+  if (view === 'payments') {
+    return (
+      <div className="drv">
+        <div className="page-head">
+          <div>
+            <h1 className="page-title">Оплаты</h1>
+            <p className="page-sub">{`${car.brand} ${car.model} · ${car.plate}`}</p>
+          </div>
+          <button type="button" className="btn" onClick={openPay}>Сообщить об оплате</button>
+        </div>
+        {sentNotice}
+        <MyPayments version={payVersion} onChanged={() => setPayVersion((v) => v + 1)} />
+        <OtherDebts charges={data.charges} />
+        <h2 className="drv__title">Оплаты по дням</h2>
+        <PeriodPicker value={period} onChange={setPeriod} />
+        <div className="ledger-box">
+          <LedgerSummary totals={data.ledger.totals} />
+          <LedgerTable ledger={data.ledger} showDriver={false} />
+        </div>
+        {modals}
+      </div>
+    );
+  }
+
+  if (isPhone) {
+    return (
+      <div className="drv">
+        {sentNotice}
+        <DriverHero data={data} debt={debt} onPay={openPay} />
+        <MyProfile profile={data.profile} />
+        {modals}
+      </div>
+    );
+  }
 
   return (
     <div className="drv">
@@ -286,13 +419,13 @@ export default function DriverHomePage() {
           <p className="page-sub">{`${fmtDay(data.today)} · машина у вас с ${fmtDay(data.since)}`}</p>
         </div>
         <div className="form-actions">
-          <button type="button" className="btn" onClick={() => { setSent(false); setPayOpen(true); }}>Сообщить об оплате</button>
+          <button type="button" className="btn" onClick={openPay}>Сообщить об оплате</button>
           <NotifyButton />
         </div>
       </div>
 
       {error && <div className="notice notice--error">{error}</div>}
-      {sent && <div className="notice notice--ok">Оплата отправлена. Когда диспетчер её проверит, она появится в таблице ниже.</div>}
+      {sentNotice}
 
       <div className="drv__top">
         <article className="ct drv__car">
@@ -344,27 +477,7 @@ export default function DriverHomePage() {
       </div>
 
       <MyProfile profile={data.profile} />
-
-      {payOpen && (
-        <PayModal
-          suggested={debt > 0 ? debt : data.rate}
-          onClose={() => setPayOpen(false)}
-          onSent={() => { setPayOpen(false); setSent(true); setPayVersion((v) => v + 1); }}
-        />
-      )}
-
-      {reminderOpen && (
-        <Modal title="Напоминание об оплате" onClose={closeReminder}>
-          <div className="drv-remind">
-            <p className="drv-remind__sum">{fmtMoney(debt)} сум</p>
-            <p>{`У вас долг по аренде машины ${car.brand} ${car.model} (${car.plate})${debtDays ? `, примерно ${debtDays} дн. аренды` : ''}.`}</p>
-            <p>Пожалуйста, оплатите диспетчеру наличными или переводом.</p>
-            <div className="form-actions">
-              <button type="button" className="btn" onClick={closeReminder}>Понятно</button>
-            </div>
-          </div>
-        </Modal>
-      )}
+      {modals}
     </div>
   );
 }
