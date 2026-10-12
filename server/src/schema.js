@@ -270,6 +270,17 @@ CREATE TABLE IF NOT EXISTS driver_income (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_driver_income_driver ON driver_income (driver_id, day);
+CREATE TABLE IF NOT EXISTS push_subscriptions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL,
+  driver_id INTEGER,
+  endpoint TEXT NOT NULL UNIQUE,
+  p256dh TEXT NOT NULL,
+  auth TEXT NOT NULL,
+  last_debt_push_at TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_push_subscriptions_driver ON push_subscriptions (driver_id);
 `;
 
 export const SCHEMA_VERSION = 4;

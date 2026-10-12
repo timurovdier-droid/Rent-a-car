@@ -1,0 +1,14 @@
+name: Напоминания о долге
+
+on:
+  schedule:
+    - cron: '0 */2 * * *'
+  workflow_dispatch:
+
+jobs:
+  remind:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Разослать уведомления водителям с долгом
+        run: curl -fsS -X POST https://qween-fawn.vercel.app/api/v1/reminders/debt

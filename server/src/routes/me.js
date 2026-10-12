@@ -3,6 +3,7 @@ import { pool } from '../db.js';
 import { authenticate } from '../middleware/auth.js';
 import { writeAudit } from '../middleware/audit.js';
 import { localDay, localToday, isDay, addDays, daysBetween, carDailyLedger, rentStatus } from '../carMoney.js';
+import { pushPublicKey, sendPush } from '../push.js';
 
 const router = Router();
 router.use(authenticate);
@@ -35,6 +36,25 @@ async function openCharges(driverId) {
   return rows
     .map((r) => ({ ...r, paid: Number(r.paid), left: Number(r.amount) - Number(r.paid) }))
     .filter((r) => r.left > 0);
+}
+
+// Долг водителя: аренда по текущей машине и незакрытые начисления
+export async function driverDebt(driverId) {
+  const today = localToday();
+  const charges = (await openCharges(driverId)).reduce((s, c) => s + c.left, 0);
+  const assignment = await currentCar(driverId);
+  let rent = 0;
+  if (assignment) {
+    const carId = Number(assignment.car_id);
+    const { rows: first } = await pool.query(
+      'SELECT MIN(start_at) AS start_at FROM car_assignments WHERE car_id = $1 AND driver_id = $2',
+      [carId, driverId]
+    );
+    const firstDay = localDay(first[0]?.start_at || assignment.start_at) || today;
+    const overall = await carDailyLedger(pool, carId, firstDay, today, { driverId });
+    rent = Number(overall.totals.debt) || 0;
+  }
+  return { rent, charges, total: rent + charges };
 }
 
 function driverOnly(req, res) {
@@ -74,6 +94,50 @@ async function carOnDay(driverId, day, today) {
   });
   return hit ? Number(hit.car_id) : null;
 }
+
+// GET /me/push — ключ для подписки на уведомления
+router.get('/push', (req, res) => {
+  res.json({ key: pushPublicKey() });
+});
+
+// POST /me/push — сохранить подписку браузера на уведомления
+router.post('/push', async (req, res) => {
+  try {
+    const { endpoint, keys } = req.body || {};
+    if (!endpoint || !/^https:\/\//.test(endpoint) || !keys?.p256dh || !keys?.auth) {
+      return fail(res, 400, 'BAD_REQUEST', 'Неверная подписка');
+    }
+    const { rows: known } = await pool.query('SELECT id FROM push_subscriptions WHERE endpoint = $1', [endpoint]);
+    await pool.query(
+      `INSERT INTO push_subscriptions (user_id, driver_id, endpoint, p256dh, auth) VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT (endpoint) DO UPDATE SET user_id = excluded.user_id, driver_id = excluded.driver_id,
+         p256dh = excluded.p256dh, auth = excluded.auth`,
+      [req.user.id, req.user.driver_id || null, endpoint, keys.p256dh, keys.auth]
+    );
+    if (!known.length) {
+      await sendPush({ endpoint, p256dh: keys.p256dh, auth: keys.auth }, {
+        title: 'Уведомления включены',
+        body: 'Будем напоминать о долге по аренде каждые 2 часа, пока он есть.',
+        url: '/',
+      });
+    }
+    res.status(201).json({ ok: true, created: !known.length });
+  } catch (err) {
+    console.error('Ошибка подписки на уведомления:', err);
+    fail(res, 500, 'INTERNAL_ERROR', 'Внутренняя ошибка сервера');
+  }
+});
+
+// DELETE /me/push — отключить уведомления на этом устройстве
+router.delete('/push', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM push_subscriptions WHERE endpoint = $1 AND user_id = $2', [String(req.body?.endpoint || ''), req.user.id]);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('Ошибка отписки от уведомлений:', err);
+    fail(res, 500, 'INTERNAL_ERROR', 'Внутренняя ошибка сервера');
+  }
+});
 
 // GET /me/payments — оплаты, которые водитель отправил сам: ждут проверки, приняты или отклонены
 router.get('/payments', async (req, res) => {

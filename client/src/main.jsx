@@ -12,8 +12,10 @@ import './styles/mobile.css';
 
 import App from './App.jsx';
 import { startTranslator } from './i18n';
+import { registerWorker } from './push';
 
 startTranslator();
+registerWorker();
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>

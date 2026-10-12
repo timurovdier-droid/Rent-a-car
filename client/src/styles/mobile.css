@@ -194,6 +194,24 @@
 .dnet__calc dd { margin: 0; }
 .dnet__calc dt { font-size: 15px; color: var(--c-ink); }
 
+.pushcard {
+  display: flex; align-items: center; gap: 12px; margin: 0 0 16px; padding: 14px;
+  border-radius: 22px; background: linear-gradient(135deg, #FFF4B8, #FFE26B); color: #21201F;
+  box-shadow: 0 8px 22px rgba(255, 184, 0, .22); text-align: left;
+}
+.pushcard--muted { background: var(--c-soft); color: var(--c-ink); box-shadow: none; }
+.pushcard__icon { flex: none; font-size: 34px; line-height: 1; }
+.pushcard__icon--ring { animation: bellRing 2.4s ease-in-out infinite; transform-origin: 50% 10%; }
+.pushcard__text { display: grid; gap: 3px; flex: 1; min-width: 0; }
+.pushcard__text b { font-size: 16px; }
+.pushcard__text > span { font-size: 14px; opacity: .8; }
+.pushcard__error { color: #B42318; font-weight: 700; opacity: 1 !important; }
+.pushcard__btn { flex: none; min-height: 44px; padding: 0 16px; border-radius: 14px; background: #21201F; border-color: #21201F; color: #FFFFFF; font-weight: 800; }
+@keyframes bellRing {
+  0%, 60%, 100% { transform: rotate(0); }
+  64% { transform: rotate(16deg); } 70% { transform: rotate(-14deg); } 76% { transform: rotate(10deg); } 82% { transform: rotate(-6deg); }
+}
+
 .earn-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .earn-actions .shero__btn { margin-bottom: 16px; }
 html .earn-actions .earn-actions__in { background: #1E9E4A; border-color: #1E9E4A; color: #FFFFFF; }

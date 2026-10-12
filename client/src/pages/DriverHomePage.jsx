@@ -11,6 +11,7 @@ import { BrandLogo, CarVisual } from '../components/CarTile';
 import { LedgerSummary, LedgerTable } from '../components/CarLedger';
 import { RentStatusView } from '../components/RentStatus';
 import useIsPhone from '../components/useIsPhone';
+import PushCard from '../components/PushCard';
 import { fmtMoney, fmtDay, fmtDateTime, todayLocal, shiftDay, CHARGE_LABELS, PAY_METHODS, METHOD_LABELS } from '../labels';
 
 const HOUR = 60 * 60 * 1000;
@@ -277,6 +278,7 @@ function DriverHero({ data, debt }) {
 
   return (
     <div className="dhero">
+      <PushCard />
       <h2 className="dhero__subtitle">Мои статусы</h2>
       <div className="dstats">
         {cards.map((c) => <StatusCard key={c.label} {...c} />)}
