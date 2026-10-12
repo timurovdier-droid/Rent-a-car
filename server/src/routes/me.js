@@ -380,7 +380,7 @@ router.delete('/mileage/:id', async (req, res) => {
   }
 });
 
-const EXPENSE_KINDS = ['FUEL', 'GAS', 'CHARGE', 'WASH', 'OTHER'];
+const EXPENSE_KINDS = ['FUEL', 'GAS', 'CHARGE', 'WASH', 'LUNCH', 'OTHER'];
 
 // GET /me/expenses — расходы водителя на заправку, зарядку, мойку
 router.get('/expenses', async (req, res) => {

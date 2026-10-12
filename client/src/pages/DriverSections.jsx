@@ -16,6 +16,7 @@ export const EXPENSE_KINDS = [
   ['GAS', 'Газ'],
   ['CHARGE', 'Зарядка'],
   ['WASH', 'Мойка'],
+  ['LUNCH', 'Обед'],
   ['OTHER', 'Другое'],
 ];
 const EXPENSE_LABELS = Object.fromEntries(EXPENSE_KINDS);
@@ -563,7 +564,7 @@ function entriesWord(n) {
   return 'записей';
 }
 
-const EXPENSE_ICONS = { FUEL: '⛽', GAS: '🔥', CHARGE: '⚡', WASH: '🚿', OTHER: '🧾' };
+const EXPENSE_ICONS = { FUEL: '⛽', GAS: '🔥', CHARGE: '⚡', WASH: '🚿', LUNCH: '🍔', OTHER: '🧾' };
 const TANK_SIZE = { FUEL: 60, GAS: 30, CHARGE: 75 };
 const VOLUME_CHIPS = { FUEL: [10, 20, 30, 40], GAS: [5, 10, 15, 20], CHARGE: [10, 20, 40, 60] };
 
@@ -597,7 +598,7 @@ function ExpenseModal({ onClose, onSaved }) {
     setSaving(true);
     setError('');
     try {
-      await api.post('/me/expenses', { kind, amount, volume: unit ? volume : '', odometer, date: day, time, comment });
+      await api.post('/me/expenses', { kind, amount, volume: unit ? volume : '', odometer: kind === 'LUNCH' ? '' : odometer, date: day, time, comment });
       buzz();
       const line = `${EXPENSE_ICONS[kind]} −${fmtMoney(sum)} сум`;
       setDone({ line });
@@ -663,10 +664,12 @@ function ExpenseModal({ onClose, onSaved }) {
             </div>
           </div>
         )}
-        <div className="field">
-          <label className="field__label" htmlFor="ex-odo">Пробег сейчас</label>
-          <MoneyInput id="ex-odo" value={odometer} onChange={setOdometer} suffix="км" />
-        </div>
+        {kind !== 'LUNCH' && (
+          <div className="field">
+            <label className="field__label" htmlFor="ex-odo">Пробег сейчас</label>
+            <MoneyInput id="ex-odo" value={odometer} onChange={setOdometer} suffix="км" />
+          </div>
+        )}
         <div className="field">
           <span className="field__label">Дата</span>
           <div className="qchips qchips--top">
@@ -830,7 +833,7 @@ export function DriverEarningsPage() {
               <div><dt>Заработали</dt><dd className="num-plus">{`+${fmtMoney(data.income)} сум`}</dd></div>
               <div><dt>Аренда машины</dt><dd className="num-minus">{`−${fmtMoney(data.rent)} сум`}</dd></div>
               <div>
-                <dt>Расходы (заправка, мойка…)</dt>
+                <dt>Расходы (заправка, обед…)</dt>
                 <dd className="num-minus">{`−${fmtMoney(data.spent)} сум`}</dd>
               </div>
               {data.expenses.map((e) => (

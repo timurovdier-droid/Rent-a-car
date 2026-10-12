@@ -407,6 +407,7 @@ body:has(.modal) .tabbar { display: none; }
 .xhead--gas { --k: #FF7A1A; }
 .xhead--charge { --k: #3D7BFF; }
 .xhead--wash { --k: #2EC5E8; }
+.xhead--lunch { --k: #FF5A8A; }
 .xhead--other { --k: #9B8CFF; }
 .xhead__icon {
   flex: none; display: grid; place-items: center; width: 64px; height: 64px; border-radius: 20px;
@@ -421,9 +422,9 @@ body:has(.modal) .tabbar { display: none; }
 @keyframes iconHop { 0% { transform: scale(.4) rotate(-20deg); } 60% { transform: scale(1.15) rotate(8deg); } 100% { transform: scale(1) rotate(0); } }
 .kind-btn--on .kind-btn__icon { animation: iconHop .45s cubic-bezier(.3, 1.8, .5, 1); }
 .kind-btn { transition: transform .12s ease, border-color .2s ease, background .2s ease; }
-.kind-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
-.kind-grid .kind-btn { padding: 10px 2px; font-size: 12px; min-width: 0; }
-.kind-grid .kind-btn__icon { font-size: 28px; }
+.kind-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.kind-grid .kind-btn { padding: 10px 2px; font-size: 14px; min-width: 0; }
+.kind-grid .kind-btn__icon { font-size: 30px; }
 .qchip--ghost { background: transparent; color: var(--c-muted); }
 
 .tank {
