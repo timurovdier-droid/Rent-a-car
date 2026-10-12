@@ -16,6 +16,16 @@
 @keyframes ptoast-in { from { transform: translate(-50%, -20px); opacity: 0; } }
 
 @media (max-width: 1023px) {
+  .topbar {
+    height: calc(60px + env(safe-area-inset-top));
+    padding-top: env(safe-area-inset-top);
+    padding-left: calc(12px + env(safe-area-inset-left));
+    padding-right: calc(12px + env(safe-area-inset-right));
+  }
+  .nav { padding-top: calc(12px + env(safe-area-inset-top)); }
+  .ptoast { top: calc(12px + env(safe-area-inset-top)); }
+  .modal { padding-top: calc(12px + env(safe-area-inset-top)); padding-bottom: calc(12px + env(safe-area-inset-bottom)); }
+  .main { padding-left: max(16px, env(safe-area-inset-left)); padding-right: max(16px, env(safe-area-inset-right)); }
   .main { padding-bottom: calc(112px + env(safe-area-inset-bottom)); }
   .bell { bottom: calc(96px + env(safe-area-inset-bottom)); }
   .mhome, .dhero { max-width: 560px; margin-left: auto; margin-right: auto; }
