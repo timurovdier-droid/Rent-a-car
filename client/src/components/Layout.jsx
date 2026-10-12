@@ -100,6 +100,7 @@ function SoundToggle() {
         type="button"
         role="switch"
         aria-checked={on}
+        aria-label="Звук"
         className={`switch ${on ? 'switch--on' : ''}`}
         onClick={() => { setSoundOn(!on); setOn(!on); if (!on) playTap(); }}
       >
