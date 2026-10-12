@@ -41,6 +41,105 @@ function EditDispatcherModal({ dispatcher, onClose, onDone }) {
   );
 }
 
+function PasswordModal({ title, name, password, onClose }) {
+  const [copied, setCopied] = useState(false);
+
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(password);
+    } catch {
+      const area = document.createElement('textarea');
+      area.value = password;
+      document.body.appendChild(area);
+      area.select();
+      document.execCommand('copy');
+      area.remove();
+    }
+    setCopied(true);
+  }
+
+  return (
+    <Modal title={title} onClose={onClose}>
+      <p style={{ marginTop: 0 }}>Диспетчер: <b data-no-translate>{name}</b></p>
+      <span className="field__label">Временный пароль</span>
+      <div className="temp-pass">
+        <code className="temp-pass__value" data-no-translate>{password}</code>
+        <button type="button" className={`btn ${copied ? 'btn--ok' : ''}`} onClick={copy}>{copied ? 'Скопировано ✓' : 'Скопировать'}</button>
+      </div>
+      <p className="muted small">Передайте его диспетчеру. Пароль действует 72 часа.</p>
+      <div className="form-actions">
+        <button className="btn btn--quiet" type="button" onClick={onClose}>Готово</button>
+      </div>
+    </Modal>
+  );
+}
+
+function ResetPasswordModal({ dispatcher, onClose, onDone }) {
+  const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  async function reset() {
+    setSaving(true);
+    setError('');
+    try {
+      const { tempPassword } = await api.post(`/dispatchers/${dispatcher.id}/reset-password`);
+      onDone(tempPassword);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Не удалось сбросить пароль');
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Modal title="Сбросить пароль" onClose={onClose}>
+      <p style={{ marginTop: 0 }}>Диспетчер: <b data-no-translate>{dispatcher.full_name}</b></p>
+      <p>Старый пароль перестанет работать. Сайт выдаст новый временный пароль.</p>
+      {error && <div className="notice notice--error">{error}</div>}
+      <div className="form-actions">
+        <button className="btn" type="button" onClick={reset} disabled={saving}>{saving ? 'Сбрасываю…' : 'Сбросить пароль'}</button>
+        <button className="btn btn--quiet" type="button" onClick={onClose}>Отмена</button>
+      </div>
+    </Modal>
+  );
+}
+
+function ArchiveDispatcherModal({ dispatcher, onClose, onDone }) {
+  const [reason, setReason] = useState('');
+  const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  async function submit(e) {
+    e.preventDefault();
+    setSaving(true);
+    setError('');
+    try {
+      await api.post(`/dispatchers/${dispatcher.id}/archive`, { reason });
+      onDone();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Не удалось архивировать');
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Modal title="Архивировать диспетчера" onClose={onClose}>
+      <form onSubmit={submit}>
+        <p style={{ marginTop: 0 }}>Диспетчер: <b data-no-translate>{dispatcher.full_name}</b></p>
+        <p>После архивации он больше не сможет войти.</p>
+        <div className="field">
+          <label className="field__label" htmlFor="dsp-reason">Причина</label>
+          <input id="dsp-reason" className="field__input" value={reason} onChange={(e) => setReason(e.target.value)} required maxLength={300} autoFocus />
+        </div>
+        {error && <div className="notice notice--error">{error}</div>}
+        <div className="form-actions">
+          <button className="btn btn--danger" type="submit" disabled={saving || !reason.trim()}>{saving ? 'Архивирую…' : 'Архивировать'}</button>
+          <button className="btn btn--quiet" type="button" onClick={onClose}>Отмена</button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
 export default function DispatchersPage({ embedded = false }) {
   const [dispatchers, setDispatchers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -50,6 +149,9 @@ export default function DispatchersPage({ embedded = false }) {
   const [formError, setFormError] = useState('');
   const [form, setForm] = useState({ full_name: '', phone: '', login: '' });
   const [editing, setEditing] = useState(null);
+  const [resetting, setResetting] = useState(null);
+  const [archiving, setArchiving] = useState(null);
+  const [password, setPassword] = useState(null);
 
   async function fetchDispatchers() {
     try {
@@ -80,35 +182,11 @@ export default function DispatchersPage({ embedded = false }) {
       setShowForm(false);
       setForm({ full_name: '', phone: '', login: '' });
       await fetchDispatchers();
-      window.alert(`Диспетчер создан.\n\nВременный пароль (показывается один раз):\n${created.tempPassword}`);
+      setPassword({ title: 'Диспетчер создан', name: form.full_name, value: created.tempPassword });
     } catch (err) {
       setFormError(err instanceof ApiError ? err.message : 'Не удалось создать диспетчера');
     } finally {
       setSaving(false);
-    }
-  }
-
-  async function handleResetPassword(id, fullName) {
-    if (!window.confirm(`Сбросить пароль для диспетчера "${fullName}"?`)) return;
-
-    try {
-      const { tempPassword } = await api.post(`/dispatchers/${id}/reset-password`);
-      alert(`Временный пароль для ${fullName}:\n\n${tempPassword}\n\nСкопируйте его и передайте диспетчеру. Он будет действовать 72 часа.`);
-    } catch (err) {
-      alert('Ошибка при сбросе пароля: ' + (err.message || 'Неизвестная ошибка'));
-    }
-  }
-
-  async function handleArchive(id, fullName) {
-    const reason = window.prompt(`Укажите причину архивации диспетчера "${fullName}":`);
-    if (!reason) return;
-
-    try {
-      await api.post(`/dispatchers/${id}/archive`, { reason });
-      alert('Диспетчер архивирован');
-      fetchDispatchers();
-    } catch (err) {
-      alert('Ошибка при архивации: ' + (err.message || 'Неизвестная ошибка'));
     }
   }
 
@@ -186,14 +264,14 @@ export default function DispatchersPage({ embedded = false }) {
                     <button 
                       className="btn btn--quiet" 
                       style={{ marginRight: 'var(--sp-2)', fontSize: 'var(--fs-s)', minHeight: '32px' }}
-                      onClick={() => handleResetPassword(d.id, d.full_name)}
+                      onClick={() => setResetting(d)}
                     >
                       Сбросить пароль
                     </button>
                     <button 
                       className="btn btn--danger" 
                       style={{ fontSize: 'var(--fs-s)', minHeight: '32px' }}
-                      onClick={() => handleArchive(d.id, d.full_name)}
+                      onClick={() => setArchiving(d)}
                     >
                       Архивировать
                     </button>
@@ -210,6 +288,23 @@ export default function DispatchersPage({ embedded = false }) {
           onClose={() => setEditing(null)}
           onDone={() => { setEditing(null); fetchDispatchers(); }}
         />
+      )}
+      {resetting && (
+        <ResetPasswordModal
+          dispatcher={resetting}
+          onClose={() => setResetting(null)}
+          onDone={(value) => { setPassword({ title: 'Пароль сброшен', name: resetting.full_name, value }); setResetting(null); fetchDispatchers(); }}
+        />
+      )}
+      {archiving && (
+        <ArchiveDispatcherModal
+          dispatcher={archiving}
+          onClose={() => setArchiving(null)}
+          onDone={() => { setArchiving(null); fetchDispatchers(); }}
+        />
+      )}
+      {password && (
+        <PasswordModal title={password.title} name={password.name} password={password.value} onClose={() => setPassword(null)} />
       )}
     </div>
   );

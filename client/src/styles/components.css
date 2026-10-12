@@ -447,6 +447,9 @@ a.person:hover, .person--link:hover { border-color: #CFCDC8; box-shadow: 0 6px 1
 .modal__title { margin: 0; font-size: 18px; font-weight: 600; }
 .modal__close { border: 0; background: #F2F3F5; width: 32px; height: 32px; border-radius: 50%; font-size: 20px; line-height: 1; cursor: pointer; color: var(--c-ink); }
 .modal .field { max-width: none; }
+.temp-pass { display: flex; align-items: center; gap: 10px; margin: 6px 0 12px; padding: 10px 10px 10px 16px; border-radius: 14px; background: var(--c-soft); border: 1px dashed var(--c-line-strong, var(--c-line)); }
+.temp-pass__value { flex: 1; min-width: 0; font: 800 24px/1.2 ui-monospace, 'SF Mono', Menlo, Consolas, monospace; letter-spacing: .06em; overflow-wrap: anywhere; user-select: all; }
+.temp-pass .btn { flex: none; }
 
 .back-link { display: inline-flex; align-items: center; gap: 6px; color: var(--c-muted); text-decoration: none; font-size: 14px; margin-bottom: 10px; }
 .back-link:hover { color: var(--c-ink); }
