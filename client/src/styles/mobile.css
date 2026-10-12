@@ -19,6 +19,8 @@
   .main { padding-bottom: calc(112px + env(safe-area-inset-bottom)); }
   .bell { bottom: calc(96px + env(safe-area-inset-bottom)); }
   .mhome, .dhero { max-width: 560px; margin-left: auto; margin-right: auto; }
+  .shell--menu .tabbar, .shell--menu .bell { display: none; }
+  .nav__foot { padding-bottom: calc(12px + env(safe-area-inset-bottom)); }
 
   .tabbar {
     display: flex; align-items: center; gap: 10px;
