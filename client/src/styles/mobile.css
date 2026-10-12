@@ -358,7 +358,14 @@ input[type='time'].field__input::-webkit-date-and-time-value { text-align: left;
 }
 body:has(.modal) .tabbar { display: none; }
 .modal { grid-template-columns: minmax(0, 1fr); justify-items: center; overflow-x: hidden; }
-.modal__panel { box-sizing: border-box; max-width: 100%; min-width: 0; }
+.modal__panel { box-sizing: border-box; max-width: min(100%, calc(100vw - 24px)); min-width: 0; overflow-x: hidden; }
+.modal__panel form, .modal__panel .field { min-width: 0; max-width: 100%; }
+.time-row input[type='time'].field__input { flex: 1 1 0; width: 0; max-width: none; }
+@media (max-width: 1023px) {
+  html, body { max-width: 100%; overflow-x: clip; }
+  .modal { padding: 12px; }
+  .modal__panel { width: 100%; padding: 16px; }
+}
 .odo { min-width: 0; max-width: 100%; box-sizing: border-box; overflow: hidden; gap: clamp(2px, 1vw, 5px); padding: 14px 8px; }
 .odo__cell { flex: 0 1 1.1em; font-size: clamp(20px, 7vw, 30px); }
 .odo__unit { flex: none; font-size: clamp(14px, 4vw, 18px); }
