@@ -18,7 +18,7 @@ const ROLE_LABELS = {
   OWNER: 'Арендодатель',
 };
 
-function menuFor(role) {
+function menuFor(role, isPhone) {
   if (role === 'DRIVER') {
     return [
       { to: '/', label: 'Моя аренда', icon: 'car', end: true },
@@ -36,6 +36,7 @@ function menuFor(role) {
   }
   if (role === 'ADMIN') {
     return [
+      ...(isPhone ? [{ to: '/', label: 'Главная', icon: 'home', end: true }] : []),
       { to: '/drivers', label: 'Водители', icon: 'users' },
       { to: '/cars', label: 'Автомобили', icon: 'car' },
       { to: '/users', label: 'Пользователи', icon: 'team' },
@@ -191,7 +192,7 @@ export default function Layout() {
   const mainRef = useRef(null);
   const isPhone = useIsPhone();
   useTableLabels(mainRef);
-  const menuItems = menuFor(user?.role);
+  const menuItems = menuFor(user?.role, isPhone);
   const current = menuItems.find((item) => (item.end ? pathname === item.to : pathname.startsWith(item.to)));
 
   useEffect(() => { setMenuOpen(false); }, [pathname]);
