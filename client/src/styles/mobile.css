@@ -121,32 +121,14 @@
   .dhero { display: flex; flex-direction: column; align-items: center; text-align: center; padding-top: 8px; }
   .dhero__title { margin: 0; font-size: 26px; font-weight: 800; letter-spacing: -.03em; }
   .dhero__sub { margin: 4px 0 0; color: var(--c-muted); }
-  .dhero__orb {
-    position: relative; width: 250px; height: 250px; margin: 34px 0 18px;
-    padding: 0; border: 0; border-radius: 50%; background: transparent;
-    cursor: pointer; -webkit-tap-highlight-color: transparent;
+  .dhero__car {
+    display: block; width: 100%; margin: 22px 0 14px; padding: 0;
+    border: 0; background: transparent; cursor: pointer;
+    -webkit-tap-highlight-color: transparent; transition: transform .15s;
   }
-  .dhero__orb:active .dhero__disc { transform: scale(.95); }
-  .dhero__ring {
-    position: absolute; inset: 0; border-radius: 50%;
-    background: var(--c-primary); opacity: 0;
-    animation: orb-pulse 2.6s ease-out infinite;
-  }
-  .dhero__ring--2 { animation-delay: 1.3s; }
-  .dhero__orb--debt .dhero__ring { background: var(--c-danger-solid); }
-  .dhero__disc {
-    position: absolute; inset: 0; border-radius: 50%; overflow: hidden;
-    display: grid; place-items: center;
-    background: radial-gradient(circle at 35% 30%, #FFF27A, var(--c-primary) 60%, #E8C500);
-    box-shadow: 0 18px 50px -10px rgb(252 224 0 / .45);
-    transition: transform .15s;
-  }
-  .dhero__orb--debt .dhero__disc {
-    background: radial-gradient(circle at 35% 30%, #FF8A80, var(--c-danger-solid) 65%, #B8322A);
-    box-shadow: 0 18px 50px -10px rgb(229 69 58 / .5);
-  }
-  .dhero__photo { width: 100%; height: 100%; object-fit: cover; }
-  .dhero__pic { width: 86%; transform: translateY(6%); }
+  .dhero__car:active { transform: scale(.97); }
+  .dhero__car img { display: block; width: 100%; max-height: 260px; object-fit: contain; margin: 0 auto; }
+  .dhero__photo { border-radius: 24px; }
   .dhero__tap { margin: 10px 0 0; color: var(--c-muted); font-size: 14px; }
   .dhero__subtitle { align-self: flex-start; margin: 30px 2px 10px; font-size: 18px; font-weight: 800; }
   .dstats {
@@ -227,11 +209,7 @@
 .contacts-loc .btn { justify-self: start; }
 @media (max-width: 600px) { .contacts-row { grid-template-columns: 1fr; } }
 
-@keyframes orb-pulse {
-  0% { transform: scale(1); opacity: .45; }
-  100% { transform: scale(1.45); opacity: 0; }
-}
 @keyframes sheet-in { from { opacity: 0; transform: translateY(12px); } }
 @media (prefers-reduced-motion: reduce) {
-  .dhero__ring, .search-sheet, .ptoast { animation: none; }
+  .search-sheet, .ptoast { animation: none; }
 }

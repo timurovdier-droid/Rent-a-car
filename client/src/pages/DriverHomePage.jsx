@@ -282,12 +282,8 @@ function DriverHero({ data, debt, onPay }) {
         <h1 className="dhero__title">{`${car.brand} ${car.model}`}</h1>
         <p className="dhero__sub">{`машина у вас с ${fmtDay(data.since)}`}</p>
       </div>
-      <button type="button" className={`dhero__orb ${debt > 0 ? 'dhero__orb--debt' : ''}`} onClick={onPay} aria-label="Сообщить об оплате">
-        <span className="dhero__ring" aria-hidden="true" />
-        <span className="dhero__ring dhero__ring--2" aria-hidden="true" />
-        <span className="dhero__disc">
-          <img src={photo} alt="" className={car.photo_version ? 'dhero__photo' : 'dhero__pic'} />
-        </span>
+      <button type="button" className="dhero__car" onClick={onPay} aria-label="Сообщить об оплате">
+        <img src={photo} alt={`${car.brand} ${car.model}`} className={car.photo_version ? 'dhero__photo' : 'dhero__pic'} />
       </button>
       <div className="dhero__plate"><Plate value={car.plate} /></div>
       <p className="dhero__tap">Нажмите на машину, чтобы сообщить об оплате</p>

@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "graft": {
+      "command": "C:\\Users\\user\\AppData\\Local\\nvm\\v22.22.0\\node.exe",
+      "args": [
+        "C:\\Users\\user\\AppData\\Local\\nvm\\v22.22.0\\node_modules\\@nanonets\\graft\\dist\\cli.js",
+        "mcp"
+      ]
+    }
+  }
+}
