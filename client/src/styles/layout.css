@@ -210,6 +210,61 @@ body.no-scroll { overflow: hidden; }
 }
 .login__title { text-align: center; }
 .login__sub { text-align: center; }
+.yid {
+  width: min(27rem, 100%);
+  background: var(--c-surface);
+  border-radius: 28px;
+  padding: 32px 28px 24px;
+  box-shadow: 0 12px 40px rgb(0 0 0 / .08);
+}
+.yid__brand { display: flex; justify-content: center; margin-bottom: 20px; }
+.yid__title { margin: 0 0 20px; text-align: center; font-size: 22px; font-weight: 700; letter-spacing: -.02em; }
+.yid__tabs {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 4px;
+  padding: 4px; margin-bottom: 16px;
+  background: var(--c-bg); border-radius: 18px;
+}
+.yid__tab {
+  height: 48px; border: 0; border-radius: 14px;
+  background: transparent; color: var(--c-muted);
+  font: inherit; font-size: 15px; font-weight: 600; cursor: pointer;
+  transition: background .15s, color .15s;
+}
+.yid__tab--on { background: var(--c-surface); color: var(--c-ink); box-shadow: 0 1px 4px rgb(0 0 0 / .12); }
+.yid__input {
+  display: flex; align-items: center; box-sizing: border-box;
+  width: 100%; height: 58px; padding: 0 18px;
+  border: 2px solid var(--c-line-strong); border-radius: 16px;
+  background: transparent; color: var(--c-ink);
+  font: inherit; font-size: 17px; outline: none;
+  transition: border-color .15s;
+}
+.yid__input:focus, .yid__input:focus-within { border-color: var(--c-ink); }
+.yid__input::placeholder, .yid__phone input::placeholder { color: var(--c-muted); }
+.yid__phone { gap: 8px; cursor: text; }
+.yid__prefix { color: var(--c-ink); font-weight: 500; }
+.yid__phone input {
+  flex: 1; min-width: 0; height: 100%; border: 0; padding: 0;
+  background: transparent; color: inherit; font: inherit; outline: none;
+}
+.yid__btn {
+  width: 100%; height: 56px; margin-top: 20px;
+  border: 0; border-radius: 16px;
+  background: var(--c-ink); color: var(--c-surface);
+  font: inherit; font-size: 16px; font-weight: 600; cursor: pointer;
+  transition: opacity .15s;
+}
+.yid__btn:hover { opacity: .9; }
+.yid__btn:disabled { opacity: .5; cursor: default; }
+.yid__who {
+  display: flex; align-items: center; gap: 10px; width: 100%;
+  margin: -6px 0 16px; padding: 10px 14px;
+  border: 0; border-radius: 14px; background: var(--c-bg); color: var(--c-ink);
+  font: inherit; font-size: 15px; font-weight: 500; cursor: pointer; text-align: left;
+}
+.yid__who:hover { opacity: .85; }
+.yid__error { margin: 10px 2px 0; color: var(--c-danger); font-size: 14px; }
+.yid__hint { margin: 20px 0 0; text-align: center; color: var(--c-muted); font-size: 13px; }
 .login__card {
   width: min(26rem, 100%);
   background: var(--c-surface);
