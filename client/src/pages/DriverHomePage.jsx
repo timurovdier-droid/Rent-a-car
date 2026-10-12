@@ -255,7 +255,7 @@ function DriverHero({ data, debt, onPay }) {
   }, []);
   const photo = car.photo_version ? `/api/v1/me/car-photo?v=${car.photo_version}` : '/tiles/cars.webp';
   const otherDebt = (data.charges || []).reduce((s, c) => s + c.left, 0);
-  const overpaid = status ? 0 : data.overpaid;
+  const overpaid = Number(status?.overpaid ?? data.overpaid ?? 0);
   const cards = [];
 
   if (debt > 0) {
@@ -266,7 +266,7 @@ function DriverHero({ data, debt, onPay }) {
       tone: 'ok',
       label: 'Аренда',
       value: ahead ? `до ${fmtDay(status.ahead_until)}` : overpaid > 0 ? `+${fmtMoney(overpaid)} сум` : 'Оплачено',
-      hint: ahead ? 'оплачено вперёд' : 'долгов нет',
+      hint: ahead || overpaid > 0 ? 'оплачено вперёд' : 'долгов нет',
     });
   }
   cards.push({ label: 'Аренда в день', value: `${fmtMoney(data.rate)} сум` });

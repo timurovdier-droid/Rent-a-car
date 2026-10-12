@@ -165,7 +165,7 @@
   .dstats {
     align-self: stretch; display: flex; gap: 10px;
     margin: 0 -16px 20px; padding: 0 16px 4px;
-    overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none;
+    overflow-x: auto; scroll-snap-type: x mandatory; scroll-padding: 0 16px; scrollbar-width: none;
   }
   .dstats::-webkit-scrollbar { display: none; }
   .dstat {
