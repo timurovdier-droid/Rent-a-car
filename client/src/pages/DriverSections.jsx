@@ -332,7 +332,7 @@ function KmGauge({ km }) {
   );
 }
 
-const CONFETTI = ['#FFD000', '#1E9E4A', '#FF5A5F', '#3D7BFF', '#FFFFFF', '#FF9F1C'];
+const CONFETTI = ['#FF5A00', '#0A0A0A', '#FF5A00', '#0A0A0A', '#FFFFFF', '#FF5A00'];
 
 function SavedBurst({ line }) {
   return (

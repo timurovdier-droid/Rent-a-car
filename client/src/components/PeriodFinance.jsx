@@ -67,7 +67,7 @@ export default function PeriodFinance() {
                 <div key={c.category} style={{ marginBottom: 10 }}>
                   <div className="car-card__row"><span>{CATEGORY_LABELS[c.category] || c.category}</span><b>{fmtMoney(c.total)} сум</b></div>
                   <div style={{ height: 6, background: 'var(--c-soft)', borderRadius: 3, marginTop: 4 }}>
-                    <div style={{ width: `${(c.total / maxCategory) * 100}%`, height: '100%', background: '#F08A80', borderRadius: 3 }} />
+                    <div style={{ width: `${(c.total / maxCategory) * 100}%`, height: '100%', background: 'var(--bar-expense, #F08A80)', borderRadius: 3 }} />
                   </div>
                 </div>
               ))}
