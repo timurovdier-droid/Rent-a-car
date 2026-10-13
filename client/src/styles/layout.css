@@ -21,6 +21,7 @@
 }
 .topbar__btn:hover { background: var(--c-row-hover); }
 .topbar__section {
+  display: none;
   flex: 1; min-width: 0;
   font-size: 15px; font-weight: 600; color: var(--c-ink);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
@@ -54,14 +55,12 @@ button.umenu__item { width: 100%; border: 0; background: transparent; font: inhe
 button.umenu__logout { margin-top: 2px; border-top: 1px solid var(--c-line); border-radius: 0 0 var(--r-control) var(--r-control); color: var(--c-danger); }
 .umenu__row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 0 2px 0 12px; font-weight: 600; }
 .umenu__pop .theme-toggle { margin: 0; justify-content: flex-start; padding: 0 12px; }
-.topbar__avatar,
 .nav__avatar {
   display: inline-flex; align-items: center; justify-content: center; flex: none;
   width: 34px; height: 34px; border-radius: 50%;
   background: var(--c-primary); color: var(--c-on-primary);
   font-size: 13px; font-weight: 700; text-decoration: none;
 }
-.topbar__avatar { margin-left: auto; }
 .avatar-logo { display: block; width: 24px; height: auto; filter: brightness(0); }
 
 /* Логотип с названием */
@@ -283,9 +282,9 @@ body.no-scroll { overflow: hidden; }
     grid-column: 1 / -1;
     height: 64px; padding: 0 20px 0 22px; gap: 16px;
   }
-  .topbar__burger, .topbar__avatar, .nav-backdrop, .nav__close, .nav__brand, .nav__user, .nav__foot, .app-controls { display: none; }
+  .topbar__burger, .nav-backdrop, .nav__close, .nav__brand, .nav__user, .nav__foot, .app-controls { display: none; }
   .topbar__tools { display: flex; }
-  .topbar__section { flex: 0 1 auto; }
+  .topbar__section { display: block; flex: 0 1 auto; }
   .nav {
     position: sticky;
     top: 64px;

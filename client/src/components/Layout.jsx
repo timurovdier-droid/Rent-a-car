@@ -234,7 +234,6 @@ export default function Layout() {
         <div className="topbar__tools">
           <UserMenu user={user} onLogout={handleLogout} />
         </div>
-        <NavLink to="/profile" className="topbar__avatar" title="Перейти в профиль"><AvatarLogo /></NavLink>
       </header>
       <div className="nav-backdrop" onClick={() => setMenuOpen(false)} aria-hidden="true" />
 
