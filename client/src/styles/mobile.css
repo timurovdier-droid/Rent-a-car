@@ -127,6 +127,13 @@
   }
   .mtile__img { display: block; width: 82%; max-height: 112px; object-fit: contain; object-position: center; }
   .mtile__img[src$='/cars.webp'] { width: 100%; }
+  .mtile__img[src$='/summary.webp'],
+  .mtile__img[src$='/drivers.webp'],
+  .mtile__img[src$='/cars.webp'] { filter: drop-shadow(0 0 .6px rgb(18 21 25 / .35)) drop-shadow(0 0 .6px rgb(18 21 25 / .35)); }
+  [data-theme='dark'] .mtile__img[src] { filter: drop-shadow(0 0 .7px rgb(255 255 255 / .7)) drop-shadow(0 0 .7px rgb(255 255 255 / .7)); }
+  [data-theme='dark'] .mtile__img[src$='/dispatchers.webp'],
+  [data-theme='dark'] .mtile__img[src$='/owners.webp'] { filter: invert(1); }
+
   .mtile--wide { grid-column: span 2; }
   .mtile--wide .mtile__card { min-height: 124px; }
   .mtile--wide .mtile__img { width: auto; max-width: 60%; max-height: 96px; }
