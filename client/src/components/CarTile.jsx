@@ -51,19 +51,19 @@ export default function CarTile({ car, onEdit, alert = false, children }) {
   return (
     <article className={`ct ${alert ? 'ct--alert' : ''}`}>
       <Link to={`/cars/${car.id}`} className="ct__link" aria-label={`Открыть ${car.brand} ${car.model} ${car.plate}`} />
-      <div className="ct__head">
+      <div className="ct__visual">
         <BrandLogo brand={car.brand} />
-        <div className="ct__names">
-          <div className="ct__brand">{car.brand}</div>
-          <div className="ct__model">{[car.model, car.year].filter(Boolean).join(' · ')}</div>
-        </div>
         {onEdit && (
           <button type="button" className="ct__edit" onClick={() => onEdit(car)} aria-label="Изменить автомобиль" title="Изменить">
             <Pencil />
           </button>
         )}
+        <CarVisual car={car} />
       </div>
-      <div className="ct__visual"><CarVisual car={car} /></div>
+      <div className="ct__title">
+        <span className="ct__name">{car.brand} {car.model}</span>
+        {car.year && <span className="ct__year"> • {car.year}</span>}
+      </div>
       <div className="ct__plate"><Plate value={car.plate} /></div>
       {children && <div className="ct__info">{children}</div>}
     </article>

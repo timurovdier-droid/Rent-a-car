@@ -169,41 +169,57 @@
 
 /* Сетка карточек машин */
 .car-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(15.5rem, 1fr)); gap: 12px; }
-.car-grid--tiles { grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr)); gap: 14px; }
+.car-grid--tiles { grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr)); gap: 28px 18px; }
 
-/* Карточка машины: марка, фото, номер */
+/* Карточка машины: машина крупно на светлой плашке, под ней название и номер */
 .ct {
-  --ct-bg: var(--c-surface);
-  position: relative; display: flex; flex-direction: column; gap: 6px;
-  padding: 18px 18px 16px; border-radius: 28px;
-  background: var(--ct-bg); border: 1px solid var(--c-line);
-  transition: box-shadow .15s, transform .15s, border-color .15s;
+  --ct-box: #F2F3F5;
+  position: relative; display: flex; flex-direction: column; gap: 8px;
+  padding: 0 0 6px; border-radius: 28px;
 }
-.ct:hover { box-shadow: 0 10px 28px rgb(33 32 31 / .10); transform: translateY(-2px); border-color: transparent; }
-.ct--alert { border-color: #F5C26B; }
 .ct__link { position: absolute; inset: 0; z-index: 1; border-radius: inherit; }
-.ct__link:focus-visible { outline: 2px solid var(--c-focus); outline-offset: 2px; }
-.ct__head { display: flex; align-items: center; gap: 14px; }
+.ct__link:focus-visible { outline: 2px solid var(--c-focus); outline-offset: 4px; }
+.ct__visual {
+  position: relative; height: 190px; padding: 18px 16px 10px;
+  display: grid; place-items: center;
+  border-radius: 28px; background: var(--ct-box);
+  box-shadow: inset 0 0 0 2px transparent;
+  transition: background-color .2s, box-shadow .2s, transform .2s;
+}
+.ct:hover .ct__visual { background: #E9EAED; transform: translateY(-2px); }
+.ct--alert .ct__visual { box-shadow: inset 0 0 0 2px #F5C26B; }
+.ct__visual .ct__photo,
+.ct__visual .ct__drawing { transition: transform .25s ease; }
+.ct:hover .ct__visual .ct__photo,
+.ct:hover .ct__visual .ct__drawing { transform: scale(1.04); }
+.ct__photo { max-width: 100%; max-height: 160px; object-fit: contain; mix-blend-mode: multiply; }
+.ct__drawing { width: 88%; max-width: 300px; height: auto; mix-blend-mode: multiply; }
 .ct__logo {
-  flex: none; width: 56px; height: 56px; border-radius: 16px; background: var(--c-soft);
+  position: absolute; top: 12px; left: 12px;
+  width: 34px; height: 34px; border-radius: 50%; background: rgb(255 255 255 / .85);
   display: grid; place-items: center; overflow: hidden;
 }
-.ct__logo img { width: 36px; height: 36px; object-fit: contain; }
-.ct__logo-letter { font-size: 22px; font-weight: 700; color: var(--c-muted); }
-.ct__names { min-width: 0; flex: 1; }
-.ct__brand { font-size: 18px; font-weight: 500; color: var(--c-muted); line-height: 1.2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ct__model { font-size: 14px; font-weight: 600; color: var(--c-ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ct__logo img { width: 20px; height: 20px; object-fit: contain; }
+.ct__logo-letter { font-size: 15px; font-weight: 700; color: var(--c-muted); }
 .ct__edit {
-  position: relative; z-index: 2; flex: none; width: 44px; height: 44px; border: 0; border-radius: 50%;
-  background: var(--c-soft); color: var(--c-ink); display: grid; place-items: center; cursor: pointer;
+  position: absolute; z-index: 2; top: 10px; right: 10px;
+  width: 38px; height: 38px; border: 0; border-radius: 50%;
+  background: rgb(255 255 255 / .9); color: var(--c-ink);
+  display: grid; place-items: center; cursor: pointer;
+  box-shadow: 0 2px 8px rgb(0 0 0 / .08);
+  transition: background-color .15s, transform .15s;
 }
-.ct__edit:hover { background: var(--c-line-strong); }
-.ct__visual { height: 150px; display: grid; place-items: center; margin: 4px 0; }
-.ct__photo { max-width: 100%; max-height: 150px; object-fit: contain; }
-.ct__drawing { width: 82%; max-width: 280px; height: auto; }
+.ct__edit:hover { background: #fff; transform: scale(1.06); }
+.ct__edit svg { width: 16px; height: 16px; }
+.ct__title {
+  text-align: center; font-size: 19px; line-height: 1.25; letter-spacing: -.01em;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 2px 8px 0;
+}
+.ct__name { font-weight: 700; color: var(--c-ink); }
+.ct__year { font-weight: 500; color: var(--c-muted); }
 .ct__plate { display: flex; justify-content: center; }
-.ct__plate .plate { font-size: 1.35rem; }
-.ct__info { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; padding-top: 12px; border-top: 1px solid var(--c-line); }
+.ct__plate .plate { font-size: 1.05rem; }
+.ct__info { display: flex; flex-direction: column; gap: 6px; margin-top: 4px; padding: 12px 6px 0; border-top: 1px solid var(--c-line); }
 .ct__row { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 13px; }
 .ct__row b { font-variant-numeric: tabular-nums; }
 
@@ -597,7 +613,9 @@ a.person:hover, .person--link:hover { border-color: #CFCDC8; box-shadow: 0 6px 1
 
 /* Кабинет водителя */
 .drv__top { display: grid; grid-template-columns: minmax(0, 320px) minmax(0, 1fr); gap: 16px; margin-bottom: 24px; }
-.drv__car:hover { box-shadow: none; transform: none; border-color: var(--c-line); }
+.drv__car:hover .ct__visual { background: var(--ct-box); transform: none; }
+.drv__car:hover .ct__visual .ct__photo,
+.drv__car:hover .ct__visual .ct__drawing { transform: none; }
 .drv__debt {
   display: flex; flex-direction: column; justify-content: center; gap: 8px;
   padding: 24px 28px; border-radius: 28px; border: 1px solid var(--c-line); background: var(--c-surface);

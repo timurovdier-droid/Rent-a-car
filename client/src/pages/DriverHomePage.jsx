@@ -434,14 +434,14 @@ export default function DriverHomePage({ view = 'home' }) {
 
       <div className="drv__top">
         <article className="ct drv__car">
-          <div className="ct__head">
+          <div className="ct__visual">
             <BrandLogo brand={car.brand} />
-            <div className="ct__names">
-              <div className="ct__brand">{car.brand}</div>
-              <div className="ct__model">{[car.model, car.year].filter(Boolean).join(' · ')}</div>
-            </div>
+            <CarVisual car={car} src={photo} />
           </div>
-          <div className="ct__visual"><CarVisual car={car} src={photo} /></div>
+          <div className="ct__title">
+            <span className="ct__name">{car.brand} {car.model}</span>
+            {car.year && <span className="ct__year"> • {car.year}</span>}
+          </div>
           <div className="ct__plate"><Plate value={car.plate} /></div>
           <div className="ct__info">
             <span className="muted small">Аренда в день</span> <b>{fmtMoney(data.rate)} сум</b>
