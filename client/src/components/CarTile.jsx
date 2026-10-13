@@ -1,10 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import Plate from './Plate';
-import taxiCobalt from '../assets/taxi-cobalt.webp';
-import taxiAion from '../assets/taxi-aion.webp';
-import taxiArrizo from '../assets/taxi-arrizo.webp';
-import taxiGeneric from '../assets/taxi-generic.webp';
+import carDefault from '../assets/car-default.png';
 
 const BRAND_SLUGS = {
   chevrolet: 'chevrolet', шевроле: 'chevrolet', ravon: 'chevrolet', daewoo: 'chevrolet',
@@ -33,26 +30,13 @@ export function BrandLogo({ brand }) {
   );
 }
 
-const TAXI_ART = [
-  [/cobalt/, taxiCobalt],
-  [/aion/, taxiAion],
-  [/arrizo|chery|aiqar/, taxiArrizo],
-];
-
-export function taxiArt(car) {
-  const name = `${car?.brand || ''} ${car?.model || ''}`.toLowerCase();
-  return (TAXI_ART.find(([re]) => re.test(name)) || [null, taxiGeneric])[1];
-}
-
-// По умолчанию — рисунок такси по модели; загруженное фото показываем только при photo.
-export function CarVisual({ car, src, photo = false }) {
+export function CarVisual({ car, src }) {
   const [brokenUrl, setBrokenUrl] = useState(null);
-  const url = photo ? src || photoUrl(car) : null;
-  const alt = `${car?.brand || ''} ${car?.model || ''}`.trim() || 'Автомобиль';
+  const url = src || photoUrl(car);
   if (url && url !== brokenUrl) {
-    return <img className="ct__photo" src={url} alt={alt} loading="lazy" onError={() => setBrokenUrl(url)} />;
+    return <img className="ct__photo" src={url} alt={`${car?.brand || ''} ${car?.model || ''}`.trim()} loading="lazy" onError={() => setBrokenUrl(url)} />;
   }
-  return <img className="ct__drawing" src={taxiArt(car)} alt={alt} loading="lazy" />;
+  return <img className="ct__drawing" src={carDefault} alt="Автомобиль" loading="lazy" />;
 }
 
 function Pencil() {
