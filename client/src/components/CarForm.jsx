@@ -123,11 +123,12 @@ export default function CarForm({ car, onClose, onSaved }) {
             <CarVisual
               car={photo.remove ? { ...car, ...form, photo_version: 0 } : { ...car, ...form }}
               src={photo.data || undefined}
+              photo
             />
           </div>
           <div className="photo-pick__body">
             <div className="photo-pick__title">Фото машины</div>
-            <p className="photo-pick__hint">Лучше сбоку и на светлом фоне. Без фото покажем рисунок в цвете машины.</p>
+            <p className="photo-pick__hint">Фото хранится в карточке машины. В списках и на плитках показываем рисунок такси этой модели.</p>
             <div className="photo-pick__actions">
               <label className="btn btn--quiet btn--sm">
                 {hasPhoto ? 'Заменить фото' : 'Загрузить фото'}

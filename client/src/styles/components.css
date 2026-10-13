@@ -193,7 +193,7 @@
 .ct:hover .ct__visual .ct__photo,
 .ct:hover .ct__visual .ct__drawing { transform: scale(1.04); }
 .ct__photo { max-width: 100%; max-height: 160px; object-fit: contain; mix-blend-mode: multiply; }
-.ct__drawing { width: 88%; max-width: 300px; height: auto; mix-blend-mode: multiply; }
+.ct__drawing { width: 92%; max-width: 310px; max-height: 160px; object-fit: contain; filter: drop-shadow(0 6px 10px rgb(0 0 0 / .06)); }
 .ct__logo {
   position: absolute; top: 12px; left: 12px;
   width: 34px; height: 34px; border-radius: 50%; background: rgb(255 255 255 / .85);

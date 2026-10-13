@@ -234,7 +234,7 @@ export const DICT = {
   'Изменить автомобиль': 'Avtomobilni tahrirlash',
   'Добавить автомобиль': 'Avtomobil qoʻshish',
   'Фото машины': 'Mashina surati',
-  'Лучше сбоку и на светлом фоне. Без фото покажем рисунок в цвете машины': 'Yon tomondan va yorugʻ fonda yaxshiroq. Suratsiz mashina rangidagi rasm koʻrsatiladi',
+  'Фото хранится в карточке машины. В списках и на плитках показываем рисунок такси этой модели': 'Surat mashina kartochkasida saqlanadi. Roʻyxat va plitkalarda shu modeldagi taksi rasmi koʻrsatiladi',
   'Заменить фото': 'Suratni almashtirish',
   'Загрузить фото': 'Surat yuklash',
   'Не получилось открыть фото — выберите JPG, PNG или WEBP': 'Suratni ochib boʻlmadi — JPG, PNG yoki WEBP tanlang',
