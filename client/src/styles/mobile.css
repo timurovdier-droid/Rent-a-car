@@ -108,22 +108,27 @@
   .mhome__head { margin: 4px 2px 18px; }
   .mhome__date { color: var(--c-muted); margin-top: 2px; }
   .mhome__date::first-letter { text-transform: uppercase; }
-  .mtiles { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .mtiles { display: grid; grid-template-columns: 1fr 1fr; gap: 16px 10px; }
   .mtile {
     position: relative; overflow: hidden;
-    display: flex; flex-direction: column; justify-content: space-between;
-    min-height: 168px; padding: 12px 14px 14px; box-sizing: border-box;
-    border-radius: 26px; background: var(--c-soft); color: var(--c-ink);
+    display: flex; flex-direction: column; gap: 8px;
+    padding: 0; box-sizing: border-box;
+    color: var(--c-ink);
     text-decoration: none; -webkit-tap-highlight-color: transparent;
     transition: transform .15s;
   }
   .mtile:active { transform: scale(.97); }
-  .mtile__label { font-size: 14px; font-weight: 700; letter-spacing: -.01em; line-height: 1.2; }
+  .mtile__label { padding: 0 6px; font-size: 14px; font-weight: 700; letter-spacing: -.01em; line-height: 1.2; }
   .mtile__hint { color: var(--c-muted); font-weight: 600; }
-  .mtile__card { flex: 1; display: flex; align-items: center; justify-content: center; padding: 4px 0 10px; }
+  .mtile__card {
+    flex: 1; display: flex; align-items: center; justify-content: center;
+    min-height: 136px; padding: 12px; box-sizing: border-box;
+    border-radius: 26px; background: var(--c-soft);
+  }
   .mtile__img { display: block; width: 82%; max-height: 112px; object-fit: contain; object-position: center; }
   .mtile__img[src$='/cars.webp'] { width: 100%; }
-  .mtile--wide { grid-column: span 2; min-height: 150px; }
+  .mtile--wide { grid-column: span 2; }
+  .mtile--wide .mtile__card { min-height: 124px; }
   .mtile--wide .mtile__img { width: auto; max-width: 60%; max-height: 96px; }
 
   /* Поиск по лупе */
