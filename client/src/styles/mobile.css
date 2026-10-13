@@ -97,8 +97,10 @@
   .tabbar__search {
     flex: none; width: 64px; height: 64px; border: 0; border-radius: 50%;
     display: grid; place-items: center;
-    background: var(--c-primary); color: #121519;
-    box-shadow: 0 8px 30px rgb(0 0 0 / .3);
+    background: color-mix(in srgb, var(--c-surface) 82%, transparent); color: var(--c-ink);
+    -webkit-backdrop-filter: blur(18px) saturate(1.4);
+    backdrop-filter: blur(18px) saturate(1.4);
+    box-shadow: 0 8px 30px rgb(0 0 0 / .25), inset 0 0 0 1px var(--c-line);
     cursor: pointer; -webkit-tap-highlight-color: transparent;
     transition: transform .15s;
   }
@@ -132,7 +134,7 @@
   .mtile__img[src$='/cars.webp'] { filter: drop-shadow(0 0 .6px rgb(18 21 25 / .35)) drop-shadow(0 0 .6px rgb(18 21 25 / .35)); }
   [data-theme='dark'] .mtile__img[src] { filter: drop-shadow(0 0 .7px rgb(255 255 255 / .7)) drop-shadow(0 0 .7px rgb(255 255 255 / .7)); }
   [data-theme='dark'] .mtile__img[src$='/dispatchers.webp'],
-  [data-theme='dark'] .mtile__img[src$='/owners.webp'] { filter: invert(1); }
+  [data-theme='dark'] .mtile__img[src$='/owners.webp'] { filter: brightness(0) invert(1); opacity: .92; }
 
   .mtile--wide { grid-column: span 2; }
   .mtile--wide .mtile__card { min-height: 124px; }
