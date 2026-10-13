@@ -818,7 +818,7 @@ export function DriverEarningsPage() {
         img="earnings"
         label="Чистыми за период"
         value={data ? <CountUp value={net} format={signedMoney} suffix=" сум" /> : '…'}
-        hint={data?.net_per_day != null ? `в среднем ${fmtMoney(data.net_per_day)} сум в день` : 'заработок минус аренда и расходы'}
+        hint={data?.net_per_day != null ? `в среднем ${fmtMoney(data.net_per_day)} сум в день` : 'заработок минус расходы'}
       />
       <div className="earn-actions">
         <button type="button" className="btn shero__btn earn-actions__in" onClick={() => setOpen('in')}><span aria-hidden="true">+</span>Заработок</button>
@@ -831,7 +831,6 @@ export function DriverEarningsPage() {
           <div className="panel">
             <dl className="kv dnet__calc">
               <div><dt>Заработали</dt><dd className="num-plus">{`+${fmtMoney(data.income)} сум`}</dd></div>
-              <div><dt>Аренда машины</dt><dd className="num-minus">{`−${fmtMoney(data.rent)} сум`}</dd></div>
               <div>
                 <dt>Расходы (заправка, обед…)</dt>
                 <dd className="num-minus">{`−${fmtMoney(data.spent)} сум`}</dd>
@@ -855,9 +854,7 @@ export function DriverEarningsPage() {
           <div className="dstats dstats--wrap" style={{ marginTop: 16 }}>
             <div className="dstat"><span className="dstat__label">Проехали</span><b className="dstat__value">{`${fmtNumber(data.km)} км`}</b></div>
             <div className="dstat"><span className="dstat__label">Рабочих дней</span><b className="dstat__value">{data.work_days}</b></div>
-            {data.per_km != null && <div className="dstat"><span className="dstat__label">Расходы на 1 км</span><b className="dstat__value">{`${fmtMoney(data.per_km)} сум`}</b></div>}
-            <div className="dstat"><span className="dstat__label">Оплатили аренды</span><b className="dstat__value">{`${fmtMoney(data.rent_paid)} сум`}</b></div>
-          </div>
+            {data.per_km != null && <div className="dstat"><span className="dstat__label">Расходы на 1 км</span><b className="dstat__value">{`${fmtMoney(data.per_km)} сум`}</b></div>}          </div>
         </>
       )}
       {history.length > 0 && (

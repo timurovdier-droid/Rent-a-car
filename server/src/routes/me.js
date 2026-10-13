@@ -574,7 +574,7 @@ router.delete('/income/:id', async (req, res) => {
   }
 });
 
-// GET /me/report?from&to — сколько водитель заработал чистыми: заработок минус аренда и заправки
+// GET /me/report?from&to — сколько водитель заработал чистыми: заработок минус расходы (аренду водителю здесь не показываем)
 router.get('/report', async (req, res) => {
   try {
     if (!driverOnly(req, res)) return;
@@ -592,19 +592,6 @@ router.get('/report', async (req, res) => {
        WHERE driver_id = $1 AND day >= $2 AND day <= $3 GROUP BY kind`,
       [driverId, from, to]
     );
-
-    // Аренда начисляется по каждой машине, на которой водитель ездил в эти дни
-    const { rows: assigns } = await pool.query(
-      'SELECT DISTINCT car_id FROM car_assignments WHERE driver_id = $1',
-      [driverId]
-    );
-    let rent = 0;
-    let rentPaid = 0;
-    for (const a of assigns) {
-      const ledger = await carDailyLedger(pool, Number(a.car_id), from, to, { driverId });
-      rent += ledger.totals.accrued;
-      rentPaid += ledger.totals.paid;
-    }
 
     // Пробег: разница показаний одометра внутри периода плюс от последней записи до периода
     let km = 0;
@@ -636,14 +623,12 @@ router.get('/report', async (req, res) => {
       ...earned.map((r) => r.day),
       ...miles.filter((m) => Number(m.income) > 0).map((m) => m.day),
     ]).size;
-    const net = income - rent - spent;
+    const net = income - spent;
 
     res.json({
       from,
       to,
       income,
-      rent,
-      rent_paid: rentPaid,
       expenses,
       spent,
       net,
