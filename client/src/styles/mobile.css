@@ -106,7 +106,6 @@
 
   /* Главная админа и диспетчера — плитки как в Яндекс Го */
   .mhome__head { margin: 4px 2px 18px; }
-  .mhome__hello { font-size: 26px; font-weight: 800; letter-spacing: -.03em; }
   .mhome__date { color: var(--c-muted); margin-top: 2px; }
   .mhome__date::first-letter { text-transform: uppercase; }
   .mtiles { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
@@ -121,11 +120,11 @@
   .mtile:active { transform: scale(.97); }
   .mtile__label { font-size: 17px; font-weight: 700; letter-spacing: -.02em; line-height: 1.15; }
   .mtile__hint { color: var(--c-muted); font-weight: 600; }
-  .mtile__card { flex: 1; display: flex; align-items: flex-end; justify-content: flex-end; margin-right: -14px; }
-  .mtile__img { display: block; width: 88%; max-height: 120px; object-fit: contain; object-position: right bottom; }
-  .mtile--wide { grid-column: span 2; flex-direction: row-reverse; justify-content: space-between; min-height: 120px; padding: 16px 0 0 16px; }
-  .mtile--wide .mtile__card { flex: none; width: 52%; margin: 0; }
-  .mtile--wide .mtile__img { width: 100%; max-height: 112px; }
+  .mtile__card { flex: 1; display: flex; align-items: center; justify-content: center; padding: 8px 0 14px; }
+  .mtile__img { display: block; width: 78%; max-height: 104px; object-fit: contain; object-position: center; }
+  .mtile__img[src$='/cars.webp'] { width: 100%; }
+  .mtile--wide { grid-column: span 2; min-height: 150px; }
+  .mtile--wide .mtile__img { width: auto; max-width: 60%; max-height: 96px; }
 
   /* Поиск по лупе */
   .search-sheet {

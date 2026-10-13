@@ -44,7 +44,6 @@ export default function MobileHome() {
   return (
     <div className="mhome">
       <div className="mhome__head">
-        <div className="mhome__hello">{`Здравствуйте, ${(user?.full_name || '').split(' ')[0] || 'коллега'}`}</div>
         <div className="mhome__date">{today()}</div>
       </div>
 
