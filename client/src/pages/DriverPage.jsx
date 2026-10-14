@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { api, ApiError } from '../api';
 import { useAuth } from '../auth';
 import Plate from '../components/Plate';
@@ -10,28 +10,17 @@ import DriverForm from '../components/DriverForm';
 import DriverLedger from '../components/DriverLedger';
 import DriverRentStatus from '../components/RentStatus';
 import DriverCharges from '../components/DriverCharges';
-import TxList from '../components/TxList';
 import { fmtMoney, fmtNumber, fmtDay, fmtDateTime, localDayOf, todayLocal } from '../labels';
 import NavIcon from '../components/NavIcon';
 import DateInput from '../components/DateInput';
 
 const errText = (err, fallback) => (err instanceof ApiError ? err.message : fallback);
 
-function DriverOps({ driverId, role, version, onChanged }) {
-  const [items, setItems] = useState(null);
-  const [error, setError] = useState('');
-
-  useEffect(() => {
-    setError('');
-    api.get(`/drivers/${driverId}/transactions`)
-      .then((data) => setItems(data.items))
-      .catch((err) => setError(errText(err, 'Не удалось загрузить операции')));
-  }, [driverId, version]);
-
-  if (error) return <div className="notice notice--error">{error}</div>;
-  if (!items) return <div className="muted">Загрузка…</div>;
-  return <TxList items={items} role={role} onChanged={onChanged} showCar />;
-}
+const DRIVER_TABS = [
+  { key: 'driver', label: 'Водитель' },
+  { key: 'reports', label: 'Отчёты' },
+  { key: 'car', label: 'Машина' },
+];
 
 function ChangeCarModal({ driver, onClose, onDone }) {
   const current = driver.assignments.find((a) => !a.end_at) || null;
@@ -253,7 +242,16 @@ export default function DriverPage() {
   const [passwordOpen, setPasswordOpen] = useState(false);
   const [carOpen, setCarOpen] = useState(false);
   const [ledgerVersion, setLedgerVersion] = useState(0);
-  const [reportView, setReportView] = useState('days');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tabParam = searchParams.get('tab') || 'driver';
+  const tab = DRIVER_TABS.some((t) => t.key === tabParam) ? tabParam : 'driver';
+
+  function openTab(key) {
+    const next = new URLSearchParams(searchParams);
+    if (key === 'driver') next.delete('tab');
+    else next.set('tab', key);
+    setSearchParams(next, { replace: true });
+  }
 
   const load = useCallback(async () => {
     try {
@@ -318,7 +316,6 @@ export default function DriverPage() {
           </div>
         </div>
         <div className="form-actions">
-          {!archived && <button className="btn btn--quiet" onClick={() => setEditing(true)}>Изменить данные</button>}
           {!archived && <button className="btn btn--ghost" onClick={() => act('archive')}>В архив</button>}
           {archived && <button className="btn btn--quiet" onClick={() => act('restore')}>Вернуть из архива</button>}
           {isAdmin && <button className="btn btn--danger" onClick={() => act('delete')}>Удалить</button>}
@@ -327,111 +324,147 @@ export default function DriverPage() {
 
       {error && <div className="notice notice--error">{error}</div>}
 
-      <div className="layout-2">
-        <div>
-          <div className="panel">
-            <h3 className="panel__title">Данные</h3>
-            <dl className="kv">
-              <div><dt>Телефон</dt><dd>{driver.phone || '—'}</dd></div>
-              <div><dt>Паспорт</dt><dd>{driver.passport || '—'}</dd></div>
-              <div><dt>Водительское удостоверение</dt><dd>{driver.license_no || '—'}</dd></div>
-              <div><dt>ПИНФЛ</dt><dd>{driver.pinfl || '—'}</dd></div>
-              <div><dt>Добавлен</dt><dd>{fmtDateTime(driver.created_at)}</dd></div>
-            </dl>
-          </div>
-          <div className="panel">
-            <h3 className="panel__title">Вход в кабинет водителя</h3>
-            <dl className="kv">
-              <div><dt>Логин</dt><dd>{driver.login || '—'}</dd></div>
-              {driver.phone && <div><dt>Или телефон</dt><dd>{driver.phone}</dd></div>}
-            </dl>
-            {!archived && (
-              <button className="btn btn--quiet btn--sm" style={{ marginTop: 10 }} onClick={() => setPasswordOpen(true)}>
-                Задать пароль
-              </button>
-            )}
-          </div>
-          <div className="panel">
-            <div className="panel__head">
-              <h3 className="panel__title" style={{ margin: 0 }}>Машины</h3>
+      <nav className="car-tabs" role="tablist" aria-label="Разделы водителя" style={{ marginTop: 12 }}>
+        {DRIVER_TABS.map((t) => (
+          <button
+            key={t.key}
+            type="button"
+            role="tab"
+            aria-selected={tab === t.key}
+            className={`car-tab ${tab === t.key ? 'car-tab--on' : ''}`}
+            onClick={() => openTab(t.key)}
+          >
+            {t.label}
+          </button>
+        ))}
+      </nav>
+
+      {tab === 'driver' && (
+        <div className="layout-2">
+          <div>
+            <div className="panel">
+              <div className="panel__head">
+                <h3 className="panel__title" style={{ margin: 0 }}>Данные водителя</h3>
+                {!archived && <button className="btn btn--quiet btn--sm" onClick={() => setEditing(true)}>Изменить</button>}
+              </div>
+              <dl className="kv">
+                <div><dt>Телефон</dt><dd>{driver.phone || '—'}</dd></div>
+                <div><dt>Паспорт</dt><dd>{driver.passport || '—'}</dd></div>
+                <div><dt>Водительское удостоверение</dt><dd>{driver.license_no || '—'}</dd></div>
+                <div><dt>ПИНФЛ</dt><dd>{driver.pinfl || '—'}</dd></div>
+                <div><dt>Добавлен</dt><dd>{fmtDateTime(driver.created_at)}</dd></div>
+              </dl>
+            </div>
+            <div className="panel">
+              <h3 className="panel__title">Вход в кабинет</h3>
+              <p className="muted small" style={{ marginTop: 0 }}>Водитель входит по логину или по номеру телефона.</p>
+              <dl className="kv">
+                <div><dt>Логин</dt><dd>{driver.login || '—'}</dd></div>
+                {driver.phone && <div><dt>Или телефон</dt><dd>{driver.phone}</dd></div>}
+              </dl>
               {!archived && (
-                <button className="btn btn--quiet btn--sm" onClick={() => setCarOpen(true)}>
-                  {driver.car_id ? 'Сменить машину' : 'Выдать машину'}
+                <button className="btn btn--quiet btn--sm" style={{ marginTop: 10 }} onClick={() => setPasswordOpen(true)}>
+                  Задать / сбросить пароль
                 </button>
               )}
             </div>
-            {driver.assignments.length === 0 ? <p className="muted">Ещё не ездил</p> : driver.assignments.map((a) => (
-              <Link key={a.id} to={`/cars/${a.car_id}`} className="car-card__row" style={{ padding: '10px 0', borderBottom: '1px solid var(--c-line)', color: 'inherit', textDecoration: 'none', alignItems: 'center' }}>
-                <span><Plate value={a.plate} /> <span className="muted small">{a.brand} {a.model}</span></span>
-                <span className="muted small" style={{ textAlign: 'right' }}>
-                  {fmtDay(localDayOf(a.start_at))} — {a.end_at ? fmtDay(localDayOf(a.end_at)) : 'сейчас'}<br />
-                  {fmtNumber(a.mileage_start)} → {a.mileage_end != null ? fmtNumber(a.mileage_end) : '…'} км
-                </span>
-              </Link>
-            ))}
+          </div>
+          <div>
+            <div className="panel">
+              <h3 className="panel__title">Депозит</h3>
+              <div className="stat__value" style={{ marginTop: 0 }}>{fmtMoney(driver.deposit)}<small>сум</small></div>
+              {isAdmin && !archived && (
+                <button className="btn btn--quiet btn--sm" style={{ marginTop: 10 }} onClick={() => setDepositOpen(true)}>Изменить депозит</button>
+              )}
+              {!isAdmin && <p className="muted small">Менять депозит может только администратор.</p>}
+              <div style={{ marginTop: 16 }}>
+                <div className="muted small" style={{ marginBottom: 6 }}>История изменений</div>
+                {driver.deposit_history.length === 0 ? <p className="muted small">Изменений не было</p> : (
+                  <ul className="tx-list">
+                    {driver.deposit_history.map((h) => {
+                      const up = Number(h.new_value) >= Number(h.old_value || 0);
+                      return (
+                        <li key={h.id} className="tx">
+                          <div className={`tx__icon ${up ? 'tx__icon--in' : 'tx__icon--out'}`}>{up ? '+' : '−'}</div>
+                          <div>
+                            <div className="tx__title">{fmtMoney(h.old_value)} → {fmtMoney(h.new_value)}</div>
+                            <div className="tx__meta">{fmtDateTime(h.created_at)} · {h.author_name || '—'}{h.reason ? ` · ${h.reason}` : ''}</div>
+                          </div>
+                          <div className="tx__right">
+                            <span className={up ? 'num-plus' : 'num-minus'}>{up ? '+' : '−'}{fmtMoney(Math.abs(Number(h.new_value) - Number(h.old_value || 0)))}</span>
+                          </div>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </div>
+            </div>
+            <DriverCharges driver={driver} isAdmin={isAdmin} onChanged={load} />
           </div>
         </div>
-        <div>
-          <DriverCharges driver={driver} isAdmin={isAdmin} onChanged={load} />
-          <div className="panel">
-            <h3 className="panel__title">Депозит</h3>
-            <div className="stat__value" style={{ marginTop: 0 }}>{fmtMoney(driver.deposit)}<small>сум</small></div>
-            {isAdmin && !archived && (
-              <button className="btn btn--quiet btn--sm" style={{ marginTop: 10 }} onClick={() => setDepositOpen(true)}>Изменить депозит</button>
+      )}
+
+      {tab === 'reports' && (
+        <>
+          <DriverRentStatus driverId={driver.id} version={ledgerVersion} onChanged={() => setLedgerVersion((v) => v + 1)} />
+          <div className="panel" style={{ marginTop: 16 }}>
+            <h3 className="panel__title">Оплаты и долг по дням</h3>
+            <DriverLedger driverId={driver.id} canPay={!archived} onChanged={() => setLedgerVersion((v) => v + 1)} />
+          </div>
+        </>
+      )}
+
+      {tab === 'car' && (
+        <div className="panel">
+          <div className="panel__head">
+            <h3 className="panel__title" style={{ margin: 0 }}>Машины водителя</h3>
+            {!archived && (
+              <button className="btn btn--quiet btn--sm" onClick={() => setCarOpen(true)}>
+                {driver.car_id ? 'Сменить машину' : 'Выдать машину'}
+              </button>
             )}
-            {!isAdmin && <p className="muted small">Менять депозит может только администратор.</p>}
-            <div style={{ marginTop: 16 }}>
-              <div className="muted small" style={{ marginBottom: 6 }}>История изменений</div>
-              {driver.deposit_history.length === 0 ? <p className="muted small">Изменений не было</p> : (
-                <ul className="tx-list">
-                  {driver.deposit_history.map((h) => {
-                    const up = Number(h.new_value) >= Number(h.old_value || 0);
+          </div>
+          {driver.assignments.length === 0 ? (
+            <p className="muted">Водитель ещё не брал машину.</p>
+          ) : (
+            <div className="table-wrap">
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th className="table__th">Машина</th>
+                    <th className="table__th">Период</th>
+                    <th className="table__th table__num">Пробег</th>
+                    <th className="table__th">Статус</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {driver.assignments.map((a) => {
+                    const active = !a.end_at;
                     return (
-                      <li key={h.id} className="tx">
-                        <div className={`tx__icon ${up ? 'tx__icon--in' : 'tx__icon--out'}`}>{up ? '+' : '−'}</div>
-                        <div>
-                          <div className="tx__title">{fmtMoney(h.old_value)} → {fmtMoney(h.new_value)}</div>
-                          <div className="tx__meta">{fmtDateTime(h.created_at)} · {h.author_name || '—'}{h.reason ? ` · ${h.reason}` : ''}</div>
-                        </div>
-                        <div className="tx__right">
-                          <span className={up ? 'num-plus' : 'num-minus'}>{up ? '+' : '−'}{fmtMoney(Math.abs(Number(h.new_value) - Number(h.old_value || 0)))}</span>
-                        </div>
-                      </li>
+                      <tr key={a.id} className="table__row">
+                        <td className="table__td">
+                          <Link to={`/cars/${a.car_id}`} style={{ color: 'inherit', textDecoration: 'none' }}>
+                            <Plate value={a.plate} />
+                            <span className="muted small">{` ${a.brand} ${a.model}`}</span>
+                          </Link>
+                        </td>
+                        <td className="table__td">
+                          {fmtDay(localDayOf(a.start_at))} — {a.end_at ? fmtDay(localDayOf(a.end_at)) : 'сейчас'}
+                        </td>
+                        <td className="table__td table__num">
+                          {fmtNumber(a.mileage_start)} → {a.mileage_end != null ? fmtNumber(a.mileage_end) : '…'} км
+                        </td>
+                        <td className="table__td">
+                          {active ? <span className="badge badge--wait">Сейчас</span> : <span className="badge badge--muted">Завершено</span>}
+                        </td>
+                      </tr>
                     );
                   })}
-                </ul>
-              )}
+                </tbody>
+              </table>
             </div>
-          </div>
-        </div>
-      </div>
-
-      <div style={{ marginTop: 16 }}>
-        <DriverRentStatus driverId={driver.id} version={ledgerVersion} onChanged={() => setLedgerVersion((v) => v + 1)} />
-      </div>
-
-      <div className="view-switch" role="group" aria-label="Вид отчёта" style={{ marginTop: 16 }}>
-        <button
-          type="button"
-          className={`view-switch__btn ${reportView === 'ops' ? 'view-switch__btn--on' : ''}`}
-          onClick={() => setReportView('ops')}
-        >
-          Операции
-        </button>
-        <button
-          type="button"
-          className={`view-switch__btn ${reportView === 'days' ? 'view-switch__btn--on' : ''}`}
-          onClick={() => setReportView('days')}
-        >
-          По дням
-        </button>
-      </div>
-      {reportView === 'ops' ? (
-        <DriverOps driverId={driver.id} role={user?.role} version={ledgerVersion} onChanged={() => setLedgerVersion((v) => v + 1)} />
-      ) : (
-        <div className="panel">
-          <h3 className="panel__title">Оплаты и долг по дням</h3>
-          <DriverLedger driverId={driver.id} canPay={!archived} onChanged={() => setLedgerVersion((v) => v + 1)} />
+          )}
         </div>
       )}
 
