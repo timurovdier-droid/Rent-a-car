@@ -10,7 +10,7 @@ import Select, { pairs } from '../components/Select';
 import CarForm from '../components/CarForm';
 import { CarVisual } from '../components/CarTile';
 import DayCalendar from '../components/DayCalendar';
-import CarLedger from '../components/CarLedger';
+import { CarRentStatus } from '../components/RentStatus';
 import TxList from '../components/TxList';
 import DateInput from '../components/DateInput';
 import NavIcon from '../components/NavIcon';
@@ -1205,7 +1205,7 @@ export default function CarPage() {
           </div>
         )}
         {tab === 'report' && reportView === 'days' && (
-          <CarLedger carId={car.id} canPay={canWrite} onChanged={load} />
+          <CarRentStatus carId={car.id} onChanged={load} />
         )}
         {tab === 'report' && reportView === 'ops' && (
           <TxList carId={car.id} items={hub.transactions} role={role} onChanged={load} />

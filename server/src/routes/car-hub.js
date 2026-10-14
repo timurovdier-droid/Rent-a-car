@@ -21,6 +21,7 @@ import {
   ownerIdForUser,
   carDailyLedger,
   carDebtDays,
+  carRentStatus,
 } from '../carMoney.js';
 
 const router = Router();
@@ -132,6 +133,18 @@ router.get('/:id/ledger', async (req, res) => {
     });
   } catch (err) {
     serverError(res, 'Ошибка таблицы по дням:', err);
+  }
+});
+
+// GET /cars/:id/rent-status — календарь аренды по машине
+router.get('/:id/rent-status', async (req, res) => {
+  try {
+    const car = await loadCar(req, res);
+    if (!car) return;
+    const status = await carRentStatus(pool, car.id);
+    res.json({ status });
+  } catch (err) {
+    serverError(res, 'Ошибка календаря машины:', err);
   }
 });
 

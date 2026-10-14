@@ -45,17 +45,29 @@ function Shortfall({ value }) {
   );
 }
 
+function DriverMark({ info }) {
+  if (!info?.driver_name) return null;
+  const short = info.driver_name.split(/\s+/)[0];
+  return <span className="rs-cell__who">{short}</span>;
+}
+
+function PaidSum({ value }) {
+  if (!value) return null;
+  return (
+    <>
+      <span className="rs-cell__sum rs-cell__sum--full">{`+${fmtMoney(value)}`}</span>
+      <span className="rs-cell__sum rs-cell__sum--short">{`+${fmtMoney(Math.round(value / 1000))}k`}</span>
+    </>
+  );
+}
+
 function CellBody({ state, info }) {
   if (state === 'paid') {
     return (
       <>
         <span className="rs-cell__label">Закрыто</span>
-        {info?.paid > 0 && (
-          <>
-            <span className="rs-cell__sum rs-cell__sum--full">{`+${fmtMoney(info.paid)}`}</span>
-            <span className="rs-cell__sum rs-cell__sum--short">{`+${fmtMoney(Math.round(info.paid / 1000))}k`}</span>
-          </>
-        )}
+        <PaidSum value={info?.paid} />
+        <DriverMark info={info} />
       </>
     );
   }
@@ -63,12 +75,8 @@ function CellBody({ state, info }) {
     return (
       <>
         <span className="rs-cell__label">Из переплаты</span>
-        {info?.paid > 0 && (
-          <>
-            <span className="rs-cell__sum rs-cell__sum--full">{`+${fmtMoney(info.paid)}`}</span>
-            <span className="rs-cell__sum rs-cell__sum--short">{`+${fmtMoney(Math.round(info.paid / 1000))}k`}</span>
-          </>
-        )}
+        <PaidSum value={info?.paid} />
+        <DriverMark info={info} />
       </>
     );
   }
@@ -77,6 +85,7 @@ function CellBody({ state, info }) {
       <>
         <span className="rs-cell__label">Не доплатил</span>
         <Shortfall value={info.left} />
+        <DriverMark info={info} />
       </>
     );
   }
@@ -85,16 +94,24 @@ function CellBody({ state, info }) {
       <>
         <span className="rs-cell__label">Не оплачено</span>
         <Shortfall value={info.left} />
+        <DriverMark info={info} />
       </>
     );
   }
-  if (state === 'off') return <span className="rs-cell__label">{info?.idle ? 'Простой' : 'Выходной'}</span>;
+  if (state === 'off') {
+    return (
+      <>
+        <span className="rs-cell__label">{info?.idle ? 'Простой' : 'Выходной'}</span>
+        <DriverMark info={info} />
+      </>
+    );
+  }
   if (state === 'offpaid') {
     return (
       <>
         <span className="rs-cell__label">{`${info.idle ? 'Простой' : 'Выходной'} · дал`}</span>
-        <span className="rs-cell__sum rs-cell__sum--full">{`+${fmtMoney(info.paid)}`}</span>
-        <span className="rs-cell__sum rs-cell__sum--short">{`+${fmtMoney(Math.round(info.paid / 1000))}k`}</span>
+        <PaidSum value={info?.paid} />
+        <DriverMark info={info} />
       </>
     );
   }
@@ -102,7 +119,7 @@ function CellBody({ state, info }) {
   return null;
 }
 
-function DayReportModal({ driverId, status, day, onClose, onDone }) {
+function DayReportModal({ driverId, carId, status, day, onClose, onDone }) {
   const [date, setDate] = useState(day);
   const info = status.days.find((item) => item.day === date);
   const left = info ? Math.max(info.left || 0, 0) : 0;
@@ -131,9 +148,23 @@ function DayReportModal({ driverId, status, day, onClose, onDone }) {
     setSaving(true);
     setError('');
     try {
-      await api.post(`/drivers/${driverId}/day-report`, {
-        date, cash, card, balance, comment,
-      });
+      const who = info?.driver_id || driverId;
+      if (who) {
+        await api.post(`/drivers/${who}/day-report`, { date, cash, card, balance, comment });
+      } else if (carId) {
+        const note = comment.trim() || `Отчёт за ${date}`;
+        for (const [method, amount] of [['CASH', cash], ['CARD', card], ['BALANCE', balance]]) {
+          if (Number(amount) > 0) {
+            await api.post(`/cars/${carId}/transactions`, {
+              kind: 'INCOME', category: 'RENT', method, amount: Number(amount), tx_date: date, comment: note,
+            });
+          }
+        }
+      } else {
+        setError('В этот день на машине не было водителя');
+        setSaving(false);
+        return;
+      }
       onDone();
     } catch (err) {
       setError(err.message || 'Не удалось записать отчёт');
@@ -163,6 +194,7 @@ function DayReportModal({ driverId, status, day, onClose, onDone }) {
         <div className="pay-day__info">
           <dl className="kv">
             <div><dt>Аренда в день</dt><dd>{fmtMoney(status.rate)} сум</dd></div>
+            {info?.driver_name && <div><dt>Водитель</dt><dd>{info.driver_name}</dd></div>}
             {info && <div><dt>Уже закрыто</dt><dd>{fmtMoney(info.covered)} сум</dd></div>}
             {left > 0 && <div><dt>Не хватает</dt><dd className="ledger__debt">{fmtMoney(left)} сум</dd></div>}
           </dl>
@@ -216,17 +248,20 @@ function DayChoiceModal({ day, info, onAdd, onEdit, onClose }) {
   );
 }
 
-function DayTxModal({ driverId, day, role, onClose, onChanged }) {
+function DayTxModal({ driverId, carId, day, role, onClose, onChanged }) {
   const [items, setItems] = useState(null);
   const [error, setError] = useState('');
   const [version, setVersion] = useState(0);
 
   useEffect(() => {
     setError('');
-    api.get(`/drivers/${driverId}/transactions`)
-      .then((data) => setItems((data.items || []).filter((tx) => String(tx.tx_date).slice(0, 10) === day)))
+    const req = carId
+      ? api.get(`/cars/${carId}/hub`).then((data) => data.transactions || [])
+      : api.get(`/drivers/${driverId}/transactions`).then((data) => data.items || []);
+    req
+      .then((list) => setItems(list.filter((tx) => String(tx.tx_date).slice(0, 10) === day)))
       .catch((err) => setError(err.message || 'Не удалось загрузить операции'));
-  }, [driverId, day, version]);
+  }, [driverId, carId, day, version]);
 
   return (
     <Modal title={`Отчёт за ${fmtDay(day)}`} onClose={onClose}>
@@ -237,7 +272,7 @@ function DayTxModal({ driverId, day, role, onClose, onChanged }) {
       {!items && !error && <div className="muted">Загрузка…</div>}
       {items && items.length === 0 && <div className="empty">За этот день записей нет</div>}
       {items && items.length > 0 && (
-        <TxList items={items} role={role} showCar onChanged={() => { setVersion((v) => v + 1); onChanged?.(); }} />
+        <TxList items={items} carId={carId} role={role} showCar={!carId} onChanged={() => { setVersion((v) => v + 1); onChanged?.(); }} />
       )}
     </Modal>
   );
@@ -261,7 +296,7 @@ function DebtDaysModal({ status, onClose }) {
           <thead>
             <tr>
               <th className="table__th">Дата</th>
-              <th className="table__th">Машина</th>
+              <th className="table__th">{days.some((d) => d.driver_name) ? 'Водитель' : 'Машина'}</th>
               <th className="table__th table__num">За день</th>
               <th className="table__th table__num">Должен</th>
             </tr>
@@ -270,7 +305,9 @@ function DebtDaysModal({ status, onClose }) {
             {days.map((d) => (
               <tr key={d.day} className="table__row">
                 <td className="table__td">{fmtDay(d.day)}</td>
-                <td className="table__td">{d.plates.map((p) => <Plate key={p} value={p} />)}</td>
+                <td className="table__td">
+                  {d.driver_name || (d.plates || []).map((p) => <Plate key={p} value={p} />)}
+                </td>
                 <td className="table__td table__num">{fmtMoney(d.accrued)}</td>
                 <td className="table__td table__num ledger__debt">{fmtMoney(d.left)}</td>
               </tr>
@@ -294,7 +331,7 @@ function DebtDaysModal({ status, onClose }) {
   );
 }
 
-export function RentStatusView({ status, driverId, canWrite = false, onSaved }) {
+export function RentStatusView({ status, driverId, carId, canWrite = false, onSaved }) {
   const [month, setMonth] = useState(status.today.slice(0, 7));
   const { user } = useAuth();
   const [reportDay, setReportDay] = useState(null);
@@ -344,7 +381,9 @@ export function RentStatusView({ status, driverId, canWrite = false, onSaved }) 
         <div className="rs-tile">
           <span className="rs-tile__label">Аренда в день</span>
           <b className="rs-tile__value">{`${fmtMoney(status.rate)} сум`}</b>
-          {status.car && <span className="rs-tile__hint"><Plate value={status.car.plate} /></span>}
+          {status.driver?.name
+            ? <span className="rs-tile__hint">{status.driver.name}</span>
+            : status.car && <span className="rs-tile__hint"><Plate value={status.car.plate} /></span>}
         </div>
       </div>
 
@@ -402,18 +441,20 @@ export function RentStatusView({ status, driverId, canWrite = false, onSaved }) 
           onClose={() => setChoiceDay(null)}
         />
       )}
-      {editDay && driverId && (
+      {editDay && (driverId || carId) && (
         <DayTxModal
-          driverId={driverId}
+          driverId={driverId || byDay.get(editDay)?.driver_id}
+          carId={carId}
           day={editDay}
           role={user?.role}
           onClose={() => setEditDay(null)}
           onChanged={onSaved}
         />
       )}
-      {reportDay && driverId && (
+      {reportDay && (driverId || carId) && (
         <DayReportModal
-          driverId={driverId}
+          driverId={driverId || byDay.get(reportDay)?.driver_id}
+          carId={carId}
           status={status}
           day={reportDay}
           onClose={() => setReportDay(null)}
@@ -447,6 +488,35 @@ export default function DriverRentStatus({ driverId, version = 0, onChanged }) {
       driverId={driverId}
       canWrite={canWrite}
       onSaved={onChanged}
+    />
+  );
+}
+
+export function CarRentStatus({ carId, version = 0, onChanged }) {
+  const { user } = useAuth();
+  const canWrite = user?.role === 'ADMIN' || user?.role === 'DISPATCHER';
+  const [data, setData] = useState(null);
+  const [error, setError] = useState('');
+
+  const [tick, setTick] = useState(0);
+
+  useEffect(() => {
+    setError('');
+    api.get(`/cars/${carId}/rent-status`)
+      .then(setData)
+      .catch((err) => setError(err.message || 'Не удалось загрузить календарь'));
+  }, [carId, version, tick]);
+
+  if (error) return <div className="notice notice--error">{error}</div>;
+  if (!data) return <div className="muted">Загрузка…</div>;
+  if (!data.status) return <div className="empty">По этой машине ещё нет дней аренды</div>;
+  return (
+    <RentStatusView
+      key={carId}
+      status={data.status}
+      carId={carId}
+      canWrite={canWrite}
+      onSaved={() => { setTick((n) => n + 1); onChanged?.(); }}
     />
   );
 }

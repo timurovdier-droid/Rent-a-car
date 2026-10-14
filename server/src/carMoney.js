@@ -298,13 +298,43 @@ export async function rentStatus(db, driverId) {
     byDay.set(r.day, d);
   }
   const days = [...byDay.values()].sort((a, b) => (a.day < b.day ? -1 : 1));
+  const closed = closeCalendarDays(days);
 
-  const totalAccrued = days.reduce((s, d) => s + d.accrued, 0);
-  const totalPaid = days.reduce((s, d) => s + d.paid, 0);
+  const { rows: current } = await db.query(
+    `SELECT ca.car_id, c.plate, c.brand, c.model,
+            (SELECT rate FROM car_rate_history r WHERE r.car_id = ca.car_id AND r.valid_from <= $2
+             ORDER BY r.valid_from DESC, r.id DESC LIMIT 1) AS rate
+     FROM car_assignments ca JOIN cars c ON c.id = ca.car_id
+     WHERE ca.driver_id = $1 AND ca.end_at IS NULL
+     ORDER BY ca.start_at DESC LIMIT 1`,
+    [id, today]
+  );
+  const car = current[0] || null;
+  const rate = car?.rate ? Number(car.rate) : 0;
+  const aheadDays = closed.pool > 0 && rate > 0 ? Math.floor(closed.pool / rate) : 0;
+
+  return {
+    today,
+    first_day: firstDay,
+    car: car ? { id: Number(car.car_id), plate: car.plate, brand: car.brand, model: car.model } : null,
+    rate,
+    ...closed.totals,
+    debt_days: closed.debtDays,
+    paid_through: closed.paidThrough,
+    debt_from: closed.debtFrom,
+    ahead_until: aheadDays ? addDays(today, aheadDays) : null,
+    days: days.map(({ day, accrued, paid, pending: wait, covered, left, status, plates, idle }) => ({
+      day, accrued, paid, pending: wait, covered, left, status, plates, idle: status === 'off' ? idle || null : null,
+    })),
+  };
+}
+
+function closeCalendarDays(days) {
+  const accrued = days.reduce((s, d) => s + d.accrued, 0);
+  const paid = days.reduce((s, d) => s + d.paid, 0);
   const pending = days.reduce((s, d) => s + d.pending, 0);
-  // День закрыт только деньгами, отданными в этот же день, — как в таблице «Оплаты по дням».
-  const pool = Math.max(totalPaid - totalAccrued, 0);
-  const noDebt = totalPaid >= totalAccrued;
+  const pool = Math.max(paid - accrued, 0);
+  const noDebt = paid >= accrued;
   let paidThrough = null;
   let debtFrom = null;
   let debtDays = 0;
@@ -332,36 +362,68 @@ export async function rentStatus(db, driverId) {
       debtDays += 1;
     }
   }
+  return {
+    pool,
+    paidThrough,
+    debtFrom,
+    debtDays,
+    totals: {
+      accrued,
+      paid,
+      pending,
+      debt: Math.max(accrued - paid, 0),
+      overpaid: pool,
+    },
+  };
+}
 
-  const { rows: current } = await db.query(
-    `SELECT ca.car_id, c.plate, c.brand, c.model,
-            (SELECT rate FROM car_rate_history r WHERE r.car_id = ca.car_id AND r.valid_from <= $2
-             ORDER BY r.valid_from DESC, r.id DESC LIMIT 1) AS rate
-     FROM car_assignments ca JOIN cars c ON c.id = ca.car_id
-     WHERE ca.driver_id = $1 AND ca.end_at IS NULL
-     ORDER BY ca.start_at DESC LIMIT 1`,
+// Календарь аренды по машине: тот же цвет и сумма, плюс кто из водителей был в этот день.
+export async function carRentStatus(db, carId) {
+  const id = Number(carId);
+  const today = localToday();
+  const { rows: first } = await db.query(
+    'SELECT MIN(start_at) AS start_at FROM car_assignments WHERE car_id = $1',
+    [id]
+  );
+  const firstDay = localDay(first[0]?.start_at);
+  const from = firstDay || today;
+  const ledger = await carDailyLedger(db, id, from, today);
+  const days = ledger.rows;
+  const closed = closeCalendarDays(days);
+
+  const { rows: carRows } = await db.query(
+    `SELECT c.plate, c.brand, c.model,
+            (SELECT rate FROM car_rate_history r WHERE r.car_id = c.id AND r.valid_from <= $2
+             ORDER BY r.valid_from DESC, r.id DESC LIMIT 1) AS rate,
+            ca.driver_id, u.full_name AS driver_name
+     FROM cars c
+     LEFT JOIN car_assignments ca ON ca.car_id = c.id AND ca.end_at IS NULL
+     LEFT JOIN drivers d ON d.id = ca.driver_id
+     LEFT JOIN users u ON u.id = d.user_id
+     WHERE c.id = $1`,
     [id, today]
   );
-  const car = current[0] || null;
-  const rate = car?.rate ? Number(car.rate) : 0;
-  const aheadDays = pool > 0 && rate > 0 ? Math.floor(pool / rate) : 0;
+  const car = carRows[0] || {};
+  const rate = car.rate ? Number(car.rate) : 0;
+  const aheadDays = closed.pool > 0 && rate > 0 ? Math.floor(closed.pool / rate) : 0;
 
   return {
     today,
-    first_day: firstDay,
-    car: car ? { id: Number(car.car_id), plate: car.plate, brand: car.brand, model: car.model } : null,
+    first_day: from,
+    car: { id, plate: car.plate, brand: car.brand, model: car.model },
+    driver: car.driver_id ? { id: Number(car.driver_id), name: car.driver_name } : null,
     rate,
-    accrued: totalAccrued,
-    paid: totalPaid,
-    pending,
-    debt: Math.max(totalAccrued - totalPaid, 0),
-    overpaid: pool,
-    debt_days: debtDays,
-    paid_through: paidThrough,
-    debt_from: debtFrom,
+    ...closed.totals,
+    debt_days: closed.debtDays,
+    paid_through: closed.paidThrough,
+    debt_from: closed.debtFrom,
     ahead_until: aheadDays ? addDays(today, aheadDays) : null,
-    days: days.map(({ day, accrued, paid, pending: wait, covered, left, status, plates, idle }) => ({
-      day, accrued, paid, pending: wait, covered, left, status, plates, idle: status === 'off' ? idle || null : null,
+    days: days.map(({ day, accrued, paid, pending: wait, covered, left, status, idle, driver_id, driver_name }) => ({
+      day, accrued, paid, pending: wait, covered, left, status,
+      idle: status === 'off' ? idle || null : null,
+      driver_id: driver_id || null,
+      driver_name: driver_name || null,
+      plates: car.plate ? [car.plate] : [],
     })),
   };
 }
