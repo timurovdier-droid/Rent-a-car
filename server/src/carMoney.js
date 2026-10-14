@@ -204,8 +204,21 @@ export async function carDailyLedger(db, carId, from, to, { driverId = null } = 
       transfer,
       paid,
       pending,
-      debt: Math.max(accrued - paid, 0),
+      covered: 0,
+      debt: accrued,
     });
+  }
+
+  // Деньги водителя гасят его самые старые дни первыми: платёж за несколько дней вперёд
+  // или в выходной закрывает и другие дни, а не только день платежа.
+  const pools = new Map();
+  for (const r of rows) pools.set(r.driver_id, (pools.get(r.driver_id) || 0) + r.paid);
+  for (const r of rows) {
+    const pool = pools.get(r.driver_id) || 0;
+    const cover = Math.min(pool, r.accrued);
+    pools.set(r.driver_id, pool - cover);
+    r.covered = cover;
+    r.debt = r.accrued - cover;
   }
 
   return { from, to: upper, rows, totals: ledgerTotals(rows) };
