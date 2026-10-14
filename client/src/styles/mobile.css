@@ -15,46 +15,46 @@
 .ptoast span { color: var(--c-muted); font-size: 14px; }
 @keyframes ptoast-in { from { transform: translate(-50%, -20px); opacity: 0; } }
 
-/* Палитра телефона: жёлтый Яндекса FCE000, чёрный 0A0A0A, белый FFFFFF.
+/* Палитра телефона: жёлтый Яндекса FCE000, чёрный RAL 9005 0E0E10, белый FFFFFF.
    На жёлтом всегда чёрный текст. Серые оттенки — чёрный и белый с прозрачностью. */
 @media (max-width: 1023px) {
   :root {
     --c-bg: #FFFFFF;
     --c-surface: #FFFFFF;
-    --c-ink: #0A0A0A;
-    --c-muted: rgb(10 10 10 / .55);
-    --c-line: rgb(10 10 10 / .08);
-    --c-line-strong: rgb(10 10 10 / .16);
-    --c-row-hover: rgb(10 10 10 / .04);
-    --c-soft: rgb(10 10 10 / .05);
+    --c-ink: #0E0E10;
+    --c-muted: rgb(14 14 16 / .55);
+    --c-line: rgb(14 14 16 / .08);
+    --c-line-strong: rgb(14 14 16 / .16);
+    --c-row-hover: rgb(14 14 16 / .04);
+    --c-soft: rgb(14 14 16 / .05);
     --c-primary: #FCE000;
-    --c-on-primary: #0A0A0A;
-    --c-signal: #0A0A0A;
-    --c-ok: #0A0A0A;
-    --c-danger: #0A0A0A;
-    --c-danger-solid: #0A0A0A;
-    --c-focus: #0A0A0A;
+    --c-on-primary: #0E0E10;
+    --c-signal: #0E0E10;
+    --c-ok: #0E0E10;
+    --c-danger: #0E0E10;
+    --c-danger-solid: #0E0E10;
+    --c-focus: #0E0E10;
     --c-nav: #FFFFFF;
-    --c-active: rgb(10 10 10 / .05);
+    --c-active: rgb(14 14 16 / .05);
     --plate-bg: #FFFFFF;
-    --plate-ink: #0A0A0A;
-    --plate-strip: #0A0A0A;
+    --plate-ink: #0E0E10;
+    --plate-strip: #0E0E10;
 
-    --c-hl-ink: #0A0A0A;
+    --c-hl-ink: #0E0E10;
     --c-yellow-soft: rgb(252 224 0 / .3);
     --c-solid-soft: #F2F2F2;
-    --bar-expense: #0A0A0A;
+    --bar-expense: #0E0E10;
 
-    --mf-bg: #FFFFFF; --mf-card: #FFFFFF; --mf-line: rgb(10 10 10 / .08);
-    --mf-ink: #0A0A0A; --mf-text: #0A0A0A; --mf-muted: rgb(10 10 10 / .55);
-    --mf-grid: rgb(10 10 10 / .08); --mf-zero: rgb(10 10 10 / .25);
-    --mf-chip: #0A0A0A; --mf-chip-hover: rgb(10 10 10 / .85); --mf-chip-ink: #FFFFFF;
-    --mf-pop: #FFFFFF; --mf-pop-ink: #0A0A0A; --mf-hover: rgb(10 10 10 / .05); --mf-disabled: rgb(10 10 10 / .3); --mf-day: #0A0A0A;
-    --mf-pop-shadow: 0 16px 40px rgb(10 10 10 / .14), 0 0 0 1px rgb(10 10 10 / .08);
+    --mf-bg: #FFFFFF; --mf-card: #FFFFFF; --mf-line: rgb(14 14 16 / .08);
+    --mf-ink: #0E0E10; --mf-text: #0E0E10; --mf-muted: rgb(14 14 16 / .55);
+    --mf-grid: rgb(14 14 16 / .08); --mf-zero: rgb(14 14 16 / .25);
+    --mf-chip: #0E0E10; --mf-chip-hover: rgb(14 14 16 / .85); --mf-chip-ink: #FFFFFF;
+    --mf-pop: #FFFFFF; --mf-pop-ink: #0E0E10; --mf-hover: rgb(14 14 16 / .05); --mf-disabled: rgb(14 14 16 / .3); --mf-day: #0E0E10;
+    --mf-pop-shadow: 0 16px 40px rgb(14 14 16 / .14), 0 0 0 1px rgb(14 14 16 / .08);
   }
   :root[data-theme='dark'] {
-    --c-bg: #0A0A0A;
-    --c-surface: #0A0A0A;
+    --c-bg: #0E0E10;
+    --c-surface: #0E0E10;
     --c-ink: #FFFFFF;
     --c-muted: rgb(255 255 255 / .55);
     --c-line: rgb(255 255 255 / .09);
@@ -66,24 +66,24 @@
     --c-danger: #FCE000;
     --c-danger-solid: #FFFFFF;
     --c-focus: #FCE000;
-    --c-nav: #0A0A0A;
+    --c-nav: #0E0E10;
     --c-active: rgb(255 255 255 / .08);
 
     --c-hl-ink: #FCE000;
     --c-yellow-soft: rgb(252 224 0 / .16);
-    --c-solid-soft: color-mix(in srgb, #FFFFFF 10%, #0A0A0A);
+    --c-solid-soft: color-mix(in srgb, #FFFFFF 10%, #0E0E10);
     --bar-expense: #FFFFFF;
 
-    --mf-bg: #0A0A0A; --mf-card: #0A0A0A; --mf-line: rgb(255 255 255 / .16);
+    --mf-bg: #0E0E10; --mf-card: #0E0E10; --mf-line: rgb(255 255 255 / .16);
     --mf-ink: #FFFFFF; --mf-text: #FFFFFF; --mf-muted: rgb(255 255 255 / .55);
     --mf-grid: rgb(255 255 255 / .14); --mf-zero: rgb(255 255 255 / .3);
-    --mf-chip: color-mix(in srgb, #FFFFFF 12%, #0A0A0A); --mf-chip-hover: color-mix(in srgb, #FFFFFF 18%, #0A0A0A); --mf-chip-ink: #FFFFFF;
-    --mf-pop: color-mix(in srgb, #FFFFFF 12%, #0A0A0A); --mf-pop-ink: #FFFFFF; --mf-hover: color-mix(in srgb, #FFFFFF 20%, #0A0A0A); --mf-disabled: rgb(255 255 255 / .3); --mf-day: #FFFFFF;
+    --mf-chip: color-mix(in srgb, #FFFFFF 12%, #0E0E10); --mf-chip-hover: color-mix(in srgb, #FFFFFF 18%, #0E0E10); --mf-chip-ink: #FFFFFF;
+    --mf-pop: color-mix(in srgb, #FFFFFF 12%, #0E0E10); --mf-pop-ink: #FFFFFF; --mf-hover: color-mix(in srgb, #FFFFFF 20%, #0E0E10); --mf-disabled: rgb(255 255 255 / .3); --mf-day: #FFFFFF;
     --mf-pop-shadow: 0 16px 40px rgb(0 0 0 / .6), 0 0 0 1px rgb(255 255 255 / .12);
   }
 
   /* Кнопки */
-  :root .btn:hover { background: color-mix(in srgb, #FCE000 90%, #0A0A0A); }
+  :root .btn:hover { background: color-mix(in srgb, #FCE000 90%, #0E0E10); }
   :root .btn--quiet:hover,
   :root .btn--ghost:hover,
   :root .chip:hover,
@@ -92,16 +92,16 @@
   :root .btn--danger:hover { background: var(--c-ink); color: var(--c-bg); }
   :root .btn--ok,
   :root .btn--ok:hover { background: var(--c-ink); color: var(--c-bg); }
-  :root .btn--report { background: #FCE000; color: #0A0A0A; animation: none; box-shadow: 0 10px 22px -10px rgb(252 224 0 / .9); }
-  :root .btn--report:hover { background: color-mix(in srgb, #FCE000 90%, #0A0A0A); }
-  :root .btn--report__plus { background: #0A0A0A; color: #FCE000; }
+  :root .btn--report { background: #FCE000; color: #0E0E10; animation: none; box-shadow: 0 10px 22px -10px rgb(252 224 0 / .9); }
+  :root .btn--report:hover { background: color-mix(in srgb, #FCE000 90%, #0E0E10); }
+  :root .btn--report__plus { background: #0E0E10; color: #FCE000; }
 
   /* Номер машины */
-  :root .plate { background: #FFFFFF; color: #0A0A0A; border-color: #0A0A0A; }
-  :root .plate__num, :root .plate__region { border-color: #0A0A0A; }
+  :root .plate { background: #FFFFFF; color: #0E0E10; border-color: #0E0E10; }
+  :root .plate__num, :root .plate__region { border-color: #0E0E10; }
   :root .plate__stripe--blue,
-  :root .plate__stripe--green { background: #0A0A0A; }
-  :root .plate__flag b { color: #0A0A0A; }
+  :root .plate__stripe--green { background: #0E0E10; }
+  :root .plate__flag b { color: #0E0E10; }
   :root[data-theme='dark'] .plate { box-shadow: 0 0 0 1px #FFFFFF; }
 
   /* Статусы: жёлтый — внимание и долг, чёрный/белый — норма */
@@ -120,7 +120,7 @@
   :root .badge--danger,
   :root .pay-status--unpaid,
   :root .rs-cell--unpaid,
-  :root .car-tab__count--alert { background: #FCE000; color: #0A0A0A; }
+  :root .car-tab__count--alert { background: #FCE000; color: #0E0E10; }
   :root .status--done,
   :root .badge--ok,
   :root .tx__icon--in,
@@ -135,13 +135,13 @@
   :root .rs-dot--part { background: rgb(252 224 0 / .5); }
   :root .rs-dot--unpaid { background: #FCE000; }
   :root .rs-dot--ahead { background: var(--c-soft); border-color: var(--c-ink); }
-  :root .rs-hero--bad { background: #FCE000; color: #0A0A0A; }
-  :root .rs-hero--ok { background: #0A0A0A; color: #FFFFFF; }
+  :root .rs-hero--bad { background: #FCE000; color: #0E0E10; }
+  :root .rs-hero--ok { background: #0E0E10; color: #FFFFFF; }
   :root[data-theme='dark'] .rs-hero--ok { background: var(--c-solid-soft); }
   :root .stat--accent .stat__label,
   :root .stat--accent .stat__hint,
-  :root .stat--accent .stat__value small { color: rgb(10 10 10 / .7); }
-  :root .stat--accent .stat__value { color: #0A0A0A; }
+  :root .stat--accent .stat__value small { color: rgb(14 14 16 / .7); }
+  :root .stat--accent .stat__value { color: #0E0E10; }
 
   /* Карточки, календарь, переключатели */
   :root .ct { --ct-box: var(--c-solid-soft); }
@@ -151,7 +151,7 @@
   :root .ct__edit:hover { background: var(--c-solid-soft); }
   :root .car-card:hover,
   :root a.person:hover,
-  :root .person--link:hover { border-color: var(--c-line-strong); box-shadow: 0 6px 18px rgb(10 10 10 / .08); }
+  :root .person--link:hover { border-color: var(--c-line-strong); box-shadow: 0 6px 18px rgb(14 14 16 / .08); }
   :root .car-card--alert { border-color: #FCE000; }
   :root .avatar { background: var(--c-soft); color: var(--c-ink); }
   :root .panel--yellow { background: var(--c-yellow-soft); border-color: rgb(252 224 0 / .6); }
@@ -162,7 +162,7 @@
   :root .chip--on,
   :root .chip--on:hover { background: var(--c-ink); border-color: var(--c-ink); color: var(--c-bg); }
   :root .cal__day--on,
-  :root .cal__day--on:hover:not(:disabled) { background: #FCE000; color: #0A0A0A; }
+  :root .cal__day--on:hover:not(:disabled) { background: #FCE000; color: #0E0E10; }
   :root .cal__day--new { box-shadow: inset 0 0 0 2px var(--c-ink); }
   :root .cal__day--idle,
   :root .cal__day--idle:hover:not(:disabled) { background: var(--c-yellow-soft); color: var(--c-hl-ink); }
@@ -185,30 +185,30 @@
   :root .mf-delta--down { color: var(--c-hl-ink); }
   :root .mf-bar--in { background: #FCE000; }
   :root .mf-bar--out { background: var(--c-ink); }
-  :root .mf-alert { background: #FCE000; color: #0A0A0A; }
+  :root .mf-alert { background: #FCE000; color: #0E0E10; }
 
   /* Колокольчик и баннер обновления */
   :root .bell { background: var(--c-ink); color: var(--c-bg); }
   :root .bell--active { box-shadow: 0 0 0 3px var(--c-bg), 0 0 0 5px var(--c-ink); }
-  :root .bell__count { background: #FCE000; color: #0A0A0A; }
-  :root .update-banner { background: #0A0A0A; color: #FFFFFF; }
+  :root .bell__count { background: #FCE000; color: #0E0E10; }
+  :root .update-banner { background: #0E0E10; color: #FFFFFF; }
   :root[data-theme='dark'] .update-banner { box-shadow: 0 0 0 1px rgb(255 255 255 / .18); }
 
   /* Экраны водителя */
-  :root .dsec__icon { color: #0A0A0A; }
+  :root .dsec__icon { color: #0E0E10; }
   :root .dsec__icon--tg,
   :root .dsec__icon--map { background: var(--c-ink); color: var(--c-bg); }
-  :root .dnet:not(.dnet--minus) { background: #FCE000; color: #0A0A0A; }
+  :root .dnet:not(.dnet--minus) { background: #FCE000; color: #0E0E10; }
   :root .dnet--minus { background: var(--c-ink); color: var(--c-bg); }
-  :root .pushcard:not(.pushcard--muted) { background: #FCE000; color: #0A0A0A; box-shadow: 0 10px 24px -10px rgb(252 224 0 / .9); }
-  :root .pushcard__error { color: #0A0A0A; text-decoration: underline; }
-  :root .pushcard__btn { background: #0A0A0A; border-color: #0A0A0A; color: #FFFFFF; }
-  :root .pushguide__num { background: #FCE000; color: #0A0A0A; }
+  :root .pushcard:not(.pushcard--muted) { background: #FCE000; color: #0E0E10; box-shadow: 0 10px 24px -10px rgb(252 224 0 / .9); }
+  :root .pushcard__error { color: #0E0E10; text-decoration: underline; }
+  :root .pushcard__btn { background: #0E0E10; border-color: #0E0E10; color: #FFFFFF; }
+  :root .pushguide__num { background: #FCE000; color: #0E0E10; }
   :root .pushguide__key { background: var(--c-surface); color: var(--c-ink); }
-  :root .pushguide__arrow { color: #FCE000; text-shadow: 0 2px 10px rgb(10 10 10 / .6); }
-  :root .earn-actions .earn-actions__in { background: #FCE000; border-color: #FCE000; color: #0A0A0A; }
+  :root .pushguide__arrow { color: #FCE000; text-shadow: 0 2px 10px rgb(14 14 16 / .6); }
+  :root .earn-actions .earn-actions__in { background: #FCE000; border-color: #FCE000; color: #0E0E10; }
   :root .earn-actions .earn-actions__out { background: var(--c-ink); border-color: var(--c-ink); color: var(--c-bg); }
-  :root .shero { background: #FCE000; color: #0A0A0A; box-shadow: 0 14px 30px -12px rgb(252 224 0 / .9); }
+  :root .shero { background: #FCE000; color: #0E0E10; box-shadow: 0 14px 30px -12px rgb(252 224 0 / .9); }
   html:root .shero__btn { background: var(--c-ink); border-color: var(--c-ink); color: var(--c-bg); }
   html:root .eitem__icon { background: var(--c-yellow-soft); }
   html:root .kind-btn--on { background: var(--c-yellow-soft); border-color: #FCE000; }
@@ -216,16 +216,16 @@
   :root .person .avatar { background: var(--c-soft); color: var(--c-ink); }
   :root .person .avatar--muted { background: var(--c-soft); color: var(--c-muted); }
   :root .eitem__plus { color: var(--c-ink); }
-  :root .qchip--on { color: #0A0A0A; }
+  :root .qchip--on { color: #0E0E10; }
   :root .kmbadge { background: var(--c-soft); }
   :root .kmbadge b { color: var(--c-ink); }
   :root .kmbadge--bad { background: var(--c-yellow-soft); color: var(--c-hl-ink); }
   :root .mweek__col > span:not(.mweek__empty) { background: #FCE000; }
-  :root .stoast { background: #0A0A0A; color: #FFFFFF; }
+  :root .stoast { background: #0E0E10; color: #FFFFFF; }
   :root[data-theme='dark'] .stoast { box-shadow: 0 0 0 1px rgb(255 255 255 / .18), 0 12px 30px rgb(0 0 0 / .5); }
-  :root .stoast__check { background: #FCE000; color: #0A0A0A; }
-  :root .odo { background: #0A0A0A; box-shadow: 0 0 0 3px #FCE000; }
-  :root .odo__cell { background: #0A0A0A; color: #FFFFFF; box-shadow: inset 0 0 0 1px rgb(255 255 255 / .12); }
+  :root .stoast__check { background: #FCE000; color: #0E0E10; }
+  :root .odo { background: #0E0E10; box-shadow: 0 0 0 3px #FCE000; }
+  :root .odo__cell { background: #0E0E10; color: #FFFFFF; box-shadow: inset 0 0 0 1px rgb(255 255 255 / .12); }
   :root .odo__cell::after { background: none; }
   :root .odo__cell--lead,
   :root .odo--ghost .odo__cell { color: rgb(255 255 255 / .35); }
@@ -241,7 +241,7 @@
   :root .tank__fill,
   :root .tank__fill--gas,
   :root .tank__fill--charge { background: #FCE000; }
-  :root .msuccess__check { background: #FCE000; color: #0A0A0A; box-shadow: 0 0 0 0 rgb(252 224 0 / .5); animation: bigCheck .6s cubic-bezier(.3, 1.8, .5, 1) both, ring-y 1.2s .3s ease-out; }
+  :root .msuccess__check { background: #FCE000; color: #0E0E10; box-shadow: 0 0 0 0 rgb(252 224 0 / .5); animation: bigCheck .6s cubic-bezier(.3, 1.8, .5, 1) both, ring-y 1.2s .3s ease-out; }
   :root .msuccess__km { color: var(--c-ink); }
 }
 @keyframes ring-y { to { box-shadow: 0 0 0 28px rgb(252 224 0 / 0); } }
@@ -323,7 +323,7 @@
   .mtile__img[src$='/cars.webp'] { width: 100%; }
   .mtile__img[src$='/summary.webp'],
   .mtile__img[src$='/drivers.webp'],
-  .mtile__img[src$='/cars.webp'] { filter: drop-shadow(0 0 .6px rgb(10 10 10 / .35)) drop-shadow(0 0 .6px rgb(10 10 10 / .35)); }
+  .mtile__img[src$='/cars.webp'] { filter: drop-shadow(0 0 .6px rgb(14 14 16 / .35)) drop-shadow(0 0 .6px rgb(14 14 16 / .35)); }
   [data-theme='dark'] .mtile__img[src] { filter: drop-shadow(0 0 .7px rgb(255 255 255 / .7)) drop-shadow(0 0 .7px rgb(255 255 255 / .7)); }
   [data-theme='dark'] .mtile__img[src$='/dispatchers.webp'],
   [data-theme='dark'] .mtile__img[src$='/owners.webp'] { filter: brightness(0) invert(1); }
