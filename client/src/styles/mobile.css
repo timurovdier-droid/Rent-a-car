@@ -326,6 +326,7 @@
   .mtile__img[src$='/cars.webp'] { filter: drop-shadow(0 0 .6px rgb(40 40 43 / .35)) drop-shadow(0 0 .6px rgb(40 40 43 / .35)); }
   [data-theme='dark'] .mtile__img[src] { filter: drop-shadow(0 0 .7px rgb(255 255 255 / .7)) drop-shadow(0 0 .7px rgb(255 255 255 / .7)); }
   [data-theme='dark'] .mtile__img[src$='/owners.webp'] { filter: brightness(0) invert(1); }
+  [data-theme='dark'] .mtile__img[src$='/drivers.webp'] { content: url('/tiles/drivers-dark.webp'); }
 
   .mtile--wide { grid-column: span 2; }
   .mtile--wide .mtile__card { min-height: 124px; }
