@@ -58,7 +58,7 @@ function DebtModal({ carId, onClose }) {
       ) : (
         <>
           <p className="muted small" style={{ marginTop: 0 }}>
-            Оплаты закрывают самые старые дни первыми. Ниже — дни, которые ещё не закрыты.
+            Дни, за которые водитель не отдал деньги полностью в тот же день.
           </p>
           <div className="table-wrap">
             <table className="table">
@@ -85,6 +85,12 @@ function DebtModal({ carId, onClose }) {
                 ))}
               </tbody>
               <tfoot>
+                {data.days.reduce((s, d) => s + d.left, 0) > data.debt && (
+                  <tr>
+                    <td className="table__td" colSpan={3}>Отдал в другие дни (выходные, переплата)</td>
+                    <td className="table__td table__num">{`−${fmtMoney(data.days.reduce((s, d) => s + d.left, 0) - data.debt)}`}</td>
+                  </tr>
+                )}
                 <tr>
                   <td className="table__td" colSpan={3}><b>Итого долг</b></td>
                   <td className="table__td table__num ledger__debt"><b>{fmtMoney(data.debt)} сум</b></td>

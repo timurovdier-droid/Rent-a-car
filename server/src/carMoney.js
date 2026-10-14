@@ -223,22 +223,14 @@ export async function carDebtDays(db, carId) {
   const firstDay = localDay(first[0]?.start_at);
   if (!firstDay) return { debt: 0, pending: 0, days: [] };
   const ledger = await carDailyLedger(db, id, firstDay > today ? today : firstDay, today);
-  let pool = ledger.totals.paid;
-  const days = [];
-  for (const row of ledger.rows) {
-    if (!row.accrued) continue;
-    const cover = Math.min(pool, row.accrued);
-    pool -= cover;
-    const left = row.accrued - cover;
-    if (left > 0) {
-      days.push({
-        day: row.day, driver_id: row.driver_id, driver_name: row.driver_name,
-        accrued: row.accrued, paid: cover, left,
-      });
-    }
-  }
+  const days = ledger.rows
+    .filter((row) => row.accrued && row.debt > 0)
+    .map((row) => ({
+      day: row.day, driver_id: row.driver_id, driver_name: row.driver_name,
+      accrued: row.accrued, paid: row.paid, left: row.debt,
+    }));
   days.reverse();
-  return { debt: days.reduce((s, d) => s + d.left, 0), pending: ledger.totals.pending, days };
+  return { debt: ledger.totals.debt, pending: ledger.totals.pending, days };
 }
 
 export function ledgerTotals(rows) {
@@ -286,7 +278,8 @@ export async function rentStatus(db, driverId) {
   const totalAccrued = days.reduce((s, d) => s + d.accrued, 0);
   const totalPaid = days.reduce((s, d) => s + d.paid, 0);
   const pending = days.reduce((s, d) => s + d.pending, 0);
-  let pool = totalPaid;
+  // День закрыт только деньгами, отданными в этот же день, — как в таблице «Оплаты по дням».
+  const pool = Math.max(totalPaid - totalAccrued, 0);
   let paidThrough = null;
   let debtFrom = null;
   let debtDays = 0;
@@ -297,8 +290,7 @@ export async function rentStatus(db, driverId) {
       d.left = 0;
       continue;
     }
-    const cover = Math.min(pool, d.accrued);
-    pool -= cover;
+    const cover = Math.min(d.paid, d.accrued);
     d.covered = cover;
     d.left = d.accrued - cover;
     if (d.left === 0) {

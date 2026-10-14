@@ -173,10 +173,11 @@ function DebtTile({ hasDebt, onOpen, children }) {
 
 function DebtDaysModal({ status, onClose }) {
   const days = status.days.filter((d) => d.left > 0).reverse();
+  const otherPaid = days.reduce((s, d) => s + d.left, 0) - status.debt;
   return (
     <Modal title="За какие дни долг" onClose={onClose}>
       <p className="muted small" style={{ marginTop: 0 }}>
-        Деньги закрывают самые старые дни первыми. Ниже — дни, которые ещё не закрыты.
+        Дни, за которые водитель не отдал деньги полностью в тот же день.
       </p>
       <div className="table-wrap">
         <table className="table">
@@ -199,6 +200,12 @@ function DebtDaysModal({ status, onClose }) {
             ))}
           </tbody>
           <tfoot>
+            {otherPaid > 0 && (
+              <tr>
+                <td className="table__td" colSpan={3}>Отдал в другие дни (выходные, переплата)</td>
+                <td className="table__td table__num">{`−${fmtMoney(otherPaid)}`}</td>
+              </tr>
+            )}
             <tr>
               <td className="table__td" colSpan={3}><b>Итого долг</b></td>
               <td className="table__td table__num ledger__debt"><b>{fmtMoney(status.debt)} сум</b></td>
