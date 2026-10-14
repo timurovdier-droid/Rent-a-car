@@ -31,19 +31,22 @@ function changes(e) {
   return out.length ? out.join(', ') : 'без изменения суммы';
 }
 
-export default function TxJournal() {
+export default function TxJournal({ driverId = null, title = 'Ведомость операций' }) {
   const [period, setPeriod] = useState(defaultPeriod);
   const [filter, setFilter] = useState('all');
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
+  const scoped = driverId != null;
 
   useEffect(() => {
     setData(null);
     setError('');
-    api.get(`/audit/transactions?from=${period.from}&to=${period.to}`)
+    const q = new URLSearchParams({ from: period.from, to: period.to });
+    if (driverId != null) q.set('driver_id', String(driverId));
+    api.get(`/audit/transactions?${q}`)
       .then(setData)
       .catch((err) => setError(err.message || 'Не удалось загрузить ведомость'));
-  }, [period.from, period.to]);
+  }, [period.from, period.to, driverId]);
 
   const events = (data?.events || []).filter((e) => filter === 'all' || e.action === filter);
   const sum = (action) => (data?.events || [])
@@ -52,15 +55,19 @@ export default function TxJournal() {
 
   function exportCsv() {
     downloadCsv(`ведомость_${period.from}_${period.to}.csv`,
-      ['Когда', 'Кто', 'Действие', 'Машина', 'Водитель', 'За дату', 'Статья / способ', 'Сумма', 'Что изменилось', 'Комментарий'],
+      ['Когда', 'Кто', 'Действие', '№ записи', 'Машина', 'Водитель', 'За дату', 'Статья / способ', 'Сумма', 'Что изменилось', 'Комментарий'],
       events.map((e) => [
-        fmtDateTime(e.at), e.user_name || '', ACTIONS[e.action].label, e.plate || '', e.driver_name || '',
+        fmtDateTime(e.at), e.user_name || '', ACTIONS[e.action].label, e.tx_id || '', e.plate || '', e.driver_name || '',
         e.tx_date ? fmtDay(e.tx_date) : '', what(e), e.kind === 'EXPENSE' ? -e.amount : e.amount, changes(e) || '', e.comment || '',
       ]));
   }
 
   return (
     <div className="ledger-box">
+      {title && <h3 className="panel__title" style={{ marginTop: 0 }}>{title}</h3>}
+      <p className="muted small" style={{ marginTop: scoped ? 0 : undefined }}>
+        Кто и когда добавил, изменил, удалил или подтвердил деньги по машинам. Время — по Ташкенту.
+      </p>
       <PeriodPicker value={period} onChange={setPeriod} />
       {error && <div className="notice notice--error">{error}</div>}
       {!data && !error && <div className="muted">Загрузка…</div>}
@@ -96,7 +103,8 @@ export default function TxJournal() {
                     <th className="table__th">Когда</th>
                     <th className="table__th">Кто</th>
                     <th className="table__th">Действие</th>
-                    <th className="table__th">Машина / водитель</th>
+                    <th className="table__th">№</th>
+                    <th className="table__th">{scoped ? 'Машина' : 'Машина / водитель'}</th>
                     <th className="table__th">За дату</th>
                     <th className="table__th">Статья · способ</th>
                     <th className="table__th table__num">Сумма</th>
@@ -113,9 +121,10 @@ export default function TxJournal() {
                           {ACTIONS[e.action].label}
                         </span>
                       </td>
+                      <td className="table__td muted">{e.tx_id || '—'}</td>
                       <td className="table__td">
                         {e.plate ? <Plate value={e.plate} /> : null}
-                        {e.driver_name && <div className="muted small">{e.driver_name}</div>}
+                        {!scoped && e.driver_name && <div className="muted small">{e.driver_name}</div>}
                       </td>
                       <td className="table__td">{e.tx_date ? fmtDay(e.tx_date) : '—'}</td>
                       <td className="table__td">{what(e) || '—'}</td>

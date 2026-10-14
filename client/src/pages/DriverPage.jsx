@@ -10,13 +10,14 @@ import DriverForm from '../components/DriverForm';
 import DriverLedger from '../components/DriverLedger';
 import DriverRentStatus from '../components/RentStatus';
 import DriverCharges from '../components/DriverCharges';
+import TxJournal from '../components/TxJournal';
 import { fmtMoney, fmtNumber, fmtDay, fmtDateTime, localDayOf, todayLocal } from '../labels';
 import NavIcon from '../components/NavIcon';
 import DateInput from '../components/DateInput';
 
 const errText = (err, fallback) => (err instanceof ApiError ? err.message : fallback);
 
-const DRIVER_TABS = [
+const DRIVER_TABS_BASE = [
   { key: 'driver', label: 'Водитель' },
   { key: 'reports', label: 'Отчёты' },
   { key: 'car', label: 'Машина' },
@@ -244,7 +245,10 @@ export default function DriverPage() {
   const [ledgerVersion, setLedgerVersion] = useState(0);
   const [searchParams, setSearchParams] = useSearchParams();
   const tabParam = searchParams.get('tab') || 'driver';
-  const tab = DRIVER_TABS.some((t) => t.key === tabParam) ? tabParam : 'driver';
+  const driverTabs = isAdmin
+    ? [...DRIVER_TABS_BASE, { key: 'journal', label: 'Ведомость' }]
+    : DRIVER_TABS_BASE;
+  const tab = driverTabs.some((t) => t.key === tabParam) ? tabParam : 'driver';
 
   function openTab(key) {
     const next = new URLSearchParams(searchParams);
@@ -325,7 +329,7 @@ export default function DriverPage() {
       {error && <div className="notice notice--error">{error}</div>}
 
       <nav className="car-tabs" role="tablist" aria-label="Разделы водителя" style={{ marginTop: 12 }}>
-        {DRIVER_TABS.map((t) => (
+        {driverTabs.map((t) => (
           <button
             key={t.key}
             type="button"
@@ -413,6 +417,10 @@ export default function DriverPage() {
             <DriverLedger driverId={driver.id} canPay={!archived} onChanged={() => setLedgerVersion((v) => v + 1)} />
           </div>
         </>
+      )}
+
+      {tab === 'journal' && isAdmin && (
+        <TxJournal driverId={driver.id} title={null} />
       )}
 
       {tab === 'car' && (

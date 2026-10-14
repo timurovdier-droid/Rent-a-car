@@ -56,7 +56,8 @@ const parse = (v) => {
 // GET /transactions?from&to — ведомость: кто и когда добавил, изменил, удалил или подтвердил деньги.
 router.get('/transactions', async (req, res) => {
   try {
-    const { from, to } = req.query;
+    const { from, to, driver_id: driverIdParam } = req.query;
+    const driverFilter = driverIdParam ? Number(driverIdParam) : null;
     if (!isDay(from) || !isDay(to) || from > to) {
       return res.status(400).json({ error: { code: 'BAD_REQUEST', message: 'Неверный период' } });
     }
@@ -139,7 +140,7 @@ router.get('/transactions', async (req, res) => {
     const spans = new Map();
     if (carIds.length) {
       const { rows: assigns } = await pool.query(
-        `SELECT ca.car_id, ca.start_at, ca.end_at, u.full_name AS driver_name
+        `SELECT ca.car_id, ca.driver_id, ca.start_at, ca.end_at, u.full_name AS driver_name
          FROM car_assignments ca LEFT JOIN drivers d ON d.id = ca.driver_id LEFT JOIN users u ON u.id = d.user_id
          WHERE ca.car_id IN (${carIds.map((_, i) => `$${i + 1}`).join(', ')})
          ORDER BY ca.start_at ASC, ca.id ASC`,
@@ -148,18 +149,33 @@ router.get('/transactions', async (req, res) => {
       const today = localDayOf(new Date().toISOString().slice(0, 19).replace('T', ' '));
       for (const a of assigns) {
         const list = spans.get(Number(a.car_id)) || [];
-        list.push({ from: localDayOf(a.start_at), to: a.end_at ? localDayOf(a.end_at) : today, name: a.driver_name });
+        list.push({
+          from: localDayOf(a.start_at),
+          to: a.end_at ? localDayOf(a.end_at) : today,
+          name: a.driver_name,
+          driver_id: a.driver_id ? Number(a.driver_id) : null,
+        });
         spans.set(Number(a.car_id), list);
       }
     }
     for (const e of events) {
       let name = null;
-      for (const s of spans.get(e.car_id) || []) if (e.tx_date && s.from <= e.tx_date && e.tx_date <= s.to) name = s.name;
+      let driverId = null;
+      for (const s of spans.get(e.car_id) || []) {
+        if (e.tx_date && s.from <= e.tx_date && e.tx_date <= s.to) {
+          name = s.name;
+          driverId = s.driver_id;
+        }
+      }
       e.driver_name = name;
+      e.driver_id = driverId;
     }
 
-    events.sort((a, b) => (a.at < b.at ? 1 : a.at > b.at ? -1 : 0));
-    res.json({ from, to, events });
+    let out = events;
+    if (driverFilter) out = out.filter((e) => e.driver_id === driverFilter);
+
+    out.sort((a, b) => (a.at < b.at ? 1 : a.at > b.at ? -1 : 0));
+    res.json({ from, to, driver_id: driverFilter || null, events: out });
   } catch (err) {
     console.error('Ошибка ведомости операций:', err);
     res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Внутренняя ошибка сервера' } });
