@@ -132,6 +132,8 @@
   :root .avatar--muted { background: var(--c-soft); color: var(--c-muted); }
   :root .rs-cell--paid { background: var(--c-ink); color: var(--c-bg); }
   :root .rs-dot--paid { background: var(--c-ink); }
+  :root .rs-cell--covered { background: repeating-linear-gradient(135deg, var(--c-ink) 0 8px, color-mix(in srgb, var(--c-ink) 78%, var(--c-bg)) 8px 16px); color: var(--c-bg); }
+  :root .rs-dot--covered { background: repeating-linear-gradient(135deg, var(--c-ink) 0 3px, color-mix(in srgb, var(--c-ink) 70%, var(--c-bg)) 3px 6px); }
   :root .rs-dot--part { background: rgb(252 224 0 / .5); }
   :root .rs-dot--unpaid { background: #FCE000; }
   :root .rs-dot--ahead { background: var(--c-soft); border-color: var(--c-ink); }

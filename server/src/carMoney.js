@@ -235,7 +235,29 @@ export async function carDebtDays(db, carId) {
   return { debt: ledger.totals.debt, pending: ledger.totals.pending, days };
 }
 
+// Если водитель в целом за период не должен, недоплаченные дни закрыты его переплатой в другие дни.
+function coverFromOverpay(rows) {
+  const groups = new Map();
+  for (const r of rows) {
+    const key = r.driver_id ?? 'none';
+    const list = groups.get(key) || [];
+    list.push(r);
+    groups.set(key, list);
+  }
+  for (const list of groups.values()) {
+    const balance = list.reduce((s, r) => s + r.accrued - r.paid, 0);
+    if (balance > 0) continue;
+    for (const r of list) {
+      if (r.debt > 0) {
+        r.from_overpay = r.debt;
+        r.debt = 0;
+      }
+    }
+  }
+}
+
 export function ledgerTotals(rows) {
+  coverFromOverpay(rows);
   const sum = (key) => rows.reduce((s, r) => s + r[key], 0);
   const balance = sum('accrued') - sum('paid');
   return {
@@ -282,6 +304,7 @@ export async function rentStatus(db, driverId) {
   const pending = days.reduce((s, d) => s + d.pending, 0);
   // День закрыт только деньгами, отданными в этот же день, — как в таблице «Оплаты по дням».
   const pool = Math.max(totalPaid - totalAccrued, 0);
+  const noDebt = totalPaid >= totalAccrued;
   let paidThrough = null;
   let debtFrom = null;
   let debtDays = 0;
@@ -298,6 +321,11 @@ export async function rentStatus(db, driverId) {
     if (d.left === 0) {
       d.status = 'paid';
       if (!debtFrom) paidThrough = d.day;
+    } else if (noDebt) {
+      d.status = 'covered';
+      d.covered = d.accrued;
+      d.left = 0;
+      paidThrough = d.day;
     } else {
       d.status = cover > 0 ? 'part' : 'unpaid';
       if (!debtFrom) debtFrom = d.day;

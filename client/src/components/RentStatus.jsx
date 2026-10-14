@@ -59,6 +59,19 @@ function CellBody({ state, info }) {
       </>
     );
   }
+  if (state === 'covered') {
+    return (
+      <>
+        <span className="rs-cell__label">Из переплаты</span>
+        {info?.paid > 0 && (
+          <>
+            <span className="rs-cell__sum rs-cell__sum--full">{`+${fmtMoney(info.paid)}`}</span>
+            <span className="rs-cell__sum rs-cell__sum--short">{`+${fmtMoney(Math.round(info.paid / 1000))}k`}</span>
+          </>
+        )}
+      </>
+    );
+  }
   if (state === 'part') {
     return (
       <>
@@ -366,6 +379,7 @@ export function RentStatusView({ status, driverId, canWrite = false, onSaved }) 
         </div>
         <div className="rs-legend">
           <span><i className="rs-dot rs-dot--paid" />Закрыто</span>
+          <span><i className="rs-dot rs-dot--covered" />Закрыто из переплаты</span>
           <span><i className="rs-dot rs-dot--part" />Не доплатил</span>
           <span><i className="rs-dot rs-dot--unpaid" />Не оплачено</span>
           <span><i className="rs-dot rs-dot--ahead" />Оплачено вперёд</span>

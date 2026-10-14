@@ -50,6 +50,7 @@ export function dayStatus(r) {
   if (r.day_off) return { key: 'off', label: r.idle ? 'Простой' : 'Выходной' };
   if (!r.accrued && !r.paid) return { key: 'none', label: '—' };
   if (r.paid >= r.accrued) return { key: 'paid', label: 'Оплачено' };
+  if (r.from_overpay) return { key: 'covered', label: 'Из переплаты' };
   if (r.pending > 0 && r.paid + r.pending >= r.accrued) return { key: 'wait', label: 'Ждёт подтверждения' };
   if (r.paid > 0) return { key: 'part', label: 'Не доплатил' };
   return { key: 'unpaid', label: 'Не дал' };
