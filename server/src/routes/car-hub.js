@@ -158,7 +158,7 @@ router.get('/:id/hub', async (req, res) => {
     const today = localToday();
 
     const { rows: assignments } = await pool.query(
-      `SELECT ca.id, ca.driver_id, ca.start_at, ca.end_at, ca.mileage_start, ca.mileage_end, ca.note,
+      `SELECT ca.id, ca.driver_id, ca.start_at, ca.end_at, ca.mileage_start, ca.mileage_end, ca.note, ca.pay_from,
               u.full_name AS driver_name, u.phone AS driver_phone, cb.full_name AS created_by_name
        FROM car_assignments ca
        LEFT JOIN drivers d ON d.id = ca.driver_id
@@ -589,6 +589,10 @@ router.post('/:id/assign', requireRole('ADMIN', 'DISPATCHER'), async (req, res) 
   if (mileage === null || Number.isNaN(mileage) || mileage < 0) {
     return fail(res, 400, 'BAD_REQUEST', 'Укажите пробег при выдаче', 'mileage');
   }
+  const payFrom = req.body.pay_from || null;
+  if (payFrom && (!isDay(payFrom) || payFrom < day)) {
+    return fail(res, 400, 'BAD_REQUEST', 'Платить можно начать не раньше дня выдачи', 'pay_from');
+  }
 
   const client = await pool.connect();
   try {
@@ -611,14 +615,14 @@ router.post('/:id/assign', requireRole('ADMIN', 'DISPATCHER'), async (req, res) 
       return fail(res, 409, 'CONFLICT', 'Водитель не найден или уже ездит на другой машине');
     }
     const { rows } = await client.query(
-      `INSERT INTO car_assignments (car_id, driver_id, start_at, mileage_start, note, created_by)
-       VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
-      [car.id, driverId, stampFor(day), mileage, req.body.note || null, req.user.id]
+      `INSERT INTO car_assignments (car_id, driver_id, start_at, mileage_start, note, created_by, pay_from)
+       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+      [car.id, driverId, stampFor(day), mileage, req.body.note || null, req.user.id, payFrom && payFrom > day ? payFrom : null]
     );
     await client.query(`UPDATE cars SET status = 'RENTED', mileage = $1 WHERE id = $2`, [mileage, car.id]);
     await client.query(`UPDATE drivers SET status = 'RENTED' WHERE id = $1`, [driverId]);
     await writeAudit(client, req.user.id, 'ASSIGNMENT_CREATED', 'car_assignment', rows[0].id, null,
-      { car_id: car.id, driver_id: driverId, date: day, mileage }, req.ip);
+      { car_id: car.id, driver_id: driverId, date: day, mileage, pay_from: rows[0].pay_from }, req.ip);
     await client.query('COMMIT');
     res.status(201).json(rows[0]);
   } catch (err) {
@@ -675,6 +679,36 @@ router.post('/:id/release', requireRole('ADMIN', 'DISPATCHER'), async (req, res)
     serverError(res, 'Ошибка приёма машины:', err);
   } finally {
     client.release();
+  }
+});
+
+// PATCH /cars/:id/assignments/:aid/pay-from — с какого числа водитель платит за машину.
+// Дата выдачи и пробег не меняются; null — платит с дня выдачи.
+router.patch('/:id/assignments/:aid/pay-from', requireRole('ADMIN', 'DISPATCHER'), async (req, res) => {
+  try {
+    const car = await loadCar(req, res, { write: true });
+    if (!car) return;
+    const { rows } = await pool.query(
+      'SELECT * FROM car_assignments WHERE id = $1 AND car_id = $2',
+      [parseInt(req.params.aid, 10), car.id]
+    );
+    const assignment = rows[0];
+    if (!assignment) return fail(res, 404, 'NOT_FOUND', 'Запись не найдена');
+    const start = localDay(assignment.start_at);
+    const day = req.body.date || null;
+    if (day && !isDay(day)) return fail(res, 400, 'BAD_REQUEST', 'Неверная дата', 'date');
+    if (day && day < start) return fail(res, 400, 'BAD_REQUEST', 'Платить можно начать не раньше дня выдачи', 'date');
+    if (day && assignment.end_at && day > localDay(assignment.end_at)) {
+      return fail(res, 400, 'BAD_REQUEST', 'Эта дата позже, чем водитель вернул машину', 'date');
+    }
+    const payFrom = day && day > start ? day : null;
+    await pool.query('UPDATE car_assignments SET pay_from = $1 WHERE id = $2', [payFrom, assignment.id]);
+    await writeAudit(pool, req.user.id, 'ASSIGNMENT_PAY_FROM_CHANGED', 'car_assignment', assignment.id,
+      { car_id: car.id, driver_id: assignment.driver_id, pay_from: assignment.pay_from || null },
+      { car_id: car.id, driver_id: assignment.driver_id, pay_from: payFrom }, req.ip);
+    res.json({ id: assignment.id, pay_from: payFrom });
+  } catch (err) {
+    serverError(res, 'Ошибка изменения даты оплаты:', err);
   }
 });
 

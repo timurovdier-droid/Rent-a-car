@@ -290,6 +290,8 @@ function DriverPanel({ hub, canWrite, onChanged }) {
   const [mileage, setMileage] = useState(car.mileage != null ? String(car.mileage) : '');
   const [releasing, setReleasing] = useState(false);
   const [dating, setDating] = useState(false);
+  const [payFromOpen, setPayFromOpen] = useState(false);
+  const [payFrom, setPayFrom] = useState('');
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -316,8 +318,9 @@ function DriverPanel({ hub, canWrite, onChanged }) {
     setSaving(true);
     setError('');
     try {
-      await api.post(`/cars/${car.id}/assign`, { driver_id: driverId, date: day, mileage });
+      await api.post(`/cars/${car.id}/assign`, { driver_id: driverId, date: day, mileage, pay_from: payFrom || null });
       setDriverId('');
+      setPayFrom('');
       onChanged();
     } catch (err) {
       setError(errText(err, 'Не удалось выдать машину'));
@@ -338,11 +341,15 @@ function DriverPanel({ hub, canWrite, onChanged }) {
               с {fmtDay(localDayOf(current.start_at))} · выдана с пробегом {fmtNumber(current.mileage_start)} км
               {current.driver_phone ? ` · ${current.driver_phone}` : ''}
             </div>
+            {current.pay_from && (
+              <div className="person__sub"><b>{`Платит с ${fmtDay(current.pay_from)}`}</b></div>
+            )}
           </div>
           {canWrite && (
             <div className="driver-actions">
               <button className="btn btn--quiet btn--sm" onClick={() => setReleasing(true)}>Принять машину</button>
               <button className="btn btn--ghost btn--sm" onClick={() => setDating(true)} title="Если водитель взял машину в другой день">Изменить дату</button>
+              <button className="btn btn--ghost btn--sm" onClick={() => setPayFromOpen(true)} title="С какого числа водитель платит за машину">Платит с</button>
               <button className="btn btn--ghost btn--sm" onClick={cancelAssignment} title="Если записали водителя по ошибке">Убрать с машины</button>
             </div>
           )}
@@ -371,6 +378,11 @@ function DriverPanel({ hub, canWrite, onChanged }) {
               <label className="field__label" htmlFor="as-km">Пробег при выдаче</label>
               <MoneyInput id="as-km" value={mileage} onChange={setMileage} required suffix="км" />
             </div>
+            <div className="field">
+              <label className="field__label" htmlFor="as-pay">Платит с</label>
+              <DateInput id="as-pay" className="field__input" value={payFrom} min={day} onChange={(e) => setPayFrom(e.target.value)} />
+              <span className="muted small">Если пусто — с даты выдачи</span>
+            </div>
           </div>
           {error && <div className="notice notice--error">{error}</div>}
           <button className="btn" type="submit" disabled={saving || !driverId}>{saving ? 'Выдаю…' : 'Выдать машину'}</button>
@@ -385,6 +397,9 @@ function DriverPanel({ hub, canWrite, onChanged }) {
       )}
       {dating && current && (
         <StartDateModal car={car} current={current} today={today} onClose={() => setDating(false)} onDone={() => { setDating(false); onChanged(); }} />
+      )}
+      {payFromOpen && current && (
+        <PayFromModal car={car} current={current} onClose={() => setPayFromOpen(false)} onDone={() => { setPayFromOpen(false); onChanged(); }} />
       )}
     </div>
   );
@@ -602,6 +617,50 @@ function StartDateModal({ car, current, today, onClose, onDone }) {
         {error && <div className="notice notice--error">{error}</div>}
         <div className="form-actions">
           <button className="btn" type="submit" disabled={saving || !day}>{saving ? 'Сохраняю…' : 'Сохранить'}</button>
+          <button className="btn btn--quiet" type="button" onClick={onClose}>Отмена</button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+function PayFromModal({ car, current, onClose, onDone }) {
+  const start = localDayOf(current.start_at);
+  const [day, setDay] = useState(current.pay_from || start);
+  const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  async function save(date) {
+    setSaving(true);
+    setError('');
+    try {
+      await api.patch(`/cars/${car.id}/assignments/${current.id}/pay-from`, { date });
+      onDone();
+    } catch (err) {
+      setError(errText(err, 'Не удалось сохранить'));
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Modal title="С какого числа платит" onClose={onClose}>
+      <form onSubmit={(e) => { e.preventDefault(); save(day); }}>
+        <p className="muted" style={{ marginTop: 0 }}>
+          <span data-no-translate>{current.driver_name}</span> · <span>взял машину</span> {fmtDay(start)}
+        </p>
+        <p className="muted small">
+          Аренда начнёт начисляться с этого числа. Дата выдачи и пробег не меняются, дни до этого числа водитель не должен.
+        </p>
+        <div className="field">
+          <label className="field__label" htmlFor="pf-date">Платит с</label>
+          <DateInput id="pf-date" className="field__input" value={day} min={start} onChange={(e) => setDay(e.target.value)} required />
+        </div>
+        {error && <div className="notice notice--error">{error}</div>}
+        <div className="form-actions">
+          <button className="btn" type="submit" disabled={saving || !day}>{saving ? 'Сохраняю…' : 'Сохранить'}</button>
+          {current.pay_from && (
+            <button className="btn btn--quiet" type="button" disabled={saving} onClick={() => save(null)}>С даты выдачи</button>
+          )}
           <button className="btn btn--quiet" type="button" onClick={onClose}>Отмена</button>
         </div>
       </form>

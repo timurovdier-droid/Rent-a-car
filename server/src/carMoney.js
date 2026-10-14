@@ -62,7 +62,7 @@ export async function loadAccrualInputs(db, carIds) {
   // Выдачи удалённых водителей не начисляются: их долг пропадает вместе с водителем.
   // handed_over: в тот же день водитель взял другую выдачу — этот день начисляется только по новой.
   const { rows: assignments } = await db.query(
-    `SELECT ca.car_id, ca.start_at, ca.end_at,
+    `SELECT ca.car_id, ca.start_at, ca.end_at, ca.pay_from,
             CASE WHEN ca.end_at IS NOT NULL AND EXISTS (
               SELECT 1 FROM car_assignments n
               WHERE n.driver_id = ca.driver_id AND n.id <> ca.id AND n.start_at >= ca.end_at
@@ -111,6 +111,8 @@ export function computeAccruals(inputs, { from = null, to = null } = {}) {
       let end = a.end_at ? localDay(a.end_at) : today;
       if (!start) continue;
       if (Number(a.handed_over)) end = addDays(end, -1);
+      // pay_from — с этого дня водитель платит; дни раньше машина у него, но аренда не начисляется.
+      if (a.pay_from && start < a.pay_from) start = a.pay_from;
       if (from && start < from) start = from;
       if (end > upper) end = upper;
       for (const day of daysBetween(start, end)) days.add(day);
