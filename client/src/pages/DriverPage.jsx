@@ -18,8 +18,8 @@ import DateInput from '../components/DateInput';
 const errText = (err, fallback) => (err instanceof ApiError ? err.message : fallback);
 
 const DRIVER_TABS_BASE = [
-  { key: 'driver', label: 'Водитель' },
   { key: 'reports', label: 'Отчёты' },
+  { key: 'driver', label: 'Водитель' },
   { key: 'car', label: 'Машина' },
 ];
 
@@ -244,15 +244,15 @@ export default function DriverPage() {
   const [carOpen, setCarOpen] = useState(false);
   const [ledgerVersion, setLedgerVersion] = useState(0);
   const [searchParams, setSearchParams] = useSearchParams();
-  const tabParam = searchParams.get('tab') || 'driver';
+  const tabParam = searchParams.get('tab') || 'reports';
   const driverTabs = isAdmin
     ? [...DRIVER_TABS_BASE, { key: 'journal', label: 'Ведомость' }]
     : DRIVER_TABS_BASE;
-  const tab = driverTabs.some((t) => t.key === tabParam) ? tabParam : 'driver';
+  const tab = driverTabs.some((t) => t.key === tabParam) ? tabParam : 'reports';
 
   function openTab(key) {
     const next = new URLSearchParams(searchParams);
-    if (key === 'driver') next.delete('tab');
+    if (key === 'reports') next.delete('tab');
     else next.set('tab', key);
     setSearchParams(next, { replace: true });
   }
