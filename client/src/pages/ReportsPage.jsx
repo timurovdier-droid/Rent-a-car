@@ -7,6 +7,7 @@ import CarLedger from '../components/CarLedger';
 import CarPicker from '../components/CarPicker';
 import DriverReportPage from './DriverReportPage';
 import AuditPage from './AuditPage';
+import TxJournal from '../components/TxJournal';
 import DashboardPage from './DashboardPage';
 import NavIcon from '../components/NavIcon';
 import { fmtMoney, fmtDay, downloadCsv } from '../labels';
@@ -18,6 +19,7 @@ const TABS = [
   ['owners', 'По арендодателям'],
   ['debts', 'Долги'],
   ['days', 'По дням'],
+  ['journal', 'Ведомость'],
   ['audit', 'Журнал аудита'],
 ];
 
@@ -33,8 +35,8 @@ export default function ReportsPage() {
   const tab = requested === 'summary' || TABS.some(([key]) => key === requested) ? requested : 'cars';
   const summary = tab === 'summary';
   const carId = params.get('car') || '';
-  const ownTab = summary || tab === 'car' || tab === 'drivers' || tab === 'audit';
-  const ownPeriod = summary || tab === 'drivers' || tab === 'audit';
+  const ownTab = summary || tab === 'car' || tab === 'drivers' || tab === 'audit' || tab === 'journal';
+  const ownPeriod = summary || tab === 'drivers' || tab === 'audit' || tab === 'journal';
   const [period, setPeriod] = useState(defaultPeriod);
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
@@ -145,6 +147,7 @@ export default function ReportsPage() {
       {summary && <DashboardPage />}
       {tab === 'drivers' && <DriverReportPage embedded />}
       {tab === 'audit' && <AuditPage embedded />}
+      {tab === 'journal' && <TxJournal />}
 
       {!ownTab && error && <div className="notice notice--error">{error}</div>}
       {!ownTab && !data && !error && <div className="muted">Загрузка…</div>}

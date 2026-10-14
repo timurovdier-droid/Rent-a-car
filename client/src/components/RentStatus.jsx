@@ -6,6 +6,7 @@ import Modal from './Modal';
 import MoneyInput from './MoneyInput';
 import { fmtMoney, fmtDay } from '../labels';
 import DateInput from './DateInput';
+import TxList from './TxList';
 
 const MONTHS = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
 const WEEK = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
@@ -45,7 +46,19 @@ function Shortfall({ value }) {
 }
 
 function CellBody({ state, info }) {
-  if (state === 'paid') return <span className="rs-cell__label">Закрыто</span>;
+  if (state === 'paid') {
+    return (
+      <>
+        <span className="rs-cell__label">Закрыто</span>
+        {info?.paid > 0 && (
+          <>
+            <span className="rs-cell__sum rs-cell__sum--full">{`+${fmtMoney(info.paid)}`}</span>
+            <span className="rs-cell__sum rs-cell__sum--short">{`+${fmtMoney(Math.round(info.paid / 1000))}k`}</span>
+          </>
+        )}
+      </>
+    );
+  }
   if (state === 'part') {
     return (
       <>
@@ -176,6 +189,47 @@ function DayReportModal({ driverId, status, day, onClose, onDone }) {
   );
 }
 
+function DayChoiceModal({ day, info, onAdd, onEdit, onClose }) {
+  return (
+    <Modal title={`День ${fmtDay(day)}`} onClose={onClose}>
+      <p className="muted" style={{ marginTop: 0 }}>
+        {`За этот день уже записано ${fmtMoney((info.paid || 0) + (info.pending || 0))} сум. Что сделать?`}
+      </p>
+      <div className="form-actions">
+        <button type="button" className="btn" onClick={onAdd}>Добавить сумму</button>
+        <button type="button" className="btn btn--quiet" onClick={onEdit}>Изменить отчёт</button>
+      </div>
+    </Modal>
+  );
+}
+
+function DayTxModal({ driverId, day, role, onClose, onChanged }) {
+  const [items, setItems] = useState(null);
+  const [error, setError] = useState('');
+  const [version, setVersion] = useState(0);
+
+  useEffect(() => {
+    setError('');
+    api.get(`/drivers/${driverId}/transactions`)
+      .then((data) => setItems((data.items || []).filter((tx) => String(tx.tx_date).slice(0, 10) === day)))
+      .catch((err) => setError(err.message || 'Не удалось загрузить операции'));
+  }, [driverId, day, version]);
+
+  return (
+    <Modal title={`Отчёт за ${fmtDay(day)}`} onClose={onClose}>
+      <p className="muted small" style={{ marginTop: 0 }}>
+        Здесь можно исправить сумму, способ или дату записи, либо удалить её. Все изменения попадают в ведомость.
+      </p>
+      {error && <div className="notice notice--error">{error}</div>}
+      {!items && !error && <div className="muted">Загрузка…</div>}
+      {items && items.length === 0 && <div className="empty">За этот день записей нет</div>}
+      {items && items.length > 0 && (
+        <TxList items={items} role={role} showCar onChanged={() => { setVersion((v) => v + 1); onChanged?.(); }} />
+      )}
+    </Modal>
+  );
+}
+
 function DebtTile({ hasDebt, onOpen, children }) {
   if (!hasDebt) return <div className="rs-tile rs-tile--ok">{children}</div>;
   return <button type="button" className="rs-tile rs-tile--bad rs-tile--link" onClick={onOpen}>{children}</button>;
@@ -229,7 +283,10 @@ function DebtDaysModal({ status, onClose }) {
 
 export function RentStatusView({ status, driverId, canWrite = false, onSaved }) {
   const [month, setMonth] = useState(status.today.slice(0, 7));
+  const { user } = useAuth();
   const [reportDay, setReportDay] = useState(null);
+  const [choiceDay, setChoiceDay] = useState(null);
+  const [editDay, setEditDay] = useState(null);
   const [debtOpen, setDebtOpen] = useState(false);
   const byDay = useMemo(() => new Map(status.days.map((d) => [d.day, d])), [status]);
   const minMonth = shiftMonth(status.today.slice(0, 7), -36);
@@ -291,6 +348,7 @@ export function RentStatusView({ status, driverId, canWrite = false, onSaved }) 
             const info = byDay.get(day);
             const state = cellState(day, info, status);
             const openReport = canWrite && day <= status.today;
+            const hasMoney = (info?.paid || 0) + (info?.pending || 0) > 0;
             const Tag = openReport ? 'button' : 'div';
             return (
               <Tag
@@ -298,7 +356,7 @@ export function RentStatusView({ status, driverId, canWrite = false, onSaved }) 
                 type={openReport ? 'button' : undefined}
                 className={`rs-cell rs-cell--${state} ${day === status.today ? 'rs-cell--today' : ''}`}
                 title={openReport ? `${fmtDay(day)}: записать отчёт` : (info ? `${fmtDay(day)}: начислено ${fmtMoney(info.accrued)}, закрыто ${fmtMoney(info.covered)}` : fmtDay(day))}
-                onClick={openReport ? () => setReportDay(day) : undefined}
+                onClick={openReport ? () => (hasMoney ? setChoiceDay(day) : setReportDay(day)) : undefined}
               >
                 <span className="rs-cell__num">{Number(day.slice(8))}</span>
                 <CellBody state={state} info={info} />
@@ -316,11 +374,29 @@ export function RentStatusView({ status, driverId, canWrite = false, onSaved }) 
         </div>
         <p className="muted small" style={{ margin: 0 }}>
           {canWrite
-            ? 'Нажмите на любой прошедший день и запишите отчёт. Если водитель работал до того, как его добавили, дату можно поставить задним числом.'
+            ? 'Нажмите на любой прошедший день и запишите отчёт. Если за день уже есть деньги, можно добавить сумму или исправить и удалить записи. Если водитель работал до того, как его добавили, дату можно поставить задним числом.'
             : 'День закрыт, если в этот день водитель отдал его сумму полностью. Деньги в выходной уменьшают общий долг.'}
         </p>
       </div>
       {debtOpen && <DebtDaysModal status={status} onClose={() => setDebtOpen(false)} />}
+      {choiceDay && (
+        <DayChoiceModal
+          day={choiceDay}
+          info={byDay.get(choiceDay)}
+          onAdd={() => { setReportDay(choiceDay); setChoiceDay(null); }}
+          onEdit={() => { setEditDay(choiceDay); setChoiceDay(null); }}
+          onClose={() => setChoiceDay(null)}
+        />
+      )}
+      {editDay && driverId && (
+        <DayTxModal
+          driverId={driverId}
+          day={editDay}
+          role={user?.role}
+          onClose={() => setEditDay(null)}
+          onChanged={onSaved}
+        />
+      )}
       {reportDay && driverId && (
         <DayReportModal
           driverId={driverId}
