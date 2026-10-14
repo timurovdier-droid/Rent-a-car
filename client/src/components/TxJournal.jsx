@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { api } from '../api';
 import PeriodPicker, { defaultPeriod } from './PeriodPicker';
 import Plate from './Plate';
@@ -10,7 +10,20 @@ const ACTIONS = {
   delete: { label: 'Удалил', tone: 'unpaid' },
   confirm: { label: 'Подтвердил', tone: 'off' },
 };
-const FILTERS = [['all', 'Все'], ['add', 'Добавили'], ['edit', 'Изменили'], ['delete', 'Удалили'], ['confirm', 'Подтвердили']];
+const ACTION_FILTERS = [['all', 'Все'], ['add', 'Добавили'], ['edit', 'Изменили'], ['delete', 'Удалили'], ['confirm', 'Подтвердили']];
+const KIND_FILTERS = [['all', 'Все'], ['INCOME', 'Доходы'], ['EXPENSE', 'Расходы']];
+
+function matchEvents(events, { action, kind, txId, carId, userName }) {
+  const tx = txId.trim();
+  return events.filter((e) => {
+    if (action !== 'all' && e.action !== action) return false;
+    if (kind !== 'all' && e.kind !== kind) return false;
+    if (tx && String(e.tx_id ?? '') !== tx && !String(e.tx_id ?? '').includes(tx)) return false;
+    if (carId !== 'all' && String(e.car_id) !== carId) return false;
+    if (userName !== 'all' && (e.user_name || '') !== userName) return false;
+    return true;
+  });
+}
 
 function signed(e) {
   const sign = e.kind === 'EXPENSE' ? '−' : '+';
@@ -33,10 +46,16 @@ function changes(e) {
 
 export default function TxJournal({ driverId = null, title = 'Ведомость операций' }) {
   const [period, setPeriod] = useState(defaultPeriod);
-  const [filter, setFilter] = useState('all');
+  const [actionFilter, setActionFilter] = useState('all');
+  const [kindFilter, setKindFilter] = useState('all');
+  const [txId, setTxId] = useState('');
+  const [carFilter, setCarFilter] = useState('all');
+  const [whoFilter, setWhoFilter] = useState('all');
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
   const scoped = driverId != null;
+
+  const filters = { action: actionFilter, kind: kindFilter, txId, carId: carFilter, userName: whoFilter };
 
   useEffect(() => {
     setData(null);
@@ -48,10 +67,32 @@ export default function TxJournal({ driverId = null, title = 'Ведомость
       .catch((err) => setError(err.message || 'Не удалось загрузить ведомость'));
   }, [period.from, period.to, driverId]);
 
-  const events = (data?.events || []).filter((e) => filter === 'all' || e.action === filter);
-  const sum = (action) => (data?.events || [])
-    .filter((e) => e.action === action && e.kind !== 'EXPENSE')
+  const allEvents = data?.events || [];
+  const events = useMemo(() => matchEvents(allEvents, filters), [allEvents, actionFilter, kindFilter, txId, carFilter, whoFilter]);
+
+  const cars = useMemo(() => {
+    const m = new Map();
+    for (const e of allEvents) if (e.car_id && e.plate) m.set(String(e.car_id), e.plate);
+    return [...m.entries()].sort((a, b) => a[1].localeCompare(b[1], 'ru'));
+  }, [allEvents]);
+
+  const authors = useMemo(() => {
+    const s = new Set(allEvents.map((e) => e.user_name).filter(Boolean));
+    return [...s].sort((a, b) => a.localeCompare(b, 'ru'));
+  }, [allEvents]);
+
+  const sum = (action) => matchEvents(allEvents, { ...filters, action })
+    .filter((e) => e.kind !== 'EXPENSE')
     .reduce((s, e) => s + e.amount, 0);
+
+  const filtersActive = kindFilter !== 'all' || txId.trim() || carFilter !== 'all' || whoFilter !== 'all';
+
+  function resetTxFilters() {
+    setKindFilter('all');
+    setTxId('');
+    setCarFilter('all');
+    setWhoFilter('all');
+  }
 
   function exportCsv() {
     downloadCsv(`ведомость_${period.from}_${period.to}.csv`,
@@ -85,17 +126,62 @@ export default function TxJournal({ driverId = null, title = 'Ведомость
               </div>
               <div className="ledger-sum__item">
                 <span className="ledger-sum__label">Изменений</span>
-                <b>{(data.events || []).filter((e) => e.action === 'edit').length}</b>
+                <b>{matchEvents(allEvents, { ...filters, action: 'edit' }).length}</b>
               </div>
             </div>
             <button type="button" className="btn btn--quiet" onClick={exportCsv} disabled={!events.length}>Скачать в Excel</button>
           </div>
-          <div className="chips" style={{ margin: '4px 0 12px' }}>
-            {FILTERS.map(([key, label]) => (
-              <button key={key} type="button" className={`chip ${filter === key ? 'chip--on' : ''}`} onClick={() => setFilter(key)}>{label}</button>
+          <div className="muted small" style={{ margin: '8px 0 4px' }}>По действию</div>
+          <div className="chips" style={{ margin: '0 0 10px' }}>
+            {ACTION_FILTERS.map(([key, label]) => (
+              <button key={key} type="button" className={`chip ${actionFilter === key ? 'chip--on' : ''}`} onClick={() => setActionFilter(key)}>{label}</button>
             ))}
           </div>
-          {events.length === 0 ? <div className="empty">За этот период операций нет</div> : (
+          <div className="muted small" style={{ margin: '0 0 4px' }}>По транзакции</div>
+          <div className="chips" style={{ margin: '0 0 10px' }}>
+            {KIND_FILTERS.map(([key, label]) => (
+              <button key={key} type="button" className={`chip ${kindFilter === key ? 'chip--on' : ''}`} onClick={() => setKindFilter(key)}>{label}</button>
+            ))}
+          </div>
+          <div className="form-grid" style={{ marginBottom: 12, alignItems: 'end' }}>
+            <div className="field">
+              <label className="field__label" htmlFor="vj-txid">№ записи</label>
+              <input
+                id="vj-txid"
+                className="field__input"
+                inputMode="numeric"
+                value={txId}
+                onChange={(e) => setTxId(e.target.value.replace(/\D/g, ''))}
+                placeholder="все"
+              />
+            </div>
+            {!scoped && cars.length > 0 && (
+              <div className="field">
+                <label className="field__label" htmlFor="vj-car">Машина</label>
+                <select id="vj-car" className="field__input" value={carFilter} onChange={(e) => setCarFilter(e.target.value)}>
+                  <option value="all">Все машины</option>
+                  {cars.map(([id, plate]) => <option key={id} value={id}>{plate}</option>)}
+                </select>
+              </div>
+            )}
+            {authors.length > 0 && (
+              <div className="field">
+                <label className="field__label" htmlFor="vj-who">Кто сделал</label>
+                <select id="vj-who" className="field__input" value={whoFilter} onChange={(e) => setWhoFilter(e.target.value)}>
+                  <option value="all">Все</option>
+                  {authors.map((name) => <option key={name} value={name}>{name}</option>)}
+                </select>
+              </div>
+            )}
+            {filtersActive && (
+              <div className="field">
+                <button type="button" className="btn btn--quiet" onClick={resetTxFilters}>Сбросить фильтры</button>
+              </div>
+            )}
+          </div>
+          {events.length === 0 ? (
+            <div className="empty">{allEvents.length ? 'Нет строк по выбранным фильтрам' : 'За этот период операций нет'}</div>
+          ) : (
             <div className="table-wrap">
               <table className="table">
                 <thead>
