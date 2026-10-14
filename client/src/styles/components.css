@@ -687,6 +687,7 @@ button.rs-cell:hover { box-shadow: inset 0 0 0 2px var(--c-ink); }
 .rs-cell--part { background: #F5A623; color: #2B1A00; }
 .rs-cell--unpaid { background: #E5453A; color: #fff; }
 .rs-cell--off { background: var(--c-soft); color: var(--c-muted); }
+.rs-cell--offpaid { background: #2F80ED; color: #fff; }
 .rs-cell--future, .rs-cell--empty, .rs-cell--none { opacity: .55; }
 .rs-cell--today { outline: 3px solid var(--c-ink); outline-offset: 2px; }
 .rs-legend { display: flex; flex-wrap: wrap; gap: 8px 18px; font-size: 13px; color: var(--c-muted); }
@@ -697,6 +698,7 @@ button.rs-cell:hover { box-shadow: inset 0 0 0 2px var(--c-ink); }
 .rs-dot--unpaid { background: #E5453A; }
 .rs-dot--ahead { background: color-mix(in srgb, #1F9D55 30%, var(--c-surface)); border: 1px solid #1F9D55; }
 .rs-dot--off { background: var(--c-soft); border: 1px solid var(--c-line-strong); }
+.rs-dot--offpaid { background: #2F80ED; }
 .drv__top .rs-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 @media (max-width: 900px) {
   .rs-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }

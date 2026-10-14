@@ -10,11 +10,28 @@ import DriverForm from '../components/DriverForm';
 import DriverLedger from '../components/DriverLedger';
 import DriverRentStatus from '../components/RentStatus';
 import DriverCharges from '../components/DriverCharges';
+import TxList from '../components/TxList';
 import { fmtMoney, fmtNumber, fmtDay, fmtDateTime, localDayOf, todayLocal } from '../labels';
 import NavIcon from '../components/NavIcon';
 import DateInput from '../components/DateInput';
 
 const errText = (err, fallback) => (err instanceof ApiError ? err.message : fallback);
+
+function DriverOps({ driverId, role, version, onChanged }) {
+  const [items, setItems] = useState(null);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    setError('');
+    api.get(`/drivers/${driverId}/transactions`)
+      .then((data) => setItems(data.items))
+      .catch((err) => setError(errText(err, 'Не удалось загрузить операции')));
+  }, [driverId, version]);
+
+  if (error) return <div className="notice notice--error">{error}</div>;
+  if (!items) return <div className="muted">Загрузка…</div>;
+  return <TxList items={items} role={role} onChanged={onChanged} showCar />;
+}
 
 function ChangeCarModal({ driver, onClose, onDone }) {
   const current = driver.assignments.find((a) => !a.end_at) || null;
@@ -236,6 +253,7 @@ export default function DriverPage() {
   const [passwordOpen, setPasswordOpen] = useState(false);
   const [carOpen, setCarOpen] = useState(false);
   const [ledgerVersion, setLedgerVersion] = useState(0);
+  const [reportView, setReportView] = useState('days');
 
   const load = useCallback(async () => {
     try {
@@ -392,10 +410,30 @@ export default function DriverPage() {
         <DriverRentStatus driverId={driver.id} version={ledgerVersion} onChanged={() => setLedgerVersion((v) => v + 1)} />
       </div>
 
-      <div className="panel" style={{ marginTop: 16 }}>
-        <h3 className="panel__title">Оплаты и долг по дням</h3>
-        <DriverLedger driverId={driver.id} canPay={!archived} onChanged={() => setLedgerVersion((v) => v + 1)} />
+      <div className="view-switch" role="group" aria-label="Вид отчёта" style={{ marginTop: 16 }}>
+        <button
+          type="button"
+          className={`view-switch__btn ${reportView === 'ops' ? 'view-switch__btn--on' : ''}`}
+          onClick={() => setReportView('ops')}
+        >
+          Операции
+        </button>
+        <button
+          type="button"
+          className={`view-switch__btn ${reportView === 'days' ? 'view-switch__btn--on' : ''}`}
+          onClick={() => setReportView('days')}
+        >
+          По дням
+        </button>
       </div>
+      {reportView === 'ops' ? (
+        <DriverOps driverId={driver.id} role={user?.role} version={ledgerVersion} onChanged={() => setLedgerVersion((v) => v + 1)} />
+      ) : (
+        <div className="panel">
+          <h3 className="panel__title">Оплаты и долг по дням</h3>
+          <DriverLedger driverId={driver.id} canPay={!archived} onChanged={() => setLedgerVersion((v) => v + 1)} />
+        </div>
+      )}
 
       {editing && <DriverForm driver={driver} onClose={() => setEditing(false)} onSaved={() => { setEditing(false); load(); }} />}
       {carOpen && (

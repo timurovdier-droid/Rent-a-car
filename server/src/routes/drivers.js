@@ -279,6 +279,73 @@ router.get('/:id', async (req, res) => {
   }
 });
 
+// GET /:id/transactions — операции по машинам в те дни, когда на них ездил этот водитель
+router.get('/:id/transactions', async (req, res) => {
+  try {
+    const driver = await loadDriver(req, res);
+    if (!driver) return;
+    const today = localToday();
+    const { rows: mine } = await pool.query('SELECT DISTINCT car_id FROM car_assignments WHERE driver_id = $1', [driver.id]);
+    const carIds = mine.map((r) => Number(r.car_id));
+    if (!carIds.length) return res.json({ items: [] });
+    const marks = carIds.map((_, i) => `$${i + 1}`).join(', ');
+
+    const { rows: assigns } = await pool.query(
+      `SELECT car_id, driver_id, start_at, end_at FROM car_assignments
+       WHERE car_id IN (${marks}) ORDER BY start_at ASC, id ASC`,
+      carIds
+    );
+    const spans = new Map();
+    for (const a of assigns) {
+      const from = localDay(a.start_at);
+      if (!from) continue;
+      const list = spans.get(Number(a.car_id)) || [];
+      list.push({ driver_id: Number(a.driver_id), from, to: a.end_at ? localDay(a.end_at) : today });
+      spans.set(Number(a.car_id), list);
+    }
+    // В день передачи машины день считается за того, кто её взял.
+    const driverOn = (carId, day) => {
+      let hit = null;
+      for (const s of spans.get(carId) || []) if (s.from <= day && day <= s.to) hit = s.driver_id;
+      return hit;
+    };
+
+    const params = [...carIds];
+    let sql = `
+      SELECT t.id, t.car_id, t.kind, t.category, t.amount, t.method, t.tx_date, t.comment, t.status,
+             t.created_by, t.created_at, t.confirmed_at, c.plate,
+             u.full_name AS author_name
+      FROM car_transactions t
+      JOIN cars c ON c.id = t.car_id
+      LEFT JOIN users u ON u.id = t.created_by
+      WHERE t.car_id IN (${marks})`;
+    if (req.user.role === 'DISPATCHER') {
+      params.push(req.user.id);
+      sql += ` AND (t.kind = 'INCOME' OR t.created_by = $${params.length})`;
+    }
+    sql += ' ORDER BY t.tx_date DESC, t.id DESC LIMIT 1000';
+    const { rows } = await pool.query(sql, params);
+
+    const admin = req.user.role === 'ADMIN';
+    const items = rows
+      .filter((t) => driverOn(Number(t.car_id), String(t.tx_date).slice(0, 10)) === Number(driver.id))
+      .slice(0, 300)
+      .map((t) => {
+        const own = !admin && t.status === 'PENDING' && Number(t.created_by) === Number(req.user.id);
+        return {
+          ...t,
+          car_id: Number(t.car_id),
+          can_edit: admin || own,
+          can_delete: admin || own,
+          can_confirm: admin && t.status === 'PENDING',
+        };
+      });
+    res.json({ items });
+  } catch (err) {
+    serverError(res, 'Ошибка получения операций водителя:', err);
+  }
+});
+
 // GET /:id/rent-status — по какое число закрыта аренда, с какого числа долг, календарь дней
 router.get('/:id/rent-status', async (req, res) => {
   try {

@@ -28,6 +28,7 @@ function monthCells(month) {
 }
 
 function cellState(day, info, status) {
+  if (info?.status === 'off' && info.paid > 0) return 'offpaid';
   if (info) return info.status;
   if (day > status.today && status.ahead_until && day <= status.ahead_until) return 'ahead';
   if (day > status.today) return 'future';
@@ -62,6 +63,15 @@ function CellBody({ state, info }) {
     );
   }
   if (state === 'off') return <span className="rs-cell__label">{info?.idle ? 'Простой' : 'Выходной'}</span>;
+  if (state === 'offpaid') {
+    return (
+      <>
+        <span className="rs-cell__label">{`${info.idle ? 'Простой' : 'Выходной'} · дал`}</span>
+        <span className="rs-cell__sum rs-cell__sum--full">{`+${fmtMoney(info.paid)}`}</span>
+        <span className="rs-cell__sum rs-cell__sum--short">{`+${fmtMoney(Math.round(info.paid / 1000))}k`}</span>
+      </>
+    );
+  }
   if (state === 'ahead') return <span className="rs-cell__label">Оплачено вперёд</span>;
   return null;
 }
@@ -302,11 +312,12 @@ export function RentStatusView({ status, driverId, canWrite = false, onSaved }) 
           <span><i className="rs-dot rs-dot--unpaid" />Не оплачено</span>
           <span><i className="rs-dot rs-dot--ahead" />Оплачено вперёд</span>
           <span><i className="rs-dot rs-dot--off" />Выходной / простой</span>
+          <span><i className="rs-dot rs-dot--offpaid" />Дал деньги в выходной</span>
         </div>
         <p className="muted small" style={{ margin: 0 }}>
           {canWrite
             ? 'Нажмите на любой прошедший день и запишите отчёт. Если водитель работал до того, как его добавили, дату можно поставить задним числом.'
-            : 'Деньги закрывают самые старые дни первыми: если водитель заплатил сразу за несколько дней, они все станут закрытыми.'}
+            : 'День закрыт, если в этот день водитель отдал его сумму полностью. Деньги в выходной уменьшают общий долг.'}
         </p>
       </div>
       {debtOpen && <DebtDaysModal status={status} onClose={() => setDebtOpen(false)} />}
