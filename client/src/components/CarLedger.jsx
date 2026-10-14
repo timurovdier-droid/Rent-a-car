@@ -1,7 +1,11 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { api } from '../api';
+import { useAuth } from '../auth';
 import PeriodPicker, { defaultPeriod } from './PeriodPicker';
 import Plate from './Plate';
+import Modal from './Modal';
+import MoneyInput from './MoneyInput';
 import { fmtMoney, fmtDay, downloadCsv } from '../labels';
 
 const WEEKDAYS = ['вс', 'пн', 'вт', 'ср', 'чт', 'пт', 'сб'];
@@ -73,7 +77,7 @@ export function LedgerTable({ ledger, showDriver = true, showCar = false, onPay 
         <thead>
           <tr>
             <th className="table__th">Дата</th>
-            {showDriver && <th className="table__th">Водитель</th>}
+            {showDriver && <th className="table__th">Кто платил</th>}
             {showCar && <th className="table__th">Машина</th>}
             <th className="table__th table__num">Начислено</th>
             <th className="table__th table__num">Наличные</th>
@@ -90,7 +94,13 @@ export function LedgerTable({ ledger, showDriver = true, showCar = false, onPay 
                 {fmtDay(r.day)} <span className="muted small">{weekday(r.day)}</span>
               </td>
               {showDriver && (
-                <td className="table__td">{r.driver_name || <span className="muted">без водителя</span>}</td>
+                <td className="table__td">
+                  {r.driver_name
+                    ? (r.driver_id
+                      ? <Link to={`/drivers/${r.driver_id}`}>{r.driver_name}</Link>
+                      : r.driver_name)
+                    : <span className="muted">без водителя</span>}
+                </td>
               )}
               {showCar && (
                 <td className="table__td">
@@ -138,6 +148,98 @@ export function LedgerTable({ ledger, showDriver = true, showCar = false, onPay 
   );
 }
 
+export function PayDayModal({ row, driverName, isAdmin, onClose, onDone }) {
+  const left = Math.max(row.accrued - row.paid - row.pending, 0);
+  const [cash, setCash] = useState('');
+  const [card, setCard] = useState('');
+  const [balance, setBalance] = useState('');
+  const [comment, setComment] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const total = (Number(cash) || 0) + (Number(card) || 0) + (Number(balance) || 0);
+
+  function payAll(setter) {
+    setCash('');
+    setCard('');
+    setBalance('');
+    setter(String(left));
+  }
+
+  async function submit(e) {
+    e.preventDefault();
+    if (!total) {
+      setError('Впишите сумму: наличными, картой или с баланса');
+      return;
+    }
+    setSaving(true);
+    setError('');
+    const note = [`Оплата за ${fmtDay(row.day)}`, driverName, comment.trim()].filter(Boolean).join(' · ');
+    try {
+      for (const [method, amount] of [['CASH', cash], ['CARD', card], ['BALANCE', balance]]) {
+        if (Number(amount) > 0) {
+          await api.post(`/cars/${row.car_id}/transactions`, {
+            kind: 'INCOME', category: 'RENT', method, amount: Number(amount), tx_date: row.day, comment: note,
+          });
+        }
+      }
+      onDone();
+    } catch (err) {
+      setError(err.message || 'Не удалось записать оплату');
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Modal title={`Дал деньги · ${fmtDay(row.day)}`} onClose={onClose}>
+      <form onSubmit={submit} className="pay-day">
+        <div className="pay-day__info">
+          {row.plate && <span><Plate value={row.plate} /> <span className="muted small">{row.brand} {row.model}</span></span>}
+          {driverName && <p className="muted small" style={{ margin: '6px 0 0' }}>{`Водитель: ${driverName}`}</p>}
+          <dl className="kv">
+            <div><dt>За день</dt><dd>{fmtMoney(row.accrued)} сум</dd></div>
+            <div><dt>Уже получено</dt><dd>{fmtMoney(row.paid + row.pending)} сум</dd></div>
+            <div><dt>Не хватает</dt><dd className={left ? 'ledger__debt' : undefined}>{fmtMoney(left)} сум</dd></div>
+          </dl>
+        </div>
+        <div className="pay-day__grid">
+          <div className="field">
+            <label className="field__label" htmlFor="pd-cash">Наличными</label>
+            <MoneyInput id="pd-cash" value={cash} onChange={setCash} autoFocus />
+          </div>
+          <div className="field">
+            <label className="field__label" htmlFor="pd-card">Картой</label>
+            <MoneyInput id="pd-card" value={card} onChange={setCard} />
+          </div>
+          <div className="field">
+            <label className="field__label" htmlFor="pd-balance">С баланса</label>
+            <MoneyInput id="pd-balance" value={balance} onChange={setBalance} />
+          </div>
+        </div>
+        {left > 0 && (
+          <div className="chips">
+            <button type="button" className="chip" onClick={() => payAll(setCash)}>{`Всё наличными: ${fmtMoney(left)}`}</button>
+            <button type="button" className="chip" onClick={() => payAll(setCard)}>{`Всё картой: ${fmtMoney(left)}`}</button>
+            <button type="button" className="chip" onClick={() => payAll(setBalance)}>{`Всё с баланса: ${fmtMoney(left)}`}</button>
+          </div>
+        )}
+        <div className="field">
+          <label className="field__label" htmlFor="pd-note">Комментарий</label>
+          <input id="pd-note" className="field__input" value={comment} onChange={(e) => setComment(e.target.value)} placeholder="необязательно" maxLength={200} />
+        </div>
+        {total > 0 && left > 0 && total < left && (
+          <div className="notice">{`Будет статус «Не доплатил»: не хватит ${fmtMoney(left - total)} сум`}</div>
+        )}
+        {!isAdmin && <p className="muted small" style={{ margin: 0 }}>Запись уйдёт администратору на подтверждение.</p>}
+        {error && <div className="notice notice--error">{error}</div>}
+        <div className="form-actions">
+          <button className="btn" type="submit" disabled={saving}>{saving ? 'Записываю…' : `Записать ${total ? fmtMoney(total) : ''}`}</button>
+          <button className="btn btn--quiet" type="button" onClick={onClose}>Отмена</button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
 export function exportLedger(ledger, name) {
   downloadCsv(`${name}_${ledger.from}_${ledger.to}.csv`,
     ['Дата', 'Водитель', 'Машина', 'Выходной / простой', 'Начислено', 'Наличные', 'Карта / баланс', 'Ждёт подтверждения', 'Долг за день', 'Статус'],
@@ -147,20 +249,35 @@ export function exportLedger(ledger, name) {
     ]));
 }
 
-export default function CarLedger({ carId, period: outerPeriod }) {
+export default function CarLedger({ carId, period: outerPeriod, canPay = false, onChanged }) {
+  const { user } = useAuth();
   const [ownPeriod, setOwnPeriod] = useState(defaultPeriod);
   const period = outerPeriod || ownPeriod;
   const [ledger, setLedger] = useState(null);
   const [error, setError] = useState('');
+  const [paying, setPaying] = useState(null);
+  const [version, setVersion] = useState(0);
 
   useEffect(() => {
     if (!carId) return;
     setLedger(null);
     setError('');
     api.get(`/cars/${carId}/ledger?from=${period.from}&to=${period.to}`)
-      .then(setLedger)
+      .then((data) => {
+        const car = data.car || {};
+        setLedger({
+          ...data,
+          rows: (data.rows || []).map((r) => ({
+            ...r,
+            car_id: r.car_id || car.id || carId,
+            plate: r.plate || car.plate,
+            brand: r.brand || car.brand,
+            model: r.model || car.model,
+          })),
+        });
+      })
       .catch((err) => setError(err.message || 'Не удалось загрузить таблицу'));
-  }, [carId, period.from, period.to]);
+  }, [carId, period.from, period.to, version]);
 
   return (
     <div className="ledger-box">
@@ -180,10 +297,21 @@ export default function CarLedger({ carId, period: outerPeriod }) {
             </button>
           </div>
           <p className="muted small ledger-box__note">
-            Деньги считаются по дате платежа. Залог не входит. «Ждёт» — запись диспетчера, которую ещё не подтвердил админ.
+            {canPay
+              ? 'Цвет — статус дня. «Кто платил» — водитель, который был на машине в этот день. Если принёс деньги — нажмите «Дал».'
+              : 'Цвет — статус дня. «Кто платил» — водитель, который был на машине в этот день. Залог не входит.'}
           </p>
-          <LedgerTable ledger={ledger} />
+          <LedgerTable ledger={ledger} showDriver onPay={canPay ? setPaying : undefined} />
         </>
+      )}
+      {paying && (
+        <PayDayModal
+          row={paying}
+          driverName={paying.driver_name}
+          isAdmin={user?.role === 'ADMIN'}
+          onClose={() => setPaying(null)}
+          onDone={() => { setPaying(null); setVersion((v) => v + 1); onChanged?.(); }}
+        />
       )}
     </div>
   );

@@ -1034,7 +1034,7 @@ export default function CarPage() {
   const [flash, setFlash] = useState('');
   const [searchParams, setSearchParams] = useSearchParams();
   const tabParam = searchParams.get('tab') || 'report';
-  const reportView = searchParams.get('view') === 'days' ? 'days' : 'ops';
+  const reportView = searchParams.get('view') === 'ops' ? 'ops' : 'days';
 
   function openTab(key) {
     setSearchParams(key === 'report' ? {} : { tab: key }, { replace: true });
@@ -1190,21 +1190,23 @@ export default function CarPage() {
           <div className="view-switch" role="group" aria-label="Вид отчёта">
             <button
               type="button"
-              className={`view-switch__btn ${reportView === 'ops' ? 'view-switch__btn--on' : ''}`}
-              onClick={() => setSearchParams({}, { replace: true })}
-            >
-              Операции
-            </button>
-            <button
-              type="button"
               className={`view-switch__btn ${reportView === 'days' ? 'view-switch__btn--on' : ''}`}
-              onClick={() => setSearchParams({ view: 'days' }, { replace: true })}
+              onClick={() => setSearchParams({}, { replace: true })}
             >
               По дням
             </button>
+            <button
+              type="button"
+              className={`view-switch__btn ${reportView === 'ops' ? 'view-switch__btn--on' : ''}`}
+              onClick={() => setSearchParams({ view: 'ops' }, { replace: true })}
+            >
+              Операции
+            </button>
           </div>
         )}
-        {tab === 'report' && reportView === 'days' && <CarLedger carId={car.id} />}
+        {tab === 'report' && reportView === 'days' && (
+          <CarLedger carId={car.id} canPay={canWrite} onChanged={load} />
+        )}
         {tab === 'report' && reportView === 'ops' && (
           <TxList carId={car.id} items={hub.transactions} role={role} onChanged={load} />
         )}
