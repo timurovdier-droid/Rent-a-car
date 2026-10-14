@@ -49,9 +49,9 @@ export function LedgerSummary({ totals }) {
 export function dayStatus(r) {
   if (r.day_off) return { key: 'off', label: r.idle ? 'Простой' : 'Выходной' };
   if (!r.accrued && !r.paid) return { key: 'none', label: '—' };
-  if (!r.debt) return { key: 'paid', label: 'Оплачено' };
-  if (r.pending > 0 && r.pending >= r.debt) return { key: 'wait', label: 'Ждёт подтверждения' };
-  if (r.covered > 0) return { key: 'part', label: 'Не доплатил' };
+  if (r.paid >= r.accrued) return { key: 'paid', label: 'Оплачено' };
+  if (r.pending > 0 && r.paid + r.pending >= r.accrued) return { key: 'wait', label: 'Ждёт подтверждения' };
+  if (r.paid > 0) return { key: 'part', label: 'Не доплатил' };
   return { key: 'unpaid', label: 'Не дал' };
 }
 
