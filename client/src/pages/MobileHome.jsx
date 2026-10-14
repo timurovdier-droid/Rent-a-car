@@ -51,7 +51,7 @@ export default function MobileHome() {
 
       <div className="mtiles">
         {tiles.map((t) => (
-          <Link key={t.to} to={t.to} className={`mtile ${t.wide ? 'mtile--wide' : ''}`}>
+          <Link key={t.to} to={t.to} className={`mtile mtile--${t.img} ${t.wide ? 'mtile--wide' : ''}`}>
             <span className="mtile__card">
               <img className="mtile__img" src={`/tiles/${t.img}.webp`} alt="" loading="eager" decoding="async" />
             </span>

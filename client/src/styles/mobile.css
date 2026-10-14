@@ -331,6 +331,8 @@
   .mtile--wide { grid-column: span 2; }
   .mtile--wide .mtile__card { min-height: 124px; }
   .mtile--wide .mtile__img { width: auto; max-width: 60%; max-height: 96px; }
+  .mtile--summary .mtile__card { background: none; padding: 0; }
+  .mtile--summary .mtile__img { max-width: 90%; max-height: 180px; }
 
   /* Поиск по лупе */
   .search-sheet {
