@@ -1,7 +1,7 @@
 import { useId } from 'react';
 
-/** Объёмная сумка в цветах сайта для плитки «Сводка». */
-export default function SummaryBag({ className = '', size }) {
+/** Объёмная сумка в цветах сайта для плитки «Арендодатели». */
+export default function OwnerBag({ className = '', size }) {
   const uid = useId().replace(/:/g, '');
   const body = `bag-body-${uid}`;
   const flap = `bag-flap-${uid}`;
@@ -9,7 +9,7 @@ export default function SummaryBag({ className = '', size }) {
 
   return (
     <svg
-      className={`summary-bag ${className}`.trim()}
+      className={`owner-bag ${className}`.trim()}
       viewBox="0 0 220 200"
       width={size}
       height={size}
@@ -41,8 +41,8 @@ export default function SummaryBag({ className = '', size }) {
       />
 
       <rect x="28" y="62" width="164" height="118" rx="36" fill={`url(#${body})`} />
-      <path d={`M28 98h164v46c0 20-16 36-36 36H64c-20 0-36-16-36-36V98Z`} fill="#E6C800" opacity=".35" />
-      <path d={`M52 78c18-10 98-10 116 0`} fill="none" stroke={`url(#${shine})`} strokeWidth="10" strokeLinecap="round" />
+      <path d="M28 98h164v46c0 20-16 36-36 36H64c-20 0-36-16-36-36V98Z" fill="#E6C800" opacity=".35" />
+      <path d="M52 78c18-10 98-10 116 0" fill="none" stroke={`url(#${shine})`} strokeWidth="10" strokeLinecap="round" />
 
       <path d="M28 62h164c0 0-8 38-82 38S28 62 28 62Z" fill={`url(#${flap})`} />
       <rect x="92" y="78" width="36" height="28" rx="10" fill="#28282B" />
