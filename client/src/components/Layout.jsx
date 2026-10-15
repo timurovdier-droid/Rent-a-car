@@ -10,6 +10,7 @@ import { api } from '../api';
 import useTableLabels from './useTableLabels';
 import useIsPhone from './useIsPhone';
 import TabBar from './TabBar';
+import FleetNav, { dispatcherPageTitle } from './FleetNav';
 import { fmtMoney } from '../labels';
 const ROLE_LABELS = {
   DRIVER: 'Водитель',
@@ -197,8 +198,11 @@ export default function Layout() {
   const mainRef = useRef(null);
   const isPhone = useIsPhone();
   useTableLabels(mainRef);
+  const fleet = user?.role === 'DISPATCHER';
   const menuItems = menuFor(user?.role, isPhone);
-  const current = menuItems.find((item) => (item.end ? pathname === item.to : pathname.startsWith(item.to)));
+  const current = fleet
+    ? { label: dispatcherPageTitle(pathname) }
+    : menuItems.find((item) => (item.end ? pathname === item.to : pathname.startsWith(item.to)));
 
   useEffect(() => { setMenuOpen(false); }, [pathname]);
 
@@ -225,45 +229,49 @@ export default function Layout() {
   const paymentToast = usePaymentRequestAlert(user?.role);
 
   return (
-    <div className={`shell ${menuOpen ? 'shell--menu' : ''}`}>
+    <div className={`shell ${menuOpen ? 'shell--menu' : ''} ${fleet ? 'shell--fleet' : ''}`}>
       <header className="topbar">
         <button type="button" className="topbar__btn topbar__burger" onClick={() => setMenuOpen(true)} aria-label="Открыть меню">
           <NavIcon name="menu" size={22} />
         </button>
-        {current && <span className="topbar__section">{current.label}</span>}
+        {current?.label && <span className="topbar__section">{current.label}</span>}
         <div className="topbar__tools">
           <UserMenu user={user} onLogout={handleLogout} />
         </div>
       </header>
-      <div className="nav-backdrop" onClick={() => setMenuOpen(false)} aria-hidden="true" />
+      {!fleet && <div className="nav-backdrop" onClick={() => setMenuOpen(false)} aria-hidden="true" />}
 
-      <aside className="nav" aria-label="Меню">
-        <div className="nav__brand">
-          <button type="button" className="topbar__btn nav__close" onClick={() => setMenuOpen(false)} aria-label="Закрыть меню">
-            <NavIcon name="close" size={22} />
-          </button>
-        </div>
+      {fleet ? (
+        <FleetNav mobileOpen={menuOpen} onMobileClose={() => setMenuOpen(false)} onLogout={handleLogout} />
+      ) : (
+        <aside className="nav" aria-label="Меню">
+          <div className="nav__brand">
+            <button type="button" className="topbar__btn nav__close" onClick={() => setMenuOpen(false)} aria-label="Закрыть меню">
+              <NavIcon name="close" size={22} />
+            </button>
+          </div>
 
-        <nav className="nav__menu">
-          {menuItems.map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              end={item.end}
-              className={({ isActive }) => `nav__link ${isActive ? 'nav__link--active' : ''}`}
-              onMouseEnter={() => prefetchSection(user?.role, item.to)}
-              onTouchStart={() => prefetchSection(user?.role, item.to)}
-            >
-              <NavIcon name={item.icon} />
-              <span>{item.label}</span>
-            </NavLink>
-          ))}
-        </nav>
+          <nav className="nav__menu">
+            {menuItems.map((item) => (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                end={item.end}
+                className={({ isActive }) => `nav__link ${isActive ? 'nav__link--active' : ''}`}
+                onMouseEnter={() => prefetchSection(user?.role, item.to)}
+                onTouchStart={() => prefetchSection(user?.role, item.to)}
+              >
+                <NavIcon name={item.icon} />
+                <span>{item.label}</span>
+              </NavLink>
+            ))}
+          </nav>
 
-        <div className="nav__foot">
-          <AppControls />
-        </div>
-      </aside>
+          <div className="nav__foot">
+            <AppControls />
+          </div>
+        </aside>
+      )}
 
       <main className="main" ref={mainRef}>
         <Outlet />

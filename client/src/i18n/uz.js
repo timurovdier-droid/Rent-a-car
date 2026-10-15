@@ -97,6 +97,14 @@ export const DICT = {
 
   // Навигация и роли
   'Главная': 'Bosh sahifa',
+  'О парке': 'Park haqida',
+  'Персонал': 'Xodimlar',
+  'Профиль': 'Profil',
+  'Оплаты водителей': 'Haydovchilar toʻlovlari',
+  'Выдачи машин': 'Mashina berish',
+  'Сервис': 'Servis',
+  'Отчёты по дням': 'Kunlik hisobotlar',
+  'GTA · для бизнеса': 'GTA · biznes uchun',
   'на главную': 'bosh sahifaga',
   'Передать оплату': 'Toʻlovni topshirish',
   'Мои отчёты': 'Mening hisobotlarim',

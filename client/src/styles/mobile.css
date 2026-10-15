@@ -256,6 +256,9 @@
     padding-right: calc(12px + env(safe-area-inset-right));
   }
   .nav { padding-top: calc(12px + env(safe-area-inset-top)); }
+  .fleet__rail { padding-top: calc(10px + env(safe-area-inset-top)); padding-bottom: calc(12px + env(safe-area-inset-bottom)); }
+  .fleet__head { padding-top: calc(22px + env(safe-area-inset-top)); }
+  .fleet__brand { padding-bottom: calc(20px + env(safe-area-inset-bottom)); }
   .ptoast { top: calc(12px + env(safe-area-inset-top)); }
   .modal { padding-top: calc(12px + env(safe-area-inset-top)); padding-bottom: calc(12px + env(safe-area-inset-bottom)); }
   .main { padding-left: max(16px, env(safe-area-inset-left)); padding-right: max(16px, env(safe-area-inset-right)); }

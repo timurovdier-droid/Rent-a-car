@@ -303,3 +303,119 @@ body.no-scroll { overflow: hidden; }
     box-shadow: 0 1px 3px rgb(0 0 0 / .04);
   }
 }
+
+/* Меню диспетчера: колонка иконок + выезжающая панель, как в Яндекс Про */
+.fleet-backdrop {
+  position: fixed; inset: 0; z-index: 44;
+  background: rgb(0 0 0 / .45);
+  opacity: 0; pointer-events: none;
+  transition: opacity .2s;
+}
+.fleet-backdrop--on { opacity: 1; pointer-events: auto; }
+.fleet {
+  position: fixed; top: 0; bottom: 0; left: 0; z-index: 50;
+  display: flex;
+  transform: translateX(-100%);
+  transition: transform .25s ease;
+}
+.fleet--on { transform: none; }
+.fleet__rail {
+  width: 64px; flex: none;
+  display: flex; flex-direction: column; align-items: center;
+  padding: 10px 0 12px;
+  background: #1C1C1C;
+  color: #fff;
+}
+.fleet__rail-top { display: flex; flex-direction: column; align-items: center; gap: 4px; flex: 1; }
+.fleet__rail-bot { display: flex; flex-direction: column; align-items: center; gap: 4px; padding-bottom: 8px; }
+.fleet__icon {
+  display: grid; place-items: center;
+  width: 44px; height: 44px;
+  border: 0; border-radius: 14px;
+  background: transparent; color: rgb(255 255 255 / .55);
+  cursor: pointer;
+}
+.fleet__icon:hover { color: #fff; background: rgb(255 255 255 / .08); }
+.fleet__icon--active { color: #fff; }
+.fleet__icon--open { color: #fff; background: rgb(255 255 255 / .12); }
+.fleet__panel {
+  width: min(280px, calc(100vw - 64px));
+  display: flex; flex-direction: column;
+  background: #1C1C1C;
+  color: #fff;
+  box-shadow: 12px 0 32px rgb(0 0 0 / .28);
+}
+.fleet__head {
+  display: flex; align-items: center; gap: 12px;
+  padding: 22px 22px 18px;
+}
+.fleet__logo {
+  width: 28px; height: auto;
+  filter: brightness(0) invert(1);
+}
+.fleet__title {
+  margin: 0;
+  font-size: 26px; font-weight: 800;
+  letter-spacing: -.04em; line-height: 1.1;
+}
+.fleet__body {
+  flex: 1; overflow: auto;
+  padding: 4px 22px 16px;
+  display: flex; flex-direction: column; gap: 2px;
+}
+.fleet__group { display: grid; gap: 2px; margin-bottom: 16px; }
+.fleet__group-title {
+  padding: 8px 10px 6px 0;
+  color: #fff; font-size: 15px; font-weight: 700;
+}
+.fleet__link {
+  display: flex; align-items: center;
+  min-height: 36px; padding: 6px 10px 6px 0;
+  color: rgb(255 255 255 / .52);
+  text-decoration: none;
+  font-size: 15px; font-weight: 500;
+  border-radius: 8px;
+}
+.fleet__link:hover { color: #fff; }
+.fleet__link--on { color: #fff; font-weight: 600; }
+button.fleet__logout {
+  width: 100%; margin-top: 12px; border: 0; background: transparent;
+  font: inherit; text-align: left; cursor: pointer; color: #FF6B5E;
+}
+.fleet__tools { display: grid; gap: 10px; padding: 4px 12px 4px 0; }
+.fleet__tools .theme-toggle,
+.fleet__tools .lang-toggle {
+  margin: 0; border-color: rgb(255 255 255 / .18); color: #fff;
+}
+.fleet__tools .lang-toggle__btn { color: rgb(255 255 255 / .55); }
+.fleet__tools .lang-toggle__btn--on { background: #fff; color: #1C1C1C; }
+.fleet__brand {
+  padding: 16px 22px 20px;
+  color: rgb(255 255 255 / .38);
+  font-size: 13px; font-weight: 600;
+}
+
+@media (min-width: 1024px) {
+  .shell--fleet {
+    grid-template-columns: 64px minmax(0, 1fr);
+  }
+  .shell--fleet .topbar { grid-column: 2; }
+  .shell--fleet .topbar__burger { display: none; }
+  .shell--fleet .fleet {
+    position: sticky; top: 0;
+    grid-column: 1; grid-row: 1 / -1;
+    width: 64px;
+    height: 100vh;
+    transform: none;
+    z-index: 40;
+    overflow: visible;
+  }
+  .shell--fleet .fleet__panel {
+    position: absolute; top: 0; bottom: 0; left: 64px;
+  }
+  .shell--fleet .fleet-backdrop { z-index: 35; }
+  .shell--fleet .main {
+    grid-column: 2;
+    margin: 12px 12px 12px 0;
+  }
+}
