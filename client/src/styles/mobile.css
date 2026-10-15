@@ -325,18 +325,35 @@
   .mtile__img[src$='/cars.webp'] { width: 100%; }
   .mtile__img[src$='/drivers.webp'],
   .mtile__img[src$='/cars.webp'] { filter: drop-shadow(0 0 .6px rgb(40 40 43 / .35)) drop-shadow(0 0 .6px rgb(40 40 43 / .35)); }
-  .mtile__img--summary { filter: drop-shadow(0 6px 14px rgb(196 138 0 / .28)); }
   [data-theme='dark'] .mtile__img[src] { filter: drop-shadow(0 0 .7px rgb(255 255 255 / .7)) drop-shadow(0 0 .7px rgb(255 255 255 / .7)); }
-  [data-theme='dark'] .mtile__img--summary { filter: drop-shadow(0 8px 18px rgb(252 224 0 / .22)); }
-  [data-theme='dark'] .mtile__img[src*='summary.webp'] { content: url('/tiles/summary-dark.webp?v=3'); }
   [data-theme='dark'] .mtile__img[src$='/owners.webp'] { filter: brightness(0) invert(1); }
   [data-theme='dark'] .mtile__img[src$='/drivers.webp'] { content: url('/tiles/drivers-dark.webp'); }
 
   .mtile--wide { grid-column: span 2; }
   .mtile--wide .mtile__card { min-height: 124px; }
   .mtile--wide .mtile__img { width: auto; max-width: 60%; max-height: 96px; }
-  .mtile--summary .mtile__card { background: none; padding: 0; }
-  .mtile--summary .mtile__img { max-width: 90%; max-height: 180px; }
+  .mtile--summary { gap: 0; }
+  .mtile--summary .mtile__card {
+    position: relative;
+    overflow: hidden;
+    justify-content: flex-start;
+    align-items: center;
+    min-height: 148px;
+    padding: 28px 24px;
+    background: rgb(40 40 43 / .05);
+  }
+  .mtile--summary .mtile__chart {
+    position: absolute; inset: 0;
+    width: 100%; height: 100%;
+    display: block; pointer-events: none;
+  }
+  .mtile--summary .mtile__label {
+    position: relative; z-index: 1;
+    padding: 0;
+    font-size: 22px; font-weight: 800;
+    letter-spacing: -.03em;
+  }
+  [data-theme='dark'] .mtile--summary .mtile__card { background: rgb(255 255 255 / .08); }
 
   /* Поиск по лупе */
   .search-sheet {
