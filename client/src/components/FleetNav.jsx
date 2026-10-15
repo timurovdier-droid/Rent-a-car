@@ -6,7 +6,7 @@ import LangToggle from './LangToggle';
 import useIsPhone from './useIsPhone';
 import { api } from '../api';
 
-const SECTIONS = [
+const DISPATCHER_SECTIONS = [
   {
     id: 'park',
     title: 'О парке',
@@ -59,42 +59,122 @@ const SECTIONS = [
   },
 ];
 
+const ADMIN_SECTIONS = [
+  {
+    id: 'park',
+    title: 'О парке',
+    icon: 'dash',
+    items: [
+      { to: '/', label: 'Главная', end: true },
+      { to: '/profile', label: 'Профиль' },
+    ],
+  },
+  {
+    id: 'staff',
+    title: 'Персонал',
+    icon: 'users',
+    items: [
+      { to: '/drivers', label: 'Водители' },
+      { to: '/users?tab=dispatchers', label: 'Диспетчеры' },
+      { to: '/users?tab=owners', label: 'Арендодатели' },
+    ],
+  },
+  {
+    id: 'cars',
+    title: 'Автомобили',
+    icon: 'car',
+    items: [
+      { to: '/cars', label: 'Автомобили' },
+      { to: '/assignments', label: 'Выдачи машин' },
+      { to: '/service', label: 'Сервис' },
+    ],
+  },
+  {
+    id: 'reports',
+    title: 'Отчёты',
+    icon: 'list',
+    groups: [
+      {
+        title: 'Финансы',
+        items: [
+          { to: '/reports?tab=summary', label: 'Сводка' },
+          { to: '/reports?tab=cars', label: 'По машинам' },
+          { to: '/reports?tab=drivers', label: 'Отчёт по водителям' },
+          { to: '/reports?tab=journal', label: 'Ведомость операций' },
+        ],
+      },
+      {
+        title: 'Журнал',
+        items: [
+          { to: '/reports?tab=audit', label: 'Журнал аудита' },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'docs',
+    title: 'Справка',
+    icon: 'book',
+    items: [
+      { to: '/help', label: 'Справка' },
+      { to: '/settings', label: 'Настройки системы' },
+    ],
+  },
+];
+
+function sectionsFor(role) {
+  return role === 'ADMIN' ? ADMIN_SECTIONS : DISPATCHER_SECTIONS;
+}
+
 function itemsOf(section) {
   if (section.groups) return section.groups.flatMap((g) => g.items);
   return section.items || [];
 }
 
-function pathMatches(item, pathname) {
-  if (item.end) return pathname === item.to;
-  return pathname === item.to || pathname.startsWith(`${item.to}/`);
+function pathMatches(item, pathname, search = '') {
+  const [path, query] = item.to.split('?');
+  if (item.end) return pathname === path;
+  if (pathname !== path && !pathname.startsWith(`${path}/`)) return false;
+  if (!query) return true;
+  const want = new URLSearchParams(query);
+  const have = new URLSearchParams(search.startsWith('?') ? search.slice(1) : search);
+  for (const [key, value] of want) {
+    if (have.get(key) !== value) return false;
+  }
+  return true;
 }
 
-export function dispatcherPageTitle(pathname) {
-  for (const section of SECTIONS) {
-    const hit = itemsOf(section).find((item) => pathMatches(item, pathname));
+export function fleetPageTitle(pathname, search, role) {
+  for (const section of sectionsFor(role)) {
+    const hit = itemsOf(section).find((item) => pathMatches(item, pathname, search));
     if (hit) return hit.label;
   }
   return null;
 }
 
-function sectionByPath(pathname) {
-  return SECTIONS.find((section) => itemsOf(section).some((item) => pathMatches(item, pathname))) || SECTIONS[0];
+function sectionByPath(pathname, search, role) {
+  const list = sectionsFor(role);
+  return list.find((section) => itemsOf(section).some((item) => pathMatches(item, pathname, search))) || list[0];
 }
 
 function prefetch(to) {
+  const path = to.split('?')[0];
   const map = {
     '/': ['/dashboard'],
     '/cars': ['/cars', '/dashboard'],
     '/drivers': ['/drivers', '/driver-waitlist', '/drivers/payment-requests'],
     '/driver-report': ['/drivers'],
+    '/reports': ['/cars', '/dashboard'],
+    '/users': ['/owners', '/dispatchers'],
   };
-  (map[to] || []).forEach((path) => api.prefetch(path));
+  (map[path] || []).forEach((url) => api.prefetch(url));
 }
 
-export default function FleetNav({ mobileOpen, onMobileClose, onLogout }) {
+export default function FleetNav({ role, mobileOpen, onMobileClose, onLogout }) {
   const isPhone = useIsPhone();
-  const { pathname } = useLocation();
-  const current = useMemo(() => sectionByPath(pathname), [pathname]);
+  const { pathname, search } = useLocation();
+  const sections = sectionsFor(role);
+  const current = useMemo(() => sectionByPath(pathname, search, role), [pathname, search, role]);
   const [sectionId, setSectionId] = useState(null);
 
   useEffect(() => {
@@ -111,7 +191,7 @@ export default function FleetNav({ mobileOpen, onMobileClose, onLogout }) {
   const openId = isPhone ? (mobileOpen ? sectionId || current.id : null) : sectionId;
   const section = openId === 'settings'
     ? { id: 'settings', title: 'Настройки' }
-    : SECTIONS.find((s) => s.id === openId) || null;
+    : sections.find((s) => s.id === openId) || null;
   const panelOpen = Boolean(section);
 
   function pickSection(id) {
@@ -139,8 +219,8 @@ export default function FleetNav({ mobileOpen, onMobileClose, onLogout }) {
       <div className={`fleet ${visible ? 'fleet--on' : ''} ${panelOpen ? 'fleet--panel' : ''}`}>
         <div className="fleet__rail">
           <div className="fleet__rail-top">
-            {SECTIONS.map((s) => {
-              const active = itemsOf(s).some((item) => pathMatches(item, pathname));
+            {sections.map((s) => {
+              const active = itemsOf(s).some((item) => pathMatches(item, pathname, search));
               return (
                 <button
                   key={s.id}
@@ -188,6 +268,9 @@ export default function FleetNav({ mobileOpen, onMobileClose, onLogout }) {
                     <LangToggle />
                     <ThemeToggle />
                   </div>
+                  {role === 'ADMIN' && (
+                    <NavLink to="/settings" className="fleet__link" onClick={closeAll}>Настройки системы</NavLink>
+                  )}
                   <button type="button" className="fleet__link fleet__logout" onClick={onLogout}>Выйти</button>
                 </div>
               </>
@@ -206,7 +289,7 @@ export default function FleetNav({ mobileOpen, onMobileClose, onLogout }) {
                           key={item.to}
                           to={item.to}
                           end={item.end}
-                          className={({ isActive }) => `fleet__link ${isActive ? 'fleet__link--on' : ''}`}
+                          className={() => `fleet__link ${pathMatches(item, pathname, search) ? 'fleet__link--on' : ''}`}
                           onClick={closeAll}
                           onMouseEnter={() => prefetch(item.to)}
                         >

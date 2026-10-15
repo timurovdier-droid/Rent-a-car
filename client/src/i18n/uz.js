@@ -117,6 +117,7 @@ export const DICT = {
   'Диспетчеры': 'Dispetcherlar',
   'Финансы': 'Moliya',
   'Отчёты': 'Hisobotlar',
+  'Ведомость операций': 'Operatsiyalar vedomosti',
   'Отчёт': 'Hisobot',
   'Журнал аудита': 'Audit jurnali',
   'Настройки': 'Sozlamalar',

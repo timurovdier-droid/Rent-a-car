@@ -10,7 +10,7 @@ import { api } from '../api';
 import useTableLabels from './useTableLabels';
 import useIsPhone from './useIsPhone';
 import TabBar from './TabBar';
-import FleetNav, { dispatcherPageTitle } from './FleetNav';
+import FleetNav, { fleetPageTitle } from './FleetNav';
 import { fmtMoney } from '../labels';
 const ROLE_LABELS = {
   DRIVER: 'Водитель',
@@ -193,15 +193,15 @@ export function Brand({ big = false }) {
 
 export default function Layout() {
   const { user } = useAuth();
-  const { pathname } = useLocation();
+  const { pathname, search } = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
   const mainRef = useRef(null);
   const isPhone = useIsPhone();
   useTableLabels(mainRef);
-  const fleet = user?.role === 'DISPATCHER';
+  const fleet = user?.role === 'DISPATCHER' || user?.role === 'ADMIN';
   const menuItems = menuFor(user?.role, isPhone);
   const current = fleet
-    ? { label: dispatcherPageTitle(pathname) }
+    ? { label: fleetPageTitle(pathname, search, user?.role) }
     : menuItems.find((item) => (item.end ? pathname === item.to : pathname.startsWith(item.to)));
 
   useEffect(() => { setMenuOpen(false); }, [pathname]);
@@ -242,7 +242,7 @@ export default function Layout() {
       {!fleet && <div className="nav-backdrop" onClick={() => setMenuOpen(false)} aria-hidden="true" />}
 
       {fleet ? (
-        <FleetNav mobileOpen={menuOpen} onMobileClose={() => setMenuOpen(false)} onLogout={handleLogout} />
+        <FleetNav role={user.role} mobileOpen={menuOpen} onMobileClose={() => setMenuOpen(false)} onLogout={handleLogout} />
       ) : (
         <aside className="nav" aria-label="Меню">
           <div className="nav__brand">
