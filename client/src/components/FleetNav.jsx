@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import NavIcon from './NavIcon';
 import ThemeToggle from './ThemeToggle';
@@ -176,6 +176,7 @@ export default function FleetNav({ role, mobileOpen, onMobileClose, onLogout }) 
   const sections = sectionsFor(role);
   const current = useMemo(() => sectionByPath(pathname, search, role), [pathname, search, role]);
   const [sectionId, setSectionId] = useState(null);
+  const closeTimer = useRef(0);
 
   useEffect(() => {
     if (isPhone) setSectionId(mobileOpen ? current.id : null);
@@ -188,23 +189,33 @@ export default function FleetNav({ role, mobileOpen, onMobileClose, onLogout }) 
     return () => document.removeEventListener('keydown', onKey);
   }, [isPhone, sectionId]);
 
+  useEffect(() => () => window.clearTimeout(closeTimer.current), []);
+
   const openId = isPhone ? (mobileOpen ? sectionId || current.id : null) : sectionId;
   const section = openId === 'settings'
     ? { id: 'settings', title: 'Настройки' }
     : sections.find((s) => s.id === openId) || null;
   const panelOpen = Boolean(section);
 
+  function cancelClose() {
+    window.clearTimeout(closeTimer.current);
+  }
+
   function pickSection(id) {
-    if (isPhone) {
-      setSectionId(id);
-      return;
-    }
-    setSectionId((prev) => (prev === id ? null : id));
+    cancelClose();
+    setSectionId(id);
   }
 
   function closeAll() {
+    cancelClose();
     if (isPhone) onMobileClose?.();
     else setSectionId(null);
+  }
+
+  function scheduleClose() {
+    if (isPhone) return;
+    cancelClose();
+    closeTimer.current = window.setTimeout(() => setSectionId(null), 140);
   }
 
   const visible = !isPhone || mobileOpen;
@@ -213,10 +224,15 @@ export default function FleetNav({ role, mobileOpen, onMobileClose, onLogout }) 
     <>
       <div
         className={`fleet-backdrop ${visible && (isPhone || panelOpen) ? 'fleet-backdrop--on' : ''}`}
-        onClick={closeAll}
+        onClick={isPhone ? closeAll : undefined}
+        onMouseEnter={isPhone ? undefined : closeAll}
         aria-hidden="true"
       />
-      <div className={`fleet ${visible ? 'fleet--on' : ''} ${panelOpen ? 'fleet--panel' : ''}`}>
+      <div
+        className={`fleet ${visible ? 'fleet--on' : ''} ${panelOpen ? 'fleet--panel' : ''}`}
+        onMouseEnter={isPhone ? undefined : cancelClose}
+        onMouseLeave={isPhone ? undefined : scheduleClose}
+      >
         <div className="fleet__rail">
           <div className="fleet__rail-top">
             {sections.map((s) => {
@@ -228,6 +244,7 @@ export default function FleetNav({ role, mobileOpen, onMobileClose, onLogout }) 
                   className={`fleet__icon ${s.id === section?.id ? 'fleet__icon--open' : ''} ${active ? 'fleet__icon--active' : ''}`}
                   aria-label={s.title}
                   aria-pressed={s.id === section?.id}
+                  onMouseEnter={isPhone ? undefined : () => pickSection(s.id)}
                   onClick={() => pickSection(s.id)}
                 >
                   <NavIcon name={s.icon} size={22} />
@@ -240,6 +257,7 @@ export default function FleetNav({ role, mobileOpen, onMobileClose, onLogout }) 
               type="button"
               className={`fleet__icon ${section?.id === 'docs' ? 'fleet__icon--open' : ''}`}
               aria-label="Справка"
+              onMouseEnter={isPhone ? undefined : () => pickSection('docs')}
               onClick={() => pickSection('docs')}
             >
               <NavIcon name="info" size={20} />
@@ -248,6 +266,7 @@ export default function FleetNav({ role, mobileOpen, onMobileClose, onLogout }) 
               type="button"
               className={`fleet__icon ${section?.id === 'settings' ? 'fleet__icon--open' : ''}`}
               aria-label="Настройки"
+              onMouseEnter={isPhone ? undefined : () => pickSection('settings')}
               onClick={() => pickSection('settings')}
             >
               <NavIcon name="gear" size={20} />
