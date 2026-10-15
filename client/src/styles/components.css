@@ -1053,6 +1053,18 @@ button.rs-cell:hover { box-shadow: inset 0 0 0 2px var(--c-ink); }
 .sum-filters__reset { justify-self: start; }
 .summary-btn { display: inline-flex; align-items: center; gap: 8px; }
 .summary-btn--on { background: var(--c-soft); border-color: var(--c-line-strong); color: var(--c-ink); }
+.summary-btn__icon { flex: none; display: block; }
+.summary-icon {
+  --summary-icon-top: #FFF4A8;
+  --summary-icon-mid: var(--c-primary, #FCE000);
+  --summary-icon-bottom: var(--c-signal, #C48A00);
+  --summary-icon-bars: #fff;
+}
+[data-theme='dark'] .summary-icon {
+  --summary-icon-top: #FFEB80;
+  --summary-icon-mid: #FCE000;
+  --summary-icon-bottom: #9A6E00;
+}
 
 /* Телефон */
 @media (max-width: 600px) {

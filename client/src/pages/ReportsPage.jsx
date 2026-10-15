@@ -9,7 +9,7 @@ import DriverReportPage from './DriverReportPage';
 import AuditPage from './AuditPage';
 import TxJournal from '../components/TxJournal';
 import DashboardPage from './DashboardPage';
-import NavIcon from '../components/NavIcon';
+import SummaryIcon from '../components/SummaryIcon';
 import { fmtMoney, fmtDay, downloadCsv } from '../labels';
 
 const TABS = [
@@ -108,7 +108,7 @@ export default function ReportsPage() {
             onClick={() => setTab(summary ? 'cars' : 'summary')}
             aria-pressed={summary}
           >
-            <NavIcon name="home" size={20} />
+            <SummaryIcon size={20} className="summary-btn__icon" />
             {summary ? 'Закрыть сводку' : 'Сводка парка'}
           </button>
           {!ownTab && (

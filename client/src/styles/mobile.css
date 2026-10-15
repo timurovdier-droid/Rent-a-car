@@ -323,13 +323,14 @@
   }
   .mtile__img { display: block; width: 82%; max-height: 112px; object-fit: contain; object-position: center; }
   .mtile__img[src$='/cars.webp'] { width: 100%; }
-  .mtile__img[src$='/summary.webp'],
   .mtile__img[src$='/drivers.webp'],
   .mtile__img[src$='/cars.webp'] { filter: drop-shadow(0 0 .6px rgb(40 40 43 / .35)) drop-shadow(0 0 .6px rgb(40 40 43 / .35)); }
+  .mtile__img--summary { filter: drop-shadow(0 6px 14px rgb(196 138 0 / .28)); }
   [data-theme='dark'] .mtile__img[src] { filter: drop-shadow(0 0 .7px rgb(255 255 255 / .7)) drop-shadow(0 0 .7px rgb(255 255 255 / .7)); }
+  [data-theme='dark'] .mtile__img--summary { filter: drop-shadow(0 8px 18px rgb(252 224 0 / .22)); }
+  [data-theme='dark'] .mtile__img[src*='summary.webp'] { content: url('/tiles/summary-dark.webp?v=3'); }
   [data-theme='dark'] .mtile__img[src$='/owners.webp'] { filter: brightness(0) invert(1); }
   [data-theme='dark'] .mtile__img[src$='/drivers.webp'] { content: url('/tiles/drivers-dark.webp'); }
-  [data-theme='dark'] .mtile__img[src$='/summary.webp'] { content: url('/tiles/summary-dark.webp'); }
 
   .mtile--wide { grid-column: span 2; }
   .mtile--wide .mtile__card { min-height: 124px; }
