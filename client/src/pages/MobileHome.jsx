@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { api } from '../api';
 import { useAuth } from '../auth';
 import DriverPaymentRequests from '../components/DriverPaymentRequests';
-import SummaryChart from '../components/SummaryChart';
+import SummaryBag from '../components/SummaryBag';
 
 const ADMIN_TILES = [
   { to: '/cars', label: 'Автомобили', img: 'cars', count: '/cars' },
@@ -54,7 +54,7 @@ export default function MobileHome() {
         {tiles.map((t) => (
           <Link key={t.to} to={t.to} className={`mtile mtile--${t.img} ${t.wide ? 'mtile--wide' : ''}`}>
             <span className="mtile__card">
-              {t.img === 'summary' && <SummaryChart className="mtile__chart" />}
+              {t.img === 'summary' && <SummaryBag className="mtile__bag" />}
               {t.img !== 'summary' && (
                 <img className="mtile__img" src={`/tiles/${t.img}.webp`} alt="" loading="eager" decoding="async" />
               )}
