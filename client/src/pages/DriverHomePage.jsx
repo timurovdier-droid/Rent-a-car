@@ -244,9 +244,9 @@ function StatusCard({ tone = '', label, value, hint }) {
   );
 }
 
-// Главная водителя на телефоне: статусы карточками и плитки разделов.
-function DriverHero({ data, debt }) {
-  const { status, profile } = data;
+// Главная водителя на телефоне: машина в центре, статусы и плитки разделов.
+function DriverHero({ data, debt, onPay }) {
+  const { status, profile, car, today, since, rate } = data;
   const [pending, setPending] = useState(0);
   useEffect(() => {
     api.get('/me/payments')
@@ -257,18 +257,22 @@ function DriverHero({ data, debt }) {
   const overpaid = Number(status?.overpaid ?? data.overpaid ?? 0);
   const cards = [];
 
-  if (debt > 0) {
-    cards.push({ tone: 'bad', label: 'Долг по аренде', value: `${fmtMoney(debt)} сум`, hint: status?.debt_from ? `с ${fmtDay(status.debt_from)}` : null });
+  if (car) {
+    if (debt > 0) {
+      cards.push({ tone: 'bad', label: 'Долг по аренде', value: `${fmtMoney(debt)} сум`, hint: status?.debt_from ? `с ${fmtDay(status.debt_from)}` : null });
+    } else {
+      const ahead = status?.ahead_until && status.ahead_until > today;
+      cards.push({
+        tone: 'ok',
+        label: 'Аренда',
+        value: ahead ? `до ${fmtDay(status.ahead_until)}` : overpaid > 0 ? `+${fmtMoney(overpaid)} сум` : 'Оплачено',
+        hint: ahead || overpaid > 0 ? 'оплачено вперёд' : 'долгов нет',
+      });
+    }
+    cards.push({ label: 'Аренда в день', value: `${fmtMoney(rate)} сум` });
   } else {
-    const ahead = status?.ahead_until && status.ahead_until > data.today;
-    cards.push({
-      tone: 'ok',
-      label: 'Аренда',
-      value: ahead ? `до ${fmtDay(status.ahead_until)}` : overpaid > 0 ? `+${fmtMoney(overpaid)} сум` : 'Оплачено',
-      hint: ahead || overpaid > 0 ? 'оплачено вперёд' : 'долгов нет',
-    });
+    cards.push({ tone: 'wait', label: 'Машина', value: 'Не выдана', hint: 'диспетчер закрепит автомобиль' });
   }
-  cards.push({ label: 'Аренда в день', value: `${fmtMoney(data.rate)} сум` });
   if (pending > 0 || status?.pending > 0) {
     cards.push({ tone: 'wait', label: 'Ждут проверки', value: pending > 0 ? `${pending} опл.` : `${fmtMoney(status.pending)} сум`, hint: 'диспетчер проверяет' });
   }
@@ -276,9 +280,44 @@ function DriverHero({ data, debt }) {
   if (profile) cards.push({ label: 'Депозит', value: `${fmtMoney(profile.deposit)} сум` });
   if (profile?.license_expires) cards.push({ label: 'ВУ действует до', value: fmtDay(profile.license_expires) });
 
+  const photo = car?.photo_version ? `/api/v1/me/car-photo?v=${car.photo_version}` : null;
+
   return (
     <div className="dhero">
       <PushCard />
+
+      <div className="dhero__car">
+        {car ? (
+          <>
+            <Link to="/my-car" className="dhero__car-link">
+              <article className="ct drv__car dhero__car-card">
+                <div className="ct__visual ct__visual--hero">
+                  <BrandLogo brand={car.brand} />
+                  <CarVisual car={car} src={photo} />
+                </div>
+                <div className="ct__title">
+                  <span className="ct__name">{car.brand} {car.model}</span>
+                  {car.year && <span className="ct__year"> • {car.year}</span>}
+                </div>
+                <div className="ct__plate"><Plate value={car.plate} /></div>
+              </article>
+            </Link>
+            {since && <p className="dhero__sub">{`${fmtDay(today)} · машина у вас с ${fmtDay(since)}`}</p>}
+          </>
+        ) : (
+          <div className="dhero__car-empty">
+            <CarVisual car={{ brand: '', model: '' }} />
+            <p className="dhero__title">Машина не выдана</p>
+            <p className="dhero__sub">Когда диспетчер закрепит автомобиль, здесь появятся аренда и оплаты.</p>
+            <Link to="/contacts" className="btn btn--quiet">Контакты диспетчера</Link>
+          </div>
+        )}
+      </div>
+
+      {car && onPay && (
+        <button type="button" className="btn dhero__pay" onClick={onPay}>Сообщить об оплате</button>
+      )}
+
       <h2 className="dhero__subtitle">Мои статусы</h2>
       <div className="dstats">
         {cards.map((c) => <StatusCard key={c.label} {...c} />)}
@@ -338,7 +377,18 @@ export default function DriverHomePage({ view = 'home' }) {
   if (!data) return <div className="muted">Загрузка…</div>;
 
   const { car } = data;
+  const openPay = () => { setSent(false); setPayOpen(true); };
+
   if (!car) {
+    if (isPhone) {
+      return (
+        <div className="drv">
+          <DriverHero data={data} debt={0} />
+          <OtherDebts charges={data.charges} />
+          <MyPayments version={payVersion} onChanged={() => setPayVersion((v) => v + 1)} />
+        </div>
+      );
+    }
     return (
       <div>
         <h1 className="page-title">Моя аренда</h1>
@@ -354,7 +404,6 @@ export default function DriverHomePage({ view = 'home' }) {
   const photo = car.photo_version ? `/api/v1/me/car-photo?v=${car.photo_version}` : null;
   const hasDebt = debt > 0;
   const debtDays = hasDebt && data.rate > 0 ? Math.ceil(debt / data.rate) : 0;
-  const openPay = () => { setSent(false); setPayOpen(true); };
 
   const modals = (
     <>
@@ -410,7 +459,7 @@ export default function DriverHomePage({ view = 'home' }) {
     return (
       <div className="drv">
         {sentNotice}
-        <DriverHero data={data} debt={debt} />
+        <DriverHero data={data} debt={debt} onPay={openPay} />
         {modals}
       </div>
     );
