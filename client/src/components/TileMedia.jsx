@@ -1,4 +1,4 @@
-const EARNINGS_TILE = '/tiles/earnings.webp?v=3';
+const EARNINGS_TILE = '/tiles/earnings.webp?v=4';
 
 export default function TileMedia({
   img,
