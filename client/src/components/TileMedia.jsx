@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
+import WalletTileIcon from './WalletTileIcon';
 
 function useDarkTheme() {
-  const read = () => document.documentElement.dataset.theme === 'dark';
+  const read = () => document.documentElement.dataset.theme !== 'light';
   const [dark, setDark] = useState(read);
   useEffect(() => {
     const root = document.documentElement;
@@ -13,13 +14,6 @@ function useDarkTheme() {
   return dark;
 }
 
-function tileSrc(img, dark) {
-  if (img === 'earnings') {
-    return dark ? '/tiles/earnings-dark.webp?v=4' : '/tiles/earnings.webp?v=6';
-  }
-  return `/tiles/${img}.webp`;
-}
-
 export default function TileMedia({
   img,
   className = 'mtile__img',
@@ -28,13 +22,27 @@ export default function TileMedia({
   imgKey,
 }) {
   const dark = useDarkTheme();
-  const src = tileSrc(img, dark);
-  const extra = img === 'earnings' ? ' mtile__img--earnings' : '';
+
+  if (img === 'earnings') {
+    const Tag = onClick ? 'button' : 'span';
+    return (
+      <Tag
+        key={imgKey}
+        type={onClick ? 'button' : undefined}
+        className={`${className} mtile__img--earnings`.trim()}
+        onClick={onClick}
+        aria-hidden={onClick ? undefined : true}
+      >
+        <WalletTileIcon dark={dark} className="wallet-tile" />
+      </Tag>
+    );
+  }
+
   return (
     <img
       key={imgKey}
-      className={`${className}${extra}`.trim()}
-      src={src}
+      className={className}
+      src={`/tiles/${img}.webp`}
       alt=""
       decoding={decoding}
       onClick={onClick}

@@ -330,9 +330,16 @@
   .mtile__img[src$='/cars.webp'] { filter: drop-shadow(0 0 .6px rgb(40 40 43 / .35)) drop-shadow(0 0 .6px rgb(40 40 43 / .35)); }
   [data-theme='dark'] .mtile__img[src] { filter: drop-shadow(0 0 .7px rgb(255 255 255 / .7)) drop-shadow(0 0 .7px rgb(255 255 255 / .7)); }
   [data-theme='dark'] .mtile__img[src$='/drivers.webp'] { content: url('/tiles/drivers-dark.webp'); }
-  [data-theme='dark'] .mtile__img--earnings {
-    filter: drop-shadow(0 4px 12px rgb(0 0 0 / .5)) drop-shadow(0 0 1px rgb(255 255 255 / .35));
+  .mtile__img--earnings {
+    display: flex; align-items: center; justify-content: center;
+    width: 58%; max-width: 240px; max-height: 96px;
+    padding: 0; border: 0; background: transparent; color: inherit;
   }
+  .mtile--wide .mtile__img--earnings { width: 42%; max-height: 92px; }
+  .wallet-tile { display: block; width: 100%; height: auto; }
+  .eempty__icon.mtile__img--earnings { width: 150px; max-width: 150px; max-height: none; margin-bottom: 6px; }
+  .eitem__tile.mtile__img--earnings { width: 48px; max-width: 48px; max-height: 36px; }
+  .shero__img.mtile__img--earnings { width: 46%; max-width: 230px; max-height: none; }
   .mtile__img--bag { width: 88%; max-height: 118px; }
   .eempty__icon { width: 150px; height: auto; margin-bottom: 6px; opacity: .9; }
   .eitem__tile { width: 100%; height: 100%; object-fit: contain; }
