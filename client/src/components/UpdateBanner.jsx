@@ -1,38 +1,66 @@
 import { useEffect, useState } from 'react';
 
-const CHECK_EVERY = 5 * 60 * 1000;
+const CHECK_EVERY = 60 * 1000;
+const AUTO_RELOAD_KEY = 'rac-auto-updated';
 
 function scriptName(html) {
   return /\/assets\/index-[^"']+\.js/.exec(html)?.[0] || null;
 }
 
-// Открытая вкладка продолжает работать на старом коде, пока её не перезагрузят.
-// Сравниваем имя главного скрипта с тем, что сейчас отдаёт сайт, и предлагаем обновить.
+function currentScript() {
+  return scriptName(document.documentElement.innerHTML);
+}
+
+// Открытая вкладка (особенно на телефоне) часто остаётся на старом бандле, пока её не перезагрузят.
 export default function UpdateBanner() {
   const [stale, setStale] = useState(false);
 
   useEffect(() => {
-    const current = scriptName(document.documentElement.innerHTML);
+    const current = currentScript();
     if (!current) return undefined;
     let stop = false;
-    async function check() {
+
+    async function check(tryAutoReload = false) {
       if (stop || document.hidden) return;
       try {
         const res = await fetch('/', { cache: 'no-store' });
         const latest = scriptName(await res.text());
-        if (latest && latest !== current) setStale(true);
+        if (!latest || latest === current) return;
+        if (tryAutoReload) {
+          try {
+            if (!sessionStorage.getItem(AUTO_RELOAD_KEY)) {
+              sessionStorage.setItem(AUTO_RELOAD_KEY, '1');
+              window.location.reload();
+              return;
+            }
+          } catch {
+            // sessionStorage недоступен — покажем баннер
+          }
+        }
+        setStale(true);
       } catch {
-        // нет сети — проверим в следующий раз
+        // нет сети — проверим позже
       }
     }
-    const timer = setInterval(check, CHECK_EVERY);
-    document.addEventListener('visibilitychange', check);
-    window.addEventListener('focus', check);
+
+    check(true);
+    const timer = setInterval(() => check(false), CHECK_EVERY);
+    const onWake = () => check(true);
+    document.addEventListener('visibilitychange', onWake);
+    window.addEventListener('focus', onWake);
+    window.addEventListener('pageshow', onWake);
+
+    const clearAuto = setTimeout(() => {
+      try { sessionStorage.removeItem(AUTO_RELOAD_KEY); } catch { /* ignore */ }
+    }, 20000);
+
     return () => {
       stop = true;
       clearInterval(timer);
-      document.removeEventListener('visibilitychange', check);
-      window.removeEventListener('focus', check);
+      clearTimeout(clearAuto);
+      document.removeEventListener('visibilitychange', onWake);
+      window.removeEventListener('focus', onWake);
+      window.removeEventListener('pageshow', onWake);
     };
   }, []);
 
