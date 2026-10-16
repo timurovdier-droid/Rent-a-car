@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import WalletTileIcon from './WalletTileIcon';
 
 function useDarkTheme() {
   const read = () => document.documentElement.dataset.theme !== 'light';
@@ -14,6 +13,13 @@ function useDarkTheme() {
   return dark;
 }
 
+function tileSrc(img, dark) {
+  if (img === 'earnings') {
+    return dark ? '/tiles/earnings-dark.webp?v=8' : '/tiles/earnings.webp?v=8';
+  }
+  return `/tiles/${img}.webp`;
+}
+
 export default function TileMedia({
   img,
   className = 'mtile__img',
@@ -22,27 +28,12 @@ export default function TileMedia({
   imgKey,
 }) {
   const dark = useDarkTheme();
-
-  if (img === 'earnings') {
-    const Tag = onClick ? 'button' : 'span';
-    return (
-      <Tag
-        key={imgKey}
-        type={onClick ? 'button' : undefined}
-        className={`${className} mtile__img--earnings`.trim()}
-        onClick={onClick}
-        aria-hidden={onClick ? undefined : true}
-      >
-        <WalletTileIcon dark={dark} className="wallet-tile" />
-      </Tag>
-    );
-  }
-
+  const extra = img === 'earnings' ? ' mtile__img--earnings' : '';
   return (
     <img
       key={imgKey}
-      className={className}
-      src={`/tiles/${img}.webp`}
+      className={`${className}${extra}`.trim()}
+      src={tileSrc(img, dark)}
       alt=""
       decoding={decoding}
       onClick={onClick}
