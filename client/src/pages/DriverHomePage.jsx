@@ -245,9 +245,9 @@ function StatusCard({ tone = '', label, value, hint }) {
   );
 }
 
-// Главная водителя на телефоне: машина в центре, статусы и плитки разделов.
-function DriverHero({ data, debt, onPay }) {
-  const { status, profile, car, today, since, rate } = data;
+// Главная водителя на телефоне: статусы и плитки разделов.
+function DriverHero({ data, debt }) {
+  const { status, profile, car, today, rate } = data;
   const [pending, setPending] = useState(0);
   useEffect(() => {
     api.get('/me/payments')
@@ -281,34 +281,9 @@ function DriverHero({ data, debt, onPay }) {
   if (profile) cards.push({ label: 'Депозит', value: `${fmtMoney(profile.deposit)} сум` });
   if (profile?.license_expires) cards.push({ label: 'ВУ действует до', value: fmtDay(profile.license_expires) });
 
-  const photo = car?.photo_version ? `/api/v1/me/car-photo?v=${car.photo_version}` : null;
-
   return (
     <div className="dhero">
       <PushCard />
-
-      {car && (
-        <div className="dhero__car">
-          <Link to="/my-car" className="dhero__car-link">
-            <article className="ct drv__car dhero__car-card">
-              <div className="ct__visual ct__visual--hero">
-                <BrandLogo brand={car.brand} />
-                <CarVisual car={car} src={photo} />
-              </div>
-              <div className="ct__title">
-                <span className="ct__name">{car.brand} {car.model}</span>
-                {car.year && <span className="ct__year"> • {car.year}</span>}
-              </div>
-              <div className="ct__plate"><Plate value={car.plate} /></div>
-            </article>
-          </Link>
-          {since && <p className="dhero__sub">{`${fmtDay(today)} · машина у вас с ${fmtDay(since)}`}</p>}
-        </div>
-      )}
-
-      {car && onPay && (
-        <button type="button" className="btn dhero__pay" onClick={onPay}>Сообщить об оплате</button>
-      )}
 
       <h2 className="dhero__subtitle">Мои статусы</h2>
       <div className="dstats">
@@ -451,7 +426,7 @@ export default function DriverHomePage({ view = 'home' }) {
     return (
       <div className="drv">
         {sentNotice}
-        <DriverHero data={data} debt={debt} onPay={openPay} />
+        <DriverHero data={data} debt={debt} />
         {modals}
       </div>
     );
