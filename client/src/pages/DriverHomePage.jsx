@@ -287,33 +287,24 @@ function DriverHero({ data, debt, onPay }) {
     <div className="dhero">
       <PushCard />
 
-      <div className="dhero__car">
-        {car ? (
-          <>
-            <Link to="/my-car" className="dhero__car-link">
-              <article className="ct drv__car dhero__car-card">
-                <div className="ct__visual ct__visual--hero">
-                  <BrandLogo brand={car.brand} />
-                  <CarVisual car={car} src={photo} />
-                </div>
-                <div className="ct__title">
-                  <span className="ct__name">{car.brand} {car.model}</span>
-                  {car.year && <span className="ct__year"> • {car.year}</span>}
-                </div>
-                <div className="ct__plate"><Plate value={car.plate} /></div>
-              </article>
-            </Link>
-            {since && <p className="dhero__sub">{`${fmtDay(today)} · машина у вас с ${fmtDay(since)}`}</p>}
-          </>
-        ) : (
-          <div className="dhero__car-empty">
-            <CarVisual car={{ brand: '', model: '' }} />
-            <p className="dhero__title">Машина не выдана</p>
-            <p className="dhero__sub">Когда диспетчер закрепит автомобиль, здесь появятся аренда и оплаты.</p>
-            <Link to="/contacts" className="btn btn--quiet">Контакты диспетчера</Link>
-          </div>
-        )}
-      </div>
+      {car && (
+        <div className="dhero__car">
+          <Link to="/my-car" className="dhero__car-link">
+            <article className="ct drv__car dhero__car-card">
+              <div className="ct__visual ct__visual--hero">
+                <BrandLogo brand={car.brand} />
+                <CarVisual car={car} src={photo} />
+              </div>
+              <div className="ct__title">
+                <span className="ct__name">{car.brand} {car.model}</span>
+                {car.year && <span className="ct__year"> • {car.year}</span>}
+              </div>
+              <div className="ct__plate"><Plate value={car.plate} /></div>
+            </article>
+          </Link>
+          {since && <p className="dhero__sub">{`${fmtDay(today)} · машина у вас с ${fmtDay(since)}`}</p>}
+        </div>
+      )}
 
       {car && onPay && (
         <button type="button" className="btn dhero__pay" onClick={onPay}>Сообщить об оплате</button>

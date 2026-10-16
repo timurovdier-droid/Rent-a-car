@@ -418,11 +418,6 @@
   .dhero__car .ct__visual--hero { height: min(42vh, 280px); }
   .dhero__car .ct__visual--hero .ct__drawing,
   .dhero__car .ct__visual--hero .ct__photo { max-height: min(34vh, 220px); }
-  .dhero__car-empty {
-    display: grid; justify-items: center; gap: 10px; padding: 22px 16px 18px;
-    border-radius: 28px; background: var(--c-soft); text-align: center;
-  }
-  .dhero__car-empty .ct__drawing { width: min(72%, 240px); max-height: 140px; mix-blend-mode: normal; opacity: .92; }
   .dhero__pay { align-self: stretch; margin: 0 0 8px; }
   .dsec__head .btn { width: 100%; }
 }
