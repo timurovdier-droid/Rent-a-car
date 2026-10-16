@@ -46,7 +46,6 @@ export default function MobileHome() {
   return (
     <div className="mhome">
       <div className="mhome__head">
-        <h1 className="mhome__hello">GTA <span>Rent</span></h1>
         <div className="mhome__date">{today()}</div>
       </div>
 

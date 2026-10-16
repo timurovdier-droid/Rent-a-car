@@ -9,11 +9,8 @@ import './styles/layout.css';
 import './styles/components.css';
 import './styles/theme-dark.css';
 import './styles/mobile.css';
-import './styles/skin-alt.css';
 
 import App from './App.jsx';
-
-document.documentElement.dataset.skin = 'alt';
 import { startTranslator } from './i18n';
 import { registerWorker } from './push';
 
