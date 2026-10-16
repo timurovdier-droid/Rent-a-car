@@ -56,7 +56,7 @@ export default function MobileHome() {
             <span className="mtile__card">
               {t.img === 'summary' && <SummaryChart className="mtile__chart" />}
               {t.img !== 'summary' && (
-                <img className="mtile__img" src={`/tiles/${t.img}.webp${t.img === 'owners' ? '?v=partners' : ''}`} alt="" loading="eager" decoding="async" />
+                <img className="mtile__img" src={`/tiles/${t.img}.webp${t.img === 'owners' ? '?v=partners3d' : ''}`} alt="" loading="eager" decoding="async" />
               )}
               {t.img === 'summary' && (
                 <span className="mtile__label">
