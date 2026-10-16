@@ -12,6 +12,7 @@ import { LedgerSummary, LedgerTable } from '../components/CarLedger';
 import { RentStatusView } from '../components/RentStatus';
 import useIsPhone from '../components/useIsPhone';
 import PushCard from '../components/PushCard';
+import TileMedia from '../components/TileMedia';
 import { fmtMoney, fmtDay, fmtDateTime, todayLocal, shiftDay, CHARGE_LABELS, PAY_METHODS, METHOD_LABELS } from '../labels';
 
 const HOUR = 60 * 60 * 1000;
@@ -327,7 +328,7 @@ function DriverHero({ data, debt, onPay }) {
         {DRIVER_TILES.map((t) => (
           <Link key={t.to} to={t.to} className={`mtile ${t.wide ? 'mtile--wide' : ''}`}>
             <span className="mtile__card">
-              <img className="mtile__img" src={`/tiles/${t.img}.webp${t.img === 'earnings' ? '?v=2' : ''}`} alt="" decoding="async" />
+              <TileMedia img={t.img} />
             </span>
             <span className="mtile__label">{t.label}</span>
           </Link>

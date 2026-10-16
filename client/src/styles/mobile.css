@@ -331,6 +331,16 @@
   [data-theme='dark'] .mtile__img[src] { filter: drop-shadow(0 0 .7px rgb(255 255 255 / .7)) drop-shadow(0 0 .7px rgb(255 255 255 / .7)); }
   [data-theme='dark'] .mtile__img[src$='/drivers.webp'] { content: url('/tiles/drivers-dark.webp'); }
   .mtile__img--bag { width: 88%; max-height: 118px; }
+  .mtile__img--svg-wrap {
+    display: block; padding: 0; border: 0; background: transparent;
+    width: 82%; max-height: 112px; cursor: inherit;
+  }
+  button.mtile__img--svg-wrap { font: inherit; color: inherit; -webkit-tap-highlight-color: transparent; }
+  .mtile__img--svg { display: block; width: 100%; height: auto; max-height: 112px; }
+  .mtile--wide .mtile__img--svg-wrap { width: auto; max-width: 60%; }
+  .mtile--wide .mtile__img--svg { max-height: 96px; }
+  .eempty__icon, .eempty__icon .mtile__img--svg { width: 150px; max-height: none; margin-bottom: 6px; opacity: .9; }
+  .eitem__tile, .eitem__tile .mtile__img--svg { width: 100%; height: 100%; max-height: none; }
 
   .mtile--wide { grid-column: span 2; }
   .mtile--wide .mtile__card { min-height: 124px; }
@@ -577,7 +587,7 @@ html .earn-actions .earn-actions__out { background: #E53935; border-color: #E539
   display: grid; justify-items: center; gap: 6px; margin: 16px 0 0; padding: 24px 20px;
   border: 2px dashed var(--c-line); border-radius: 26px; text-align: center;
 }
-.eempty img { width: 150px; height: auto; margin-bottom: 6px; opacity: .9; }
+.eempty img, .eempty__icon { width: 150px; height: auto; margin-bottom: 6px; opacity: .9; }
 .eempty b { font-size: 18px; }
 .eempty span { color: var(--c-muted); font-size: 15px; max-width: 300px; }
 

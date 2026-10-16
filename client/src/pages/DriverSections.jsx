@@ -7,6 +7,7 @@ import MoneyInput from '../components/MoneyInput';
 import DateInput from '../components/DateInput';
 import PeriodPicker from '../components/PeriodPicker';
 import NavIcon from '../components/NavIcon';
+import TileMedia from '../components/TileMedia';
 import { fmtMoney, fmtNumber, fmtDay, todayLocal, FUEL_LABELS, SERVICE_TYPES } from '../labels';
 
 const SERVICE_LABELS = Object.fromEntries(SERVICE_TYPES);
@@ -251,11 +252,10 @@ function SectionHero({ img, label, value, hint, action, onAction }) {
           <b className="shero__value">{value}</b>
           {hint && <span className="shero__hint">{hint}</span>}
         </div>
-        <img
-          key={pops}
+        <TileMedia
+          img={img}
+          imgKey={pops}
           className={`shero__img ${pops ? 'shero__img--pop' : ''}`}
-          src={`/tiles/${img}.webp`}
-          alt=""
           onClick={() => { setPops((p) => p + 1); buzz(); }}
         />
       </div>
@@ -267,7 +267,7 @@ function SectionHero({ img, label, value, hint, action, onAction }) {
 function EmptyBlock({ img, title, text }) {
   return (
     <div className="eempty">
-      <img src={`/tiles/${img}.webp`} alt="" />
+      <TileMedia img={img} className="eempty__icon" />
       <b>{title}</b>
       <span>{text}</span>
     </div>
@@ -277,7 +277,7 @@ function EmptyBlock({ img, title, text }) {
 function EntryItem({ icon, img, title, meta, onDelete, index = 0 }) {
   return (
     <li className="eitem" style={{ '--i': Math.min(index, 10) }}>
-      <span className="eitem__icon">{img ? <img src={`/tiles/${img}.webp`} alt="" /> : icon}</span>
+      <span className="eitem__icon">{img ? <TileMedia img={img} className="eitem__tile" /> : icon}</span>
       <div className="eitem__body">
         <b>{title}</b>
         <span>{meta}</span>
