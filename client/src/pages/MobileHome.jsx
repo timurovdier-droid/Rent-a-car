@@ -45,44 +45,37 @@ export default function MobileHome() {
 
   return (
     <div className="mhome">
-      <header className="shift">
-        <h1 className="shift__title">Смена</h1>
-        <p className="shift__date">{today()}</p>
-      </header>
+      <div className="mhome__head">
+        <h1 className="mhome__hello">GTA <span>Rent</span></h1>
+        <div className="mhome__date">{today()}</div>
+      </div>
 
       <DriverPaymentRequests />
 
-      <div className="runlist">
-        {tiles.map((t) => {
-          const n = counts[t.count];
-          if (t.img === 'summary') {
-            return (
-              <Link key={t.to} to={t.to} className="run run--chart">
-                <SummaryChart className="run__chart" />
-                <span className="run__body">
-                  <b>{t.label}</b>
-                  <span className="run__meta">Доход, долги и прибыли парка</span>
+      <div className="mtiles">
+        {tiles.map((t) => (
+          <Link key={t.to} to={t.to} className={`mtile mtile--${t.img} ${t.wide ? 'mtile--wide' : ''}`}>
+            <span className="mtile__card">
+              {t.img === 'summary' && <SummaryChart className="mtile__chart" />}
+              {t.img === 'owners' && <OwnerBag className="mtile__img mtile__img--bag" />}
+              {t.img !== 'summary' && t.img !== 'owners' && (
+                <img className="mtile__img" src={`/tiles/${t.img}.webp`} alt="" loading="eager" decoding="async" />
+              )}
+              {t.img === 'summary' && (
+                <span className="mtile__label">
+                  {t.label}
+                  {counts[t.count] != null && <span className="mtile__hint">{` · ${counts[t.count]}`}</span>}
                 </span>
-              </Link>
-            );
-          }
-          return (
-            <Link key={t.to} to={t.to} className="run">
-              <span className="run__stamp">
-                {t.img === 'owners' ? (
-                  <OwnerBag className="mtile__img mtile__img--bag" />
-                ) : (
-                  <img src={`/tiles/${t.img}.webp`} alt="" loading="eager" decoding="async" />
-                )}
+              )}
+            </span>
+            {t.img !== 'summary' && (
+              <span className="mtile__label">
+                {t.label}
+                {counts[t.count] != null && <span className="mtile__hint">{` · ${counts[t.count]}`}</span>}
               </span>
-              <span className="run__body">
-                <b>{t.label}</b>
-                <span className="run__meta">{n != null ? `${n} в работе` : 'Открыть раздел'}</span>
-              </span>
-              {n != null && <span className="run__count" data-no-translate>{n}</span>}
-            </Link>
-          );
-        })}
+            )}
+          </Link>
+        ))}
       </div>
     </div>
   );

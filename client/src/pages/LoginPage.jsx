@@ -82,10 +82,6 @@ export default function LoginPage() {
           <ThemeToggle className="theme-toggle--icon" />
         </div>
       </div>
-      <aside className="login__stage" aria-hidden="true">
-        <h2 className="login__stage-title">Смена<br />открыта</h2>
-        <p className="login__stage-copy">Долги, машины и оплаты парка — в одном кабинете. Войдите, чтобы начать работу.</p>
-      </aside>
       <div className="yid">
         <div className="yid__brand"><Brand big /></div>
 
