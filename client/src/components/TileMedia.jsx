@@ -1,4 +1,4 @@
-import EarningsWalletIcon from './EarningsWalletIcon';
+const EARNINGS_TILE = '/tiles/earnings.webp?v=3';
 
 export default function TileMedia({
   img,
@@ -7,25 +7,12 @@ export default function TileMedia({
   onClick,
   imgKey,
 }) {
-  if (img === 'earnings') {
-    const Tag = onClick ? 'button' : 'span';
-    return (
-      <Tag
-        key={imgKey}
-        type={onClick ? 'button' : undefined}
-        className={`${className} mtile__img--svg-wrap`.trim()}
-        onClick={onClick}
-        aria-hidden={onClick ? undefined : true}
-      >
-        <EarningsWalletIcon className="mtile__img--svg" />
-      </Tag>
-    );
-  }
+  const src = img === 'earnings' ? EARNINGS_TILE : `/tiles/${img}.webp`;
   return (
     <img
       key={imgKey}
       className={className}
-      src={`/tiles/${img}.webp`}
+      src={src}
       alt=""
       decoding={decoding}
       onClick={onClick}
