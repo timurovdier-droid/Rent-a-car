@@ -7,6 +7,12 @@ export const DICT = {
   'Сохраняю': 'Saqlanmoqda',
   'Сохранение': 'Saqlanmoqda',
   'Отмена': 'Bekor qilish',
+  'Смена': 'Smena',
+  'в работе': 'ishda',
+  'Открыть раздел': 'Boʻlimni ochish',
+  'Доход, долги и прибыли парка': 'Park daromadi, qarzlari va foydasi',
+  'Долги, машины и оплаты парка — в одном кабинете. Войдите, чтобы начать работу.':
+    'Qarzlar, mashinalar va toʻlovlar bitta kabinetda. Ishni boshlash uchun kiring.',
   'Отменить': 'Bekor qilish',
   'Удалить': 'Oʻchirish',
   'Изменить': 'Tahrirlash',

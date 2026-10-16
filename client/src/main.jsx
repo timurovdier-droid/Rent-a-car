@@ -12,10 +12,10 @@ import './styles/mobile.css';
 import './styles/skin-alt.css';
 
 import App from './App.jsx';
-
-document.documentElement.dataset.skin = 'alt';
 import { startTranslator } from './i18n';
 import { registerWorker } from './push';
+
+document.documentElement.dataset.skin = 'alt';
 
 startTranslator();
 registerWorker();
