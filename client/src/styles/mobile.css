@@ -330,7 +330,9 @@
   .mtile__img[src$='/cars.webp'] { filter: drop-shadow(0 0 .6px rgb(40 40 43 / .35)) drop-shadow(0 0 .6px rgb(40 40 43 / .35)); }
   [data-theme='dark'] .mtile__img[src] { filter: drop-shadow(0 0 .7px rgb(255 255 255 / .7)) drop-shadow(0 0 .7px rgb(255 255 255 / .7)); }
   [data-theme='dark'] .mtile__img[src$='/drivers.webp'] { content: url('/tiles/drivers-dark.webp'); }
-  [data-theme='dark'] img[src*='earnings.webp'] { content: url('/tiles/earnings-dark.webp?v=3'); }
+  [data-theme='dark'] .mtile__img--earnings {
+    filter: drop-shadow(0 4px 12px rgb(0 0 0 / .5)) drop-shadow(0 0 1px rgb(255 255 255 / .35));
+  }
   .mtile__img--bag { width: 88%; max-height: 118px; }
   .eempty__icon { width: 150px; height: auto; margin-bottom: 6px; opacity: .9; }
   .eitem__tile { width: 100%; height: 100%; object-fit: contain; }
