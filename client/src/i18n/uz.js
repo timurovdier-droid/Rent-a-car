@@ -369,6 +369,7 @@ export const DICT = {
   'Взял машину': 'Mashinani olgan',
   'Работал по': 'Ishlagan sanagacha',
   'Пусто = по сей день': 'Boʻsh = hozirgacha',
+  'Второе поле пустое — считается по сей день': 'Ikkinchi maydon boʻsh — hozirgacha hisoblanadi',
   'Сохранить период': 'Davrni saqlash',
   'Укажите, когда водитель взял машину — аренда считается с этого дня по сегодня. Если период уже закончился — заполните «Работал по»: будет запись «с … по …», машина освободится.': 'Haydovchi mashinani qachon olganini kiriting — ijara shu kundan bugungacha hisoblanadi. Davr tugagan boʻlsa — «Ishlagan sanagacha» ni toʻldiring: «dan … gacha …» yozuvi chiqadi, mashina boʻshaydi.',
   'Дата «работал по» не может быть раньше даты «взял машину»': '«Ishlagan sanagacha» «mashinani olgan» sanasidan oldin boʻlishi mumkin emas',

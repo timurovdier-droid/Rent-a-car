@@ -753,7 +753,7 @@ function StartDateModal({ car, current, today, onClose, onDone }) {
           Укажите, когда водитель взял машину — аренда считается с этого дня по сегодня.
           Если период уже закончился — заполните «Работал по»: будет запись «с … по …», машина освободится.
         </p>
-        <div className="form-grid">
+        <div className="date-pair">
           <div className="field">
             <label className="field__label" htmlFor="sd-date">Взял машину</label>
             <DateInput
@@ -775,9 +775,11 @@ function StartDateModal({ car, current, today, onClose, onDone }) {
               max={today}
               onChange={(e) => setEndDay(e.target.value)}
             />
-            <span className="muted small">{closedPeriod ? `Период: ${fmtDay(day)} — ${fmtDay(endDay)}` : 'Пусто = по сей день'}</span>
           </div>
         </div>
+        <p className="muted small date-pair__hint">
+          {closedPeriod ? `Период: ${fmtDay(day)} — ${fmtDay(endDay)}` : 'Второе поле пустое — считается по сей день'}
+        </p>
         {closedPeriod && (
           <div className="field">
             <label className="field__label" htmlFor="sd-km">Пробег при сдаче</label>
