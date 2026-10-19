@@ -360,8 +360,10 @@ CREATE TABLE IF NOT EXISTS driver_deposit_history (
   new_value INTEGER NOT NULL,
   reason TEXT,
   changed_by INTEGER,
+  tx_id INTEGER,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+CREATE INDEX IF NOT EXISTS idx_deposit_hist_tx ON driver_deposit_history (tx_id);
 
 INSERT INTO settings (key, value) VALUES
   ('remind_days', '7'),

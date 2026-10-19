@@ -27,6 +27,7 @@ import {
   carDebtDays,
   carRentStatus,
 } from '../carMoney.js';
+import { undoDepositRentTx } from '../depositRent.js';
 
 const router = Router();
 router.use(authenticate);
@@ -421,9 +422,21 @@ router.delete('/:id/transactions/:txId', requireRole('ADMIN', 'DISPATCHER'), asy
     if (!txPermissions(tx, req.user).can_delete) {
       return fail(res, 403, 'FORBIDDEN', 'Подтверждённую запись может удалить только администратор');
     }
-    await pool.query('DELETE FROM car_transactions WHERE id = $1', [tx.id]);
-    await writeAudit(pool, req.user.id, 'CAR_TX_DELETED', 'car_transaction', tx.id, tx, null, req.ip);
-    res.json({ id: tx.id, deleted: true });
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const depositUndo = await undoDepositRentTx(client, tx);
+      await client.query('DELETE FROM car_transactions WHERE id = $1', [tx.id]);
+      await writeAudit(client, req.user.id, 'CAR_TX_DELETED', 'car_transaction', tx.id,
+        { ...tx, deposit_restored: depositUndo?.amount || 0 }, null, req.ip);
+      await client.query('COMMIT');
+      res.json({ id: tx.id, deleted: true, deposit_restored: depositUndo?.amount || 0 });
+    } catch (err) {
+      try { await client.query('ROLLBACK'); } catch { /* ignore */ }
+      throw err;
+    } finally {
+      client.release();
+    }
   } catch (err) {
     serverError(res, 'Ошибка удаления операции:', err);
   }

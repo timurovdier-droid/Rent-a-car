@@ -264,6 +264,10 @@ async function migrate() {
   if (assignInfo.rows.length && !assignInfo.rows.some((row) => row.name === 'pay_from')) {
     await db.execute('ALTER TABLE car_assignments ADD COLUMN pay_from TEXT');
   }
+  const depHistInfo = await db.execute("SELECT name FROM pragma_table_info('driver_deposit_history')");
+  if (depHistInfo.rows.length && !depHistInfo.rows.some((row) => row.name === 'tx_id')) {
+    await db.execute('ALTER TABLE driver_deposit_history ADD COLUMN tx_id INTEGER');
+  }
   for (const table of ['driver_mileage', 'driver_expenses']) {
     const info = await db.execute(`SELECT name FROM pragma_table_info('${table}')`);
     if (info.rows.length && !info.rows.some((row) => row.name === 'time')) {

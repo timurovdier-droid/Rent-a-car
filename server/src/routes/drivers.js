@@ -9,6 +9,7 @@ import {
   driverLedgerRows, ledgerTotals, rentStatus, shiftPayFromOnStartChange, ensureCarRateFrom,
   syncCarRateToAssignments,
 } from '../carMoney.js';
+import { dayLabelRu } from '../depositRent.js';
 
 const router = Router();
 
@@ -466,7 +467,7 @@ router.post('/:id/day-report', async (req, res) => {
       assignment = target;
     }
 
-    const dayLabel = `${day.slice(8, 10)}.${day.slice(5, 7)}.${day.slice(0, 4)}`;
+    const dayLabel = dayLabelRu(day);
     const depositNote = depositPay
       ? `Закрыта аренда за ${dayLabel} из депозита (${Number(depositPay[1]).toLocaleString('ru-RU')} сум)`
       : null;
@@ -475,6 +476,7 @@ router.post('/:id/day-report', async (req, res) => {
     const isAdmin = req.user.role === 'ADMIN';
     // Списание с депозита подтверждаем сразу — иначе долг «висит», а деньги уже ушли.
     const ids = [];
+    let depositTxId = null;
     for (const [method, amount] of payments) {
       const confirmed = isAdmin || method === 'DEPOSIT';
       const { rows } = await client.query(
@@ -489,14 +491,15 @@ router.post('/:id/day-report', async (req, res) => {
         ]
       );
       ids.push(rows[0].id);
+      if (method === 'DEPOSIT') depositTxId = rows[0].id;
     }
     if (depositPay) {
       const next = depositNow - depositPay[1];
       await client.query('UPDATE drivers SET deposit = $1 WHERE id = $2', [next, driver.id]);
       await client.query(
-        `INSERT INTO driver_deposit_history (driver_id, old_value, new_value, reason, changed_by)
-         VALUES ($1, $2, $3, $4, $5)`,
-        [driver.id, depositNow, next, depositNote, req.user.id]
+        `INSERT INTO driver_deposit_history (driver_id, old_value, new_value, reason, changed_by, tx_id)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [driver.id, depositNow, next, depositNote, req.user.id, depositTxId]
       );
     }
     await writeAudit(client, req.user.id, 'DAY_REPORT_CREATED', 'driver', driver.id, null,
