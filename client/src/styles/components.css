@@ -975,19 +975,22 @@ button.rs-cell--write .rs-cell__label { color: var(--c-muted); font-weight: 600;
 .pay-day__info { display: flex; flex-direction: column; gap: 10px; padding: 12px 14px; border-radius: 12px; background: var(--c-soft); }
 .pay-day__kv { margin: 0; }
 .pay-day__kv dd { min-width: 0; }
-.pay-day__rate-row {
-  grid-column: 1 / -1;
-  min-width: 0;
+.pay-day__kv .money-input { width: 100%; max-width: 16rem; }
+.pay-day__rate-link {
+  align-self: flex-start;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--c-ink);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  text-align: left;
 }
-.pay-day__rate {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  width: 100%;
-  min-width: 0;
-}
-.pay-day__rate .money-input { width: 100%; min-width: 0; }
-.pay-day__rate .btn { width: 100%; white-space: nowrap; }
+.pay-day__rate-link:hover:not(:disabled) { text-decoration: underline; }
+.pay-day__rate-link:disabled { opacity: 0.45; cursor: default; }
 .pay-day__grid {
   display: grid;
   grid-template-columns: 1fr 1fr;

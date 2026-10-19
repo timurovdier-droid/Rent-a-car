@@ -286,27 +286,17 @@ function DayReportModal({ driverId, carId, status, day, onClose, onDone, onRefre
         )}
         <div className="pay-day__info">
           <dl className="kv pay-day__kv">
-            <div className="pay-day__rate-row">
+            <div>
               <dt>Аренда в день</dt>
               <dd>
                 {isAdmin && targetCarId ? (
-                  <div className="pay-day__rate">
-                    <MoneyInput
-                      id="drp-rate"
-                      value={dayRateEdit}
-                      onChange={(v) => { setDayRateEdit(v); setRateSaved(false); }}
-                      suffix="сум"
-                      placeholder="0"
-                    />
-                    <button
-                      type="button"
-                      className="btn btn--sm"
-                      disabled={saving || !editRate || editRate === dayRate}
-                      onClick={saveDayRate}
-                    >
-                      {saving ? 'Сохраняю…' : 'Только этот день'}
-                    </button>
-                  </div>
+                  <MoneyInput
+                    id="drp-rate"
+                    value={dayRateEdit}
+                    onChange={(v) => { setDayRateEdit(v); setRateSaved(false); }}
+                    suffix="сум"
+                    placeholder="0"
+                  />
                 ) : `${fmtMoney(dayRate)} сум`}
               </dd>
             </div>
@@ -315,6 +305,16 @@ function DayReportModal({ driverId, carId, status, day, onClose, onDone, onRefre
             <div><dt>Не хватает</dt><dd className={left > 0 ? 'ledger__debt' : ''}>{fmtMoney(left)} сум</dd></div>
             <div><dt>Депозит</dt><dd>{fmtMoney(depositLeft)} сум</dd></div>
           </dl>
+          {isAdmin && targetCarId && (
+            <button
+              type="button"
+              className="pay-day__rate-link"
+              disabled={saving || !editRate || editRate === dayRate}
+              onClick={saveDayRate}
+            >
+              {saving ? 'Сохраняю…' : 'Ставка только на этот день'}
+            </button>
+          )}
           {rateSaved && <p className="muted small" style={{ margin: 0 }}>Ставка на {fmtDay(date)} сохранена — остальные дни не менялись.</p>}
         </div>
         <div className="pay-day__grid">
