@@ -131,17 +131,38 @@ function DayReportModal({ driverId, carId, status, day, onClose, onDone, onRefre
   const [balance, setBalance] = useState('');
   const [deposit, setDeposit] = useState('');
   const [dayRateEdit, setDayRateEdit] = useState('');
+  const [hubDriver, setHubDriver] = useState(null);
   const [depositLeft, setDepositLeft] = useState(Number(status.deposit || 0));
   const [comment, setComment] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const total = (Number(cash) || 0) + (Number(card) || 0) + (Number(balance) || 0) + (Number(deposit) || 0);
   const early = date < status.first_day;
-  const who = info?.driver_id || driverId || status.driver?.id || null;
+  const who = info?.driver_id || driverId || status.driver?.id || hubDriver?.id || null;
+  const whoName = info?.driver_name || status.driver?.name || hubDriver?.name || null;
 
   useEffect(() => {
     setDayRateEdit(dayRate ? String(dayRate) : '');
   }, [date, dayRate]);
+
+  useEffect(() => {
+    let alive = true;
+    if (!carId) return undefined;
+    api.get(`/cars/${carId}/hub`)
+      .then((hub) => {
+        if (!alive) return;
+        const cur = hub.current;
+        if (cur?.driver_id) {
+          setHubDriver({
+            id: Number(cur.driver_id),
+            name: cur.driver_name || null,
+            deposit: null,
+          });
+        }
+      })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [carId]);
 
   useEffect(() => {
     let alive = true;
@@ -250,29 +271,23 @@ function DayReportModal({ driverId, carId, status, day, onClose, onDone, onRefre
           </div>
         )}
         <div className="pay-day__info">
-          <dl className="kv">
+          <dl className="kv pay-day__kv">
             <div>
               <dt>Аренда в день</dt>
-              <dd>
-                {isAdmin && (carId || status.car?.id) ? (
-                  <div className="pay-day__rate">
-                    <MoneyInput id="drp-rate" value={dayRateEdit} onChange={setDayRateEdit} suffix="сум" />
-                    <button type="button" className="btn btn--ghost btn--sm" disabled={saving} onClick={saveDayRate}>
-                      Только на этот день
-                    </button>
-                  </div>
-                ) : (
-                  `${fmtMoney(dayRate)} сум`
-                )}
-              </dd>
+              <dd>{isAdmin && (carId || status.car?.id) ? (
+                <MoneyInput id="drp-rate" value={dayRateEdit} onChange={setDayRateEdit} suffix="сум" />
+              ) : `${fmtMoney(dayRate)} сум`}</dd>
             </div>
-            {(info?.driver_name || status.driver?.name) && (
-              <div><dt>Водитель</dt><dd>{info?.driver_name || status.driver?.name}</dd></div>
-            )}
+            {whoName && <div><dt>Водитель</dt><dd>{whoName}</dd></div>}
             {info && <div><dt>Уже закрыто</dt><dd>{fmtMoney(info.covered)} сум</dd></div>}
             {left > 0 && <div><dt>Не хватает</dt><dd className="ledger__debt">{fmtMoney(left)} сум</dd></div>}
             <div><dt>Депозит</dt><dd>{fmtMoney(depositLeft)} сум</dd></div>
           </dl>
+          {isAdmin && (carId || status.car?.id) && (
+            <button type="button" className="btn btn--ghost btn--sm pay-day__rate-btn" disabled={saving} onClick={saveDayRate}>
+              Ставка только на этот день
+            </button>
+          )}
         </div>
         <div className="pay-day__grid">
           <div className="field">
@@ -289,16 +304,16 @@ function DayReportModal({ driverId, carId, status, day, onClose, onDone, onRefre
           </div>
           <div className="field">
             <label className="field__label" htmlFor="drp-deposit">Из депозита</label>
-            <MoneyInput id="drp-deposit" value={deposit} onChange={setDeposit} />
-            <span className="muted small">
-              {who
-                ? 'Спишется с депозита, в истории будет комментарий'
-                : 'Нужен водитель на этот день, чтобы списать с депозита'}
-            </span>
+            <MoneyInput id="drp-deposit" value={deposit} onChange={setDeposit} disabled={!who} />
           </div>
         </div>
+        <p className="muted small pay-day__hint">
+          {who
+            ? '«Из депозита» списывается с депозита водителя и пишется в историю депозита.'
+            : 'Чтобы списать с депозита, на этот день должен быть водитель.'}
+        </p>
         {(left > 0 || dayRate > 0) && (
-          <div className="chips">
+          <div className="pay-day__chips">
             <button type="button" className="chip" onClick={() => payAll(setCash)}>Всё наличными</button>
             <button type="button" className="chip" onClick={() => payAll(setCard)}>Всё картой</button>
             <button type="button" className="chip" onClick={() => payAll(setBalance)}>Всё с баланса</button>
@@ -308,9 +323,9 @@ function DayReportModal({ driverId, carId, status, day, onClose, onDone, onRefre
               disabled={!who || depositLeft <= 0}
               onClick={() => payAll(setDeposit, depositLeft)}
             >
-              {depositLeft > 0
-                ? `Всё из депозита (${fmtMoney(Math.min(left || dayRate, depositLeft))})`
-                : 'Из депозита (пусто)'}
+              {who && depositLeft > 0
+                ? `Всё из депозита · ${fmtMoney(Math.min(left || dayRate, depositLeft))}`
+                : 'Всё из депозита'}
             </button>
           </div>
         )}

@@ -973,12 +973,33 @@ button.rs-cell--write .rs-cell__label { color: var(--c-muted); font-weight: 600;
 .pay-status--off { color: var(--c-muted); background: var(--c-soft); font-weight: 500; }
 .pay-day { display: flex; flex-direction: column; gap: 14px; }
 .pay-day__info { display: flex; flex-direction: column; gap: 10px; padding: 12px 14px; border-radius: 12px; background: var(--c-soft); }
-.pay-day__info .kv { margin: 0; }
-.pay-day__rate { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-.pay-day__rate .money-input,
-.pay-day__rate .field__input { min-width: 9rem; max-width: 12rem; }
-.pay-day__grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
-@media (max-width: 520px) { .pay-day__grid { grid-template-columns: 1fr; } }
+.pay-day__kv { margin: 0; }
+.pay-day__kv dd { min-width: 0; }
+.pay-day__rate-btn { align-self: flex-start; }
+.pay-day__grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  align-items: start;
+}
+.pay-day__grid .field { margin-bottom: 0; }
+.pay-day__grid .field__label { min-height: 1.3em; }
+.pay-day__hint { margin: -4px 0 0; }
+.pay-day__chips {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.pay-day__chips .chip {
+  width: 100%;
+  justify-content: center;
+  text-align: center;
+  box-sizing: border-box;
+}
+@media (max-width: 520px) {
+  .pay-day__grid,
+  .pay-day__chips { grid-template-columns: 1fr; }
+}
 .ledger__debt { color: var(--c-danger); font-weight: 600; }
 .ledger__tag {
   display: inline-block; padding: 1px 8px; border-radius: 999px;
