@@ -137,7 +137,7 @@ function DayReportModal({ driverId, carId, status, day, onClose, onDone, onRefre
   const [error, setError] = useState('');
   const total = (Number(cash) || 0) + (Number(card) || 0) + (Number(balance) || 0) + (Number(deposit) || 0);
   const early = date < status.first_day;
-  const who = info?.driver_id || driverId;
+  const who = info?.driver_id || driverId || status.driver?.id || null;
 
   useEffect(() => {
     setDayRateEdit(dayRate ? String(dayRate) : '');
@@ -145,15 +145,16 @@ function DayReportModal({ driverId, carId, status, day, onClose, onDone, onRefre
 
   useEffect(() => {
     let alive = true;
+    const fallback = Number(status.deposit || status.driver?.deposit || 0);
     if (!who) {
-      setDepositLeft(Number(status.deposit || 0));
+      setDepositLeft(fallback);
       return undefined;
     }
     api.get(`/drivers/${who}`)
       .then((d) => { if (alive) setDepositLeft(Number(d.deposit || 0)); })
-      .catch(() => { if (alive) setDepositLeft(Number(status.deposit || 0)); });
+      .catch(() => { if (alive) setDepositLeft(fallback); });
     return () => { alive = false; };
-  }, [who, status.deposit]);
+  }, [who, status.deposit, status.driver?.deposit]);
 
   function payAll(setter, maxAmount) {
     setCash('');
@@ -200,11 +201,16 @@ function DayReportModal({ driverId, carId, status, day, onClose, onDone, onRefre
     setSaving(true);
     setError('');
     try {
+      if (Number(deposit) > 0 && !who) {
+        setError('Чтобы списать с депозита, нужен водитель на этот день');
+        setSaving(false);
+        return;
+      }
       if (who) {
         await api.post(`/drivers/${who}/day-report`, { date, cash, card, balance, deposit, comment });
       } else if (carId) {
         const note = comment.trim() || `Отчёт за ${date}`;
-        for (const [method, amount] of [['CASH', cash], ['CARD', card], ['BALANCE', balance], ['DEPOSIT', deposit]]) {
+        for (const [method, amount] of [['CASH', cash], ['CARD', card], ['BALANCE', balance]]) {
           if (Number(amount) > 0) {
             await api.post(`/cars/${carId}/transactions`, {
               kind: 'INCOME', category: 'RENT', method, amount: Number(amount), tx_date: date, comment: note,
@@ -260,10 +266,12 @@ function DayReportModal({ driverId, carId, status, day, onClose, onDone, onRefre
                 )}
               </dd>
             </div>
-            {info?.driver_name && <div><dt>Водитель</dt><dd>{info.driver_name}</dd></div>}
+            {(info?.driver_name || status.driver?.name) && (
+              <div><dt>Водитель</dt><dd>{info?.driver_name || status.driver?.name}</dd></div>
+            )}
             {info && <div><dt>Уже закрыто</dt><dd>{fmtMoney(info.covered)} сум</dd></div>}
             {left > 0 && <div><dt>Не хватает</dt><dd className="ledger__debt">{fmtMoney(left)} сум</dd></div>}
-            {who && <div><dt>Депозит</dt><dd>{fmtMoney(depositLeft)} сум</dd></div>}
+            <div><dt>Депозит</dt><dd>{fmtMoney(depositLeft)} сум</dd></div>
           </dl>
         </div>
         <div className="pay-day__grid">
@@ -279,24 +287,31 @@ function DayReportModal({ driverId, carId, status, day, onClose, onDone, onRefre
             <label className="field__label" htmlFor="drp-balance">С баланса</label>
             <MoneyInput id="drp-balance" value={balance} onChange={setBalance} />
           </div>
-          {who ? (
-            <div className="field">
-              <label className="field__label" htmlFor="drp-deposit">Из депозита</label>
-              <MoneyInput id="drp-deposit" value={deposit} onChange={setDeposit} />
-              <span className="muted small">Спишется с депозита, в истории будет комментарий</span>
-            </div>
-          ) : null}
+          <div className="field">
+            <label className="field__label" htmlFor="drp-deposit">Из депозита</label>
+            <MoneyInput id="drp-deposit" value={deposit} onChange={setDeposit} />
+            <span className="muted small">
+              {who
+                ? 'Спишется с депозита, в истории будет комментарий'
+                : 'Нужен водитель на этот день, чтобы списать с депозита'}
+            </span>
+          </div>
         </div>
         {(left > 0 || dayRate > 0) && (
           <div className="chips">
             <button type="button" className="chip" onClick={() => payAll(setCash)}>Всё наличными</button>
             <button type="button" className="chip" onClick={() => payAll(setCard)}>Всё картой</button>
             <button type="button" className="chip" onClick={() => payAll(setBalance)}>Всё с баланса</button>
-            {who && depositLeft > 0 && (
-              <button type="button" className="chip" onClick={() => payAll(setDeposit, depositLeft)}>
-                {`Всё из депозита (${fmtMoney(Math.min(left || dayRate, depositLeft))})`}
-              </button>
-            )}
+            <button
+              type="button"
+              className="chip"
+              disabled={!who || depositLeft <= 0}
+              onClick={() => payAll(setDeposit, depositLeft)}
+            >
+              {depositLeft > 0
+                ? `Всё из депозита (${fmtMoney(Math.min(left || dayRate, depositLeft))})`
+                : 'Из депозита (пусто)'}
+            </button>
           </div>
         )}
         <div className="field">
@@ -534,7 +549,7 @@ export function RentStatusView({ status, driverId, carId, canWrite = false, onSa
       )}
       {reportDay && (driverId || carId) && (
         <DayReportModal
-          driverId={driverId || byDay.get(reportDay)?.driver_id}
+          driverId={driverId || byDay.get(reportDay)?.driver_id || status.driver?.id}
           carId={carId}
           status={status}
           day={reportDay}
