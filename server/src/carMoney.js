@@ -111,26 +111,63 @@ async function rateOnOrBefore(db, carId, day) {
   return rows[0] ? Number(rows[0].rate) : 0;
 }
 
+async function rateBeforeDay(db, carId, day) {
+  const { rows } = await db.query(
+    `SELECT rate FROM car_rate_history
+     WHERE car_id = $1 AND substr(valid_from, 1, 10) < $2
+     ORDER BY substr(valid_from, 1, 10) DESC, id DESC LIMIT 1`,
+    [carId, day]
+  );
+  return rows[0] ? Number(rows[0].rate) : 0;
+}
+
 // onlyDay=true: ставка только на один день, со следующего дня прежняя цена.
 export async function applyCarRate(db, carId, rate, validFrom, { onlyDay = false, userId = null } = {}) {
-  const prev = await rateOnOrBefore(db, carId, validFrom);
-  await db.query(
-    'INSERT INTO car_rate_history (car_id, rate, valid_from, created_by) VALUES ($1, $2, $3, $4)',
-    [carId, rate, validFrom, userId]
-  );
+  const amount = Number(rate) || 0;
   if (onlyDay) {
+    // База — цена до этого дня (не «текущая на этот день», иначе повторное изменение ломает восстановление).
+    const base = await rateBeforeDay(db, carId, validFrom);
     const nextDay = addDays(validFrom, 1);
-    if (isDay(nextDay) && Number(prev) !== Number(rate)) {
+    // Убираем прошлые однодневные записи на этот день и «возврат» на следующий.
+    await db.query(
+      `DELETE FROM car_rate_history
+       WHERE car_id = $1 AND substr(valid_from, 1, 10) = $2`,
+      [carId, validFrom]
+    );
+    if (isDay(nextDay)) {
       await db.query(
-        'INSERT INTO car_rate_history (car_id, rate, valid_from, created_by) VALUES ($1, $2, $3, $4)',
-        [carId, prev, nextDay, userId]
+        `DELETE FROM car_rate_history
+         WHERE car_id = $1 AND substr(valid_from, 1, 10) = $2
+           AND rate = $3`,
+        [carId, nextDay, base]
       );
     }
+    await db.query(
+      'INSERT INTO car_rate_history (car_id, rate, valid_from, created_by) VALUES ($1, $2, $3, $4)',
+      [carId, amount, validFrom, userId]
+    );
+    if (isDay(nextDay) && Number(base) !== amount) {
+      await db.query(
+        'INSERT INTO car_rate_history (car_id, rate, valid_from, created_by) VALUES ($1, $2, $3, $4)',
+        [carId, base, nextDay, userId]
+      );
+    }
+  } else {
+    await db.query(
+      'INSERT INTO car_rate_history (car_id, rate, valid_from, created_by) VALUES ($1, $2, $3, $4)',
+      [carId, amount, validFrom, userId]
+    );
   }
   const today = localToday();
   const current = await rateOnOrBefore(db, carId, today);
   await db.query('UPDATE cars SET daily_rate = $1 WHERE id = $2', [current, carId]);
-  return { daily_rate: current, rate, valid_from: validFrom, only_day: Boolean(onlyDay), restored_from: onlyDay ? addDays(validFrom, 1) : null };
+  return {
+    daily_rate: current,
+    rate: amount,
+    valid_from: validFrom,
+    only_day: Boolean(onlyDay),
+    restored_from: onlyDay ? addDays(validFrom, 1) : null,
+  };
 }
 
 function placeholders(list, offset = 0) {

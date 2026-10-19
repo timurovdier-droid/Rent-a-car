@@ -125,7 +125,7 @@ function DayReportModal({ driverId, carId, status, day, onClose, onDone, onRefre
   const [date, setDate] = useState(day);
   const info = status.days.find((item) => item.day === date);
   const dayRate = info?.accrued > 0 ? info.accrued : (status.rate || 0);
-  const left = info ? Math.max(info.left || 0, 0) : Math.max(dayRate, 0);
+  const covered = info ? Number(info.covered || 0) : 0;
   const [cash, setCash] = useState('');
   const [card, setCard] = useState('');
   const [balance, setBalance] = useState('');
@@ -135,20 +135,25 @@ function DayReportModal({ driverId, carId, status, day, onClose, onDone, onRefre
   const [depositLeft, setDepositLeft] = useState(Number(status.deposit || 0));
   const [comment, setComment] = useState('');
   const [saving, setSaving] = useState(false);
+  const [rateSaved, setRateSaved] = useState(false);
   const [error, setError] = useState('');
+  const editRate = Number(String(dayRateEdit || '').replace(/\D/g, '')) || 0;
+  const left = Math.max(editRate - covered, 0);
   const total = (Number(cash) || 0) + (Number(card) || 0) + (Number(balance) || 0) + (Number(deposit) || 0);
   const early = date < status.first_day;
   const who = info?.driver_id || driverId || status.driver?.id || hubDriver?.id || null;
   const whoName = info?.driver_name || status.driver?.name || hubDriver?.name || null;
+  const targetCarId = carId || status.car?.id || null;
 
   useEffect(() => {
     setDayRateEdit(dayRate ? String(dayRate) : '');
+    setRateSaved(false);
   }, [date, dayRate]);
 
   useEffect(() => {
     let alive = true;
-    if (!carId) return undefined;
-    api.get(`/cars/${carId}/hub`)
+    if (!targetCarId) return undefined;
+    api.get(`/cars/${targetCarId}/hub`)
       .then((hub) => {
         if (!alive) return;
         const cur = hub.current;
@@ -162,7 +167,7 @@ function DayReportModal({ driverId, carId, status, day, onClose, onDone, onRefre
       })
       .catch(() => {});
     return () => { alive = false; };
-  }, [carId]);
+  }, [targetCarId]);
 
   useEffect(() => {
     let alive = true;
@@ -188,23 +193,24 @@ function DayReportModal({ driverId, carId, status, day, onClose, onDone, onRefre
   }
 
   async function saveDayRate() {
-    if (!carId && !status.car?.id) {
+    if (!targetCarId) {
       setError('Нет машины, чтобы изменить ставку');
       return;
     }
-    const value = Number(dayRateEdit);
-    if (!Number.isFinite(value) || value < 0) {
+    if (!Number.isFinite(editRate) || editRate < 0) {
       setError('Укажите ставку на этот день');
       return;
     }
     setSaving(true);
     setError('');
+    setRateSaved(false);
     try {
-      await api.post(`/cars/${carId || status.car.id}/rate`, {
-        rate: value,
+      await api.post(`/cars/${targetCarId}/rate`, {
+        rate: editRate,
         valid_from: date,
         only_day: true,
       });
+      setRateSaved(true);
       setSaving(false);
       onRefresh?.();
     } catch (err) {
@@ -222,6 +228,14 @@ function DayReportModal({ driverId, carId, status, day, onClose, onDone, onRefre
     setSaving(true);
     setError('');
     try {
+      // Если ставку на день поменяли — сохраняем её вместе с отчётом.
+      if (isAdmin && targetCarId && editRate !== dayRate) {
+        await api.post(`/cars/${targetCarId}/rate`, {
+          rate: editRate,
+          valid_from: date,
+          only_day: true,
+        });
+      }
       if (Number(deposit) > 0 && !who) {
         setError('Чтобы списать с депозита, нужен водитель на этот день');
         setSaving(false);
@@ -229,11 +243,11 @@ function DayReportModal({ driverId, carId, status, day, onClose, onDone, onRefre
       }
       if (who) {
         await api.post(`/drivers/${who}/day-report`, { date, cash, card, balance, deposit, comment });
-      } else if (carId) {
+      } else if (targetCarId) {
         const note = comment.trim() || `Отчёт за ${date}`;
         for (const [method, amount] of [['CASH', cash], ['CARD', card], ['BALANCE', balance]]) {
           if (Number(amount) > 0) {
-            await api.post(`/cars/${carId}/transactions`, {
+            await api.post(`/cars/${targetCarId}/transactions`, {
               kind: 'INCOME', category: 'RENT', method, amount: Number(amount), tx_date: date, comment: note,
             });
           }
@@ -272,22 +286,25 @@ function DayReportModal({ driverId, carId, status, day, onClose, onDone, onRefre
         )}
         <div className="pay-day__info">
           <dl className="kv pay-day__kv">
-            <div>
+            <div className="pay-day__rate-row">
               <dt>Аренда в день</dt>
-              <dd>{isAdmin && (carId || status.car?.id) ? (
-                <MoneyInput id="drp-rate" value={dayRateEdit} onChange={setDayRateEdit} suffix="сум" />
-              ) : `${fmtMoney(dayRate)} сум`}</dd>
+              <dd>
+                {isAdmin && targetCarId ? (
+                  <div className="pay-day__rate">
+                    <MoneyInput id="drp-rate" value={dayRateEdit} onChange={(v) => { setDayRateEdit(v); setRateSaved(false); }} suffix="сум" />
+                    <button type="button" className="btn btn--sm" disabled={saving || editRate === dayRate} onClick={saveDayRate}>
+                      {saving ? 'Сохраняю…' : 'Только этот день'}
+                    </button>
+                  </div>
+                ) : `${fmtMoney(dayRate)} сум`}
+              </dd>
             </div>
             {whoName && <div><dt>Водитель</dt><dd>{whoName}</dd></div>}
-            {info && <div><dt>Уже закрыто</dt><dd>{fmtMoney(info.covered)} сум</dd></div>}
-            {left > 0 && <div><dt>Не хватает</dt><dd className="ledger__debt">{fmtMoney(left)} сум</dd></div>}
+            <div><dt>Уже закрыто</dt><dd>{fmtMoney(covered)} сум</dd></div>
+            <div><dt>Не хватает</dt><dd className={left > 0 ? 'ledger__debt' : ''}>{fmtMoney(left)} сум</dd></div>
             <div><dt>Депозит</dt><dd>{fmtMoney(depositLeft)} сум</dd></div>
           </dl>
-          {isAdmin && (carId || status.car?.id) && (
-            <button type="button" className="btn btn--ghost btn--sm pay-day__rate-btn" disabled={saving} onClick={saveDayRate}>
-              Ставка только на этот день
-            </button>
-          )}
+          {rateSaved && <p className="muted small" style={{ margin: 0 }}>Ставка на {fmtDay(date)} сохранена — остальные дни не менялись.</p>}
         </div>
         <div className="pay-day__grid">
           <div className="field">

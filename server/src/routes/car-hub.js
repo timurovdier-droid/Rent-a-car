@@ -472,7 +472,7 @@ router.post('/:id/transactions-confirm-all', requireRole('ADMIN'), async (req, r
 
 // POST /cars/:id/rate — ставка аренды (только админ).
 // only_day=true — меняет цену только на одну дату, остальные дни без изменений.
-router.post('/:id/rate', requireRole('ADMIN'), async (req, res) => {
+router.post('/:id/rate', requireRole('ADMIN', 'DISPATCHER'), async (req, res) => {
   try {
     const car = await loadCar(req, res, { write: true });
     if (!car) return;
