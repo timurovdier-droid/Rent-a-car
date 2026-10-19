@@ -7,7 +7,7 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 export const INCOME_CATEGORIES = ['RENT', 'DEPOSIT', 'OTHER_INCOME'];
 export const EXPENSE_CATEGORIES = ['FUEL', 'REPAIR', 'SERVICE', 'FINES', 'WASH', 'INSURANCE', 'OTHER'];
 // TRANSFER, CLICK, PAYME, UZUM — старые способы: новые записи ими не создаются, но старые можно править.
-export const PAY_METHODS = ['CASH', 'CARD', 'BALANCE', 'TRANSFER', 'CLICK', 'PAYME', 'UZUM'];
+export const PAY_METHODS = ['CASH', 'CARD', 'BALANCE', 'TRANSFER', 'CLICK', 'PAYME', 'UZUM', 'DEPOSIT'];
 
 function parseTimestamp(ts) {
   if (!ts) return null;
@@ -99,6 +99,38 @@ export async function syncCarRateToAssignments(db, carId, userId = null) {
   );
   const start = localDay(rows[0]?.start_at);
   if (start) await ensureCarRateFrom(db, id, start, userId);
+}
+
+async function rateOnOrBefore(db, carId, day) {
+  const { rows } = await db.query(
+    `SELECT rate, valid_from FROM car_rate_history
+     WHERE car_id = $1 AND substr(valid_from, 1, 10) <= $2
+     ORDER BY substr(valid_from, 1, 10) DESC, id DESC LIMIT 1`,
+    [carId, day]
+  );
+  return rows[0] ? Number(rows[0].rate) : 0;
+}
+
+// onlyDay=true: ставка только на один день, со следующего дня прежняя цена.
+export async function applyCarRate(db, carId, rate, validFrom, { onlyDay = false, userId = null } = {}) {
+  const prev = await rateOnOrBefore(db, carId, validFrom);
+  await db.query(
+    'INSERT INTO car_rate_history (car_id, rate, valid_from, created_by) VALUES ($1, $2, $3, $4)',
+    [carId, rate, validFrom, userId]
+  );
+  if (onlyDay) {
+    const nextDay = addDays(validFrom, 1);
+    if (isDay(nextDay) && Number(prev) !== Number(rate)) {
+      await db.query(
+        'INSERT INTO car_rate_history (car_id, rate, valid_from, created_by) VALUES ($1, $2, $3, $4)',
+        [carId, prev, nextDay, userId]
+      );
+    }
+  }
+  const today = localToday();
+  const current = await rateOnOrBefore(db, carId, today);
+  await db.query('UPDATE cars SET daily_rate = $1 WHERE id = $2', [current, carId]);
+  return { daily_rate: current, rate, valid_from: validFrom, only_day: Boolean(onlyDay), restored_from: onlyDay ? addDays(validFrom, 1) : null };
 }
 
 function placeholders(list, offset = 0) {

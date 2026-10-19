@@ -119,41 +119,92 @@ function CellBody({ state, info }) {
   return null;
 }
 
-function DayReportModal({ driverId, carId, status, day, onClose, onDone }) {
+function DayReportModal({ driverId, carId, status, day, onClose, onDone, onRefresh }) {
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'ADMIN';
   const [date, setDate] = useState(day);
   const info = status.days.find((item) => item.day === date);
-  const left = info ? Math.max(info.left || 0, 0) : 0;
+  const dayRate = info?.accrued > 0 ? info.accrued : (status.rate || 0);
+  const left = info ? Math.max(info.left || 0, 0) : Math.max(dayRate, 0);
   const [cash, setCash] = useState('');
   const [card, setCard] = useState('');
   const [balance, setBalance] = useState('');
+  const [deposit, setDeposit] = useState('');
+  const [dayRateEdit, setDayRateEdit] = useState('');
+  const [depositLeft, setDepositLeft] = useState(Number(status.deposit || 0));
   const [comment, setComment] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
-  const total = (Number(cash) || 0) + (Number(card) || 0) + (Number(balance) || 0);
+  const total = (Number(cash) || 0) + (Number(card) || 0) + (Number(balance) || 0) + (Number(deposit) || 0);
   const early = date < status.first_day;
+  const who = info?.driver_id || driverId;
 
-  function payAll(setter) {
+  useEffect(() => {
+    setDayRateEdit(dayRate ? String(dayRate) : '');
+  }, [date, dayRate]);
+
+  useEffect(() => {
+    let alive = true;
+    if (!who) {
+      setDepositLeft(Number(status.deposit || 0));
+      return undefined;
+    }
+    api.get(`/drivers/${who}`)
+      .then((d) => { if (alive) setDepositLeft(Number(d.deposit || 0)); })
+      .catch(() => { if (alive) setDepositLeft(Number(status.deposit || 0)); });
+    return () => { alive = false; };
+  }, [who, status.deposit]);
+
+  function payAll(setter, maxAmount) {
     setCash('');
     setCard('');
     setBalance('');
-    setter(String(left || status.rate || ''));
+    setDeposit('');
+    const need = left || dayRate || 0;
+    const value = maxAmount != null ? Math.min(need, maxAmount) : need;
+    setter(String(value || ''));
   }
 
-  async function submit(e) {
-    e.preventDefault();
-    if (!total) {
-      setError('Впишите сумму: наличными, картой или с баланса');
+  async function saveDayRate() {
+    if (!carId && !status.car?.id) {
+      setError('Нет машины, чтобы изменить ставку');
+      return;
+    }
+    const value = Number(dayRateEdit);
+    if (!Number.isFinite(value) || value < 0) {
+      setError('Укажите ставку на этот день');
       return;
     }
     setSaving(true);
     setError('');
     try {
-      const who = info?.driver_id || driverId;
+      await api.post(`/cars/${carId || status.car.id}/rate`, {
+        rate: value,
+        valid_from: date,
+        only_day: true,
+      });
+      setSaving(false);
+      onRefresh?.();
+    } catch (err) {
+      setError(err.message || 'Не удалось изменить ставку');
+      setSaving(false);
+    }
+  }
+
+  async function submit(e) {
+    e.preventDefault();
+    if (!total) {
+      setError('Впишите сумму: наличными, картой, с баланса или из депозита');
+      return;
+    }
+    setSaving(true);
+    setError('');
+    try {
       if (who) {
-        await api.post(`/drivers/${who}/day-report`, { date, cash, card, balance, comment });
+        await api.post(`/drivers/${who}/day-report`, { date, cash, card, balance, deposit, comment });
       } else if (carId) {
         const note = comment.trim() || `Отчёт за ${date}`;
-        for (const [method, amount] of [['CASH', cash], ['CARD', card], ['BALANCE', balance]]) {
+        for (const [method, amount] of [['CASH', cash], ['CARD', card], ['BALANCE', balance], ['DEPOSIT', deposit]]) {
           if (Number(amount) > 0) {
             await api.post(`/cars/${carId}/transactions`, {
               kind: 'INCOME', category: 'RENT', method, amount: Number(amount), tx_date: date, comment: note,
@@ -194,10 +245,25 @@ function DayReportModal({ driverId, carId, status, day, onClose, onDone }) {
         )}
         <div className="pay-day__info">
           <dl className="kv">
-            <div><dt>Аренда в день</dt><dd>{fmtMoney(status.rate)} сум</dd></div>
+            <div>
+              <dt>Аренда в день</dt>
+              <dd>
+                {isAdmin && (carId || status.car?.id) ? (
+                  <div className="pay-day__rate">
+                    <MoneyInput id="drp-rate" value={dayRateEdit} onChange={setDayRateEdit} suffix="сум" />
+                    <button type="button" className="btn btn--ghost btn--sm" disabled={saving} onClick={saveDayRate}>
+                      Только на этот день
+                    </button>
+                  </div>
+                ) : (
+                  `${fmtMoney(dayRate)} сум`
+                )}
+              </dd>
+            </div>
             {info?.driver_name && <div><dt>Водитель</dt><dd>{info.driver_name}</dd></div>}
             {info && <div><dt>Уже закрыто</dt><dd>{fmtMoney(info.covered)} сум</dd></div>}
             {left > 0 && <div><dt>Не хватает</dt><dd className="ledger__debt">{fmtMoney(left)} сум</dd></div>}
+            {who && <div><dt>Депозит</dt><dd>{fmtMoney(depositLeft)} сум</dd></div>}
           </dl>
         </div>
         <div className="pay-day__grid">
@@ -213,12 +279,24 @@ function DayReportModal({ driverId, carId, status, day, onClose, onDone }) {
             <label className="field__label" htmlFor="drp-balance">С баланса</label>
             <MoneyInput id="drp-balance" value={balance} onChange={setBalance} />
           </div>
+          {who ? (
+            <div className="field">
+              <label className="field__label" htmlFor="drp-deposit">Из депозита</label>
+              <MoneyInput id="drp-deposit" value={deposit} onChange={setDeposit} />
+              <span className="muted small">Спишется с депозита, в истории будет комментарий</span>
+            </div>
+          ) : null}
         </div>
-        {(left > 0 || status.rate > 0) && (
+        {(left > 0 || dayRate > 0) && (
           <div className="chips">
             <button type="button" className="chip" onClick={() => payAll(setCash)}>Всё наличными</button>
             <button type="button" className="chip" onClick={() => payAll(setCard)}>Всё картой</button>
             <button type="button" className="chip" onClick={() => payAll(setBalance)}>Всё с баланса</button>
+            {who && depositLeft > 0 && (
+              <button type="button" className="chip" onClick={() => payAll(setDeposit, depositLeft)}>
+                {`Всё из депозита (${fmtMoney(Math.min(left || dayRate, depositLeft))})`}
+              </button>
+            )}
           </div>
         )}
         <div className="field">
@@ -462,6 +540,7 @@ export function RentStatusView({ status, driverId, carId, canWrite = false, onSa
           day={reportDay}
           onClose={() => setReportDay(null)}
           onDone={() => { setReportDay(null); onSaved?.(); }}
+          onRefresh={onSaved}
         />
       )}
     </div>

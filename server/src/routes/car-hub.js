@@ -16,6 +16,7 @@ import {
   shiftPayFromOnStartChange,
   ensureCarRateFrom,
   syncCarRateToAssignments,
+  applyCarRate,
   loadAccrualInputs,
   computeAccruals,
   getReminderSettings,
@@ -145,6 +146,13 @@ router.get('/:id/rent-status', async (req, res) => {
     const car = await loadCar(req, res);
     if (!car) return;
     const status = await carRentStatus(pool, car.id);
+    if (status?.driver?.id) {
+      const { rows } = await pool.query('SELECT deposit FROM drivers WHERE id = $1', [status.driver.id]);
+      status.deposit = Number(rows[0]?.deposit || 0);
+      status.driver.deposit = status.deposit;
+    } else {
+      status.deposit = 0;
+    }
     res.json({ status });
   } catch (err) {
     serverError(res, 'Ошибка календаря машины:', err);
@@ -462,7 +470,8 @@ router.post('/:id/transactions-confirm-all', requireRole('ADMIN'), async (req, r
   }
 });
 
-// POST /cars/:id/rate — ставка аренды в день (только админ)
+// POST /cars/:id/rate — ставка аренды (только админ).
+// only_day=true — меняет цену только на одну дату, остальные дни без изменений.
 router.post('/:id/rate', requireRole('ADMIN'), async (req, res) => {
   try {
     const car = await loadCar(req, res, { write: true });
@@ -471,32 +480,14 @@ router.post('/:id/rate', requireRole('ADMIN'), async (req, res) => {
     if (rate === null || Number.isNaN(rate) || rate < 0 || rate > MAX_AMOUNT) {
       return fail(res, 400, 'BAD_REQUEST', 'Укажите ставку (0 или больше)', 'rate');
     }
-    let validFrom = req.body.valid_from || localToday();
-    if (!isDay(validFrom)) return fail(res, 400, 'BAD_REQUEST', 'Неверная дата начала', 'valid_from');
-    // Если водитель уже ездит раньше указанной даты ставки — ставка действует с дня выдачи,
-    // чтобы отчёт и долг показывались с той же даты, с которой ввели выдачу.
-    const { rows: firstAssign } = await pool.query(
-      'SELECT MIN(start_at) AS start_at FROM car_assignments WHERE car_id = $1',
-      [car.id]
-    );
-    const assignDay = localDay(firstAssign[0]?.start_at);
-    if (assignDay && assignDay < validFrom) validFrom = assignDay;
-
-    await pool.query(
-      `INSERT INTO car_rate_history (car_id, rate, valid_from, created_by) VALUES ($1, $2, $3, $4)`,
-      [car.id, rate, validFrom, req.user.id]
-    );
-    await syncCarRateToAssignments(pool, car.id, req.user.id);
-    const { rows } = await pool.query(
-      `SELECT rate FROM car_rate_history WHERE car_id = $1 AND valid_from <= $2
-       ORDER BY valid_from DESC, id DESC LIMIT 1`,
-      [car.id, localToday()]
-    );
-    const current = rows.length ? Number(rows[0].rate) : 0;
-    await pool.query('UPDATE cars SET daily_rate = $1 WHERE id = $2', [current, car.id]);
+    const validFrom = req.body.valid_from || localToday();
+    if (!isDay(validFrom)) return fail(res, 400, 'BAD_REQUEST', 'Неверная дата', 'valid_from');
+    const onlyDay = Boolean(req.body.only_day || req.body.scope === 'day');
+    const result = await applyCarRate(pool, car.id, rate, validFrom, { onlyDay, userId: req.user.id });
     await writeAudit(pool, req.user.id, 'CAR_RATE_CHANGED', 'car', car.id,
-      { daily_rate: car.daily_rate }, { rate, valid_from: validFrom }, req.ip);
-    res.json({ daily_rate: current, rate, valid_from: validFrom });
+      { daily_rate: car.daily_rate },
+      { rate, valid_from: validFrom, only_day: onlyDay }, req.ip);
+    res.json(result);
   } catch (err) {
     serverError(res, 'Ошибка изменения ставки:', err);
   }

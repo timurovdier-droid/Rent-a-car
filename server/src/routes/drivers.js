@@ -356,7 +356,11 @@ router.get('/:id/rent-status', async (req, res) => {
     const driver = await loadDriver(req, res);
     if (!driver) return;
     const status = await rentStatus(pool, driver.id);
-    res.json({ driver: { id: driver.id, full_name: driver.full_name, phone: driver.phone }, status });
+    if (status) status.deposit = Number(driver.deposit || 0);
+    res.json({
+      driver: { id: driver.id, full_name: driver.full_name, phone: driver.phone, deposit: Number(driver.deposit || 0) },
+      status,
+    });
   } catch (err) {
     serverError(res, 'Ошибка статуса аренды:', err);
   }
@@ -383,14 +387,34 @@ router.post('/:id/day-report', async (req, res) => {
       ['CASH', readMoney(req.body.cash)],
       ['CARD', readMoney(req.body.card)],
       ['BALANCE', readMoney(req.body.balance)],
+      ['DEPOSIT', readMoney(req.body.deposit)],
     ];
     if (parts.some(([, amount]) => Number.isNaN(amount))) {
       return fail(res, 400, 'BAD_REQUEST', 'Неверная сумма', 'amount');
     }
     const payments = parts.filter(([, amount]) => amount > 0);
-    if (!payments.length) return fail(res, 400, 'BAD_REQUEST', 'Впишите сумму: наличными, картой или с баланса', 'amount');
+    if (!payments.length) {
+      return fail(res, 400, 'BAD_REQUEST', 'Впишите сумму: наличными, картой, с баланса или из депозита', 'amount');
+    }
+    const depositPay = payments.find(([method]) => method === 'DEPOSIT');
+    if (depositPay) {
+      if (req.user.role !== 'ADMIN' && req.user.role !== 'DISPATCHER') {
+        return fail(res, 403, 'FORBIDDEN', 'Списать с депозита может администратор или диспетчер');
+      }
+      if (depositPay[1] > Number(driver.deposit || 0)) {
+        return fail(res, 400, 'BAD_REQUEST', 'В депозите меньше этой суммы', 'deposit');
+      }
+    }
 
     await client.query('BEGIN');
+    // Актуальный депозит внутри транзакции (на случай параллельных списаний).
+    const { rows: depRows } = await client.query('SELECT deposit FROM drivers WHERE id = $1', [driver.id]);
+    const depositNow = Number(depRows[0]?.deposit || 0);
+    if (depositPay && depositPay[1] > depositNow) {
+      await client.query('ROLLBACK');
+      return fail(res, 400, 'BAD_REQUEST', 'В депозите меньше этой суммы', 'deposit');
+    }
+
     const { rows: own } = await client.query(
       'SELECT id, car_id, start_at, end_at FROM car_assignments WHERE driver_id = $1 ORDER BY start_at',
       [driver.id]
@@ -442,10 +466,17 @@ router.post('/:id/day-report', async (req, res) => {
       assignment = target;
     }
 
-    const note = [req.body.comment, `Отчёт за ${day}`].map((part) => String(part || '').trim()).filter(Boolean).join(' · ').slice(0, 500);
+    const dayLabel = `${day.slice(8, 10)}.${day.slice(5, 7)}.${day.slice(0, 4)}`;
+    const depositNote = depositPay
+      ? `Закрыта аренда за ${dayLabel} из депозита (${Number(depositPay[1]).toLocaleString('ru-RU')} сум)`
+      : null;
+    const note = [req.body.comment, depositNote, `Отчёт за ${day}`]
+      .map((part) => String(part || '').trim()).filter(Boolean).join(' · ').slice(0, 500);
     const isAdmin = req.user.role === 'ADMIN';
+    // Списание с депозита подтверждаем сразу — иначе долг «висит», а деньги уже ушли.
     const ids = [];
     for (const [method, amount] of payments) {
+      const confirmed = isAdmin || method === 'DEPOSIT';
       const { rows } = await client.query(
         `INSERT INTO car_transactions
            (car_id, kind, category, amount, method, tx_date, comment, status, created_by, confirmed_by, confirmed_at)
@@ -453,14 +484,23 @@ router.post('/:id/day-report', async (req, res) => {
          RETURNING id`,
         [
           assignment.car_id, amount, method, day, note || null,
-          isAdmin ? 'CONFIRMED' : 'PENDING', req.user.id,
-          isAdmin ? req.user.id : null, isAdmin ? new Date() : null,
+          confirmed ? 'CONFIRMED' : 'PENDING', req.user.id,
+          confirmed ? req.user.id : null, confirmed ? new Date() : null,
         ]
       );
       ids.push(rows[0].id);
     }
+    if (depositPay) {
+      const next = depositNow - depositPay[1];
+      await client.query('UPDATE drivers SET deposit = $1 WHERE id = $2', [next, driver.id]);
+      await client.query(
+        `INSERT INTO driver_deposit_history (driver_id, old_value, new_value, reason, changed_by)
+         VALUES ($1, $2, $3, $4, $5)`,
+        [driver.id, depositNow, next, depositNote, req.user.id]
+      );
+    }
     await writeAudit(client, req.user.id, 'DAY_REPORT_CREATED', 'driver', driver.id, null,
-      { date: day, car_id: assignment.car_id, payments, backdated }, req.ip);
+      { date: day, car_id: assignment.car_id, payments, backdated, deposit_used: depositPay ? depositPay[1] : 0 }, req.ip);
     await client.query('COMMIT');
     res.status(201).json({ date: day, car_id: Number(assignment.car_id), backdated, ids });
   } catch (err) {

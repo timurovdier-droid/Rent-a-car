@@ -974,7 +974,10 @@ button.rs-cell--write .rs-cell__label { color: var(--c-muted); font-weight: 600;
 .pay-day { display: flex; flex-direction: column; gap: 14px; }
 .pay-day__info { display: flex; flex-direction: column; gap: 10px; padding: 12px 14px; border-radius: 12px; background: var(--c-soft); }
 .pay-day__info .kv { margin: 0; }
-.pay-day__grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.pay-day__rate { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.pay-day__rate .money-input,
+.pay-day__rate .field__input { min-width: 9rem; max-width: 12rem; }
+.pay-day__grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
 @media (max-width: 520px) { .pay-day__grid { grid-template-columns: 1fr; } }
 .ledger__debt { color: var(--c-danger); font-weight: 600; }
 .ledger__tag {

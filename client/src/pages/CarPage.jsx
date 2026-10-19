@@ -847,6 +847,7 @@ function RateModal({ hub, onClose, onDone }) {
   const { car, rates, summary, today } = hub;
   const [rate, setRate] = useState('');
   const [from, setFrom] = useState(today);
+  const [scope, setScope] = useState('day'); // day | from
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -855,7 +856,11 @@ function RateModal({ hub, onClose, onDone }) {
     setSaving(true);
     setError('');
     try {
-      await api.post(`/cars/${car.id}/rate`, { rate, valid_from: from });
+      await api.post(`/cars/${car.id}/rate`, {
+        rate,
+        valid_from: from,
+        only_day: scope === 'day',
+      });
       onDone();
     } catch (err) {
       setError(errText(err, 'Не удалось изменить ставку'));
@@ -876,17 +881,38 @@ function RateModal({ hub, onClose, onDone }) {
             <MoneyInput id="rt-rate" value={rate} onChange={setRate} required suffix="сум" autoFocus />
           </div>
           <div className="field">
-            <label className="field__label" htmlFor="rt-from">Действует с</label>
+            <label className="field__label" htmlFor="rt-from">{scope === 'day' ? 'Дата' : 'Действует с'}</label>
             <DateInput id="rt-from" className="field__input" value={from} onChange={(e) => setFrom(e.target.value)} required />
           </div>
         </div>
+        <fieldset className="rate-scope" style={{ border: 0, padding: 0, margin: '0 0 12px' }}>
+          <legend className="field__label" style={{ marginBottom: 6 }}>На какие дни</legend>
+          <label className="rate-scope__opt" style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginBottom: 6 }}>
+            <input type="radio" name="rt-scope" checked={scope === 'day'} onChange={() => setScope('day')} />
+            <span>
+              <b>Только этот день</b>
+              <span className="muted small" style={{ display: 'block' }}>Остальные даты без изменений</span>
+            </span>
+          </label>
+          <label className="rate-scope__opt" style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+            <input type="radio" name="rt-scope" checked={scope === 'from'} onChange={() => setScope('from')} />
+            <span>
+              <b>С этой даты и дальше</b>
+              <span className="muted small" style={{ display: 'block' }}>Как раньше: новая цена с выбранного дня</span>
+            </span>
+          </label>
+        </fieldset>
         {error && <div className="notice notice--error">{error}</div>}
         <div className="form-actions">
           <button className="btn" type="submit" disabled={saving || rate === ''}>{saving ? 'Сохраняю…' : 'Изменить ставку'}</button>
           <button className="btn btn--quiet" type="button" onClick={onClose}>Отмена</button>
         </div>
       </form>
-      <p className="muted small">Старые дни считаются по старой цене — прошлые отчёты не меняются.</p>
+      <p className="muted small">
+        {scope === 'day'
+          ? 'Цена применится только к выбранной дате. Дни до и после останутся со своей ставкой.'
+          : 'Старые дни считаются по старой цене — прошлые отчёты не меняются.'}
+      </p>
       {rates.length > 0 && (
         <details>
           <summary className="muted small" style={{ cursor: 'pointer' }}>История ставок</summary>
