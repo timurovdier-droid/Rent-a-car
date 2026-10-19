@@ -291,8 +291,19 @@ function DayReportModal({ driverId, carId, status, day, onClose, onDone, onRefre
               <dd>
                 {isAdmin && targetCarId ? (
                   <div className="pay-day__rate">
-                    <MoneyInput id="drp-rate" value={dayRateEdit} onChange={(v) => { setDayRateEdit(v); setRateSaved(false); }} suffix="сум" />
-                    <button type="button" className="btn btn--sm" disabled={saving || editRate === dayRate} onClick={saveDayRate}>
+                    <MoneyInput
+                      id="drp-rate"
+                      value={dayRateEdit}
+                      onChange={(v) => { setDayRateEdit(v); setRateSaved(false); }}
+                      suffix="сум"
+                      placeholder="0"
+                    />
+                    <button
+                      type="button"
+                      className="btn btn--sm"
+                      disabled={saving || !editRate || editRate === dayRate}
+                      onClick={saveDayRate}
+                    >
                       {saving ? 'Сохраняю…' : 'Только этот день'}
                     </button>
                   </div>
