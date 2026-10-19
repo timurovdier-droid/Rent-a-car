@@ -225,6 +225,7 @@
 
 /* История водителей машины */
 .dh__head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin-bottom: 14px; }
+.dh__head-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 /* Календарь на странице */
 .cal { max-width: 22rem; padding: 12px; border-radius: 14px; background: var(--c-soft); }
 .cal__head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
@@ -691,6 +692,8 @@ button.rs-cell:hover { box-shadow: inset 0 0 0 2px var(--c-ink); }
 .rs-cell--off { background: var(--c-soft); color: var(--c-muted); }
 .rs-cell--offpaid { background: #2F80ED; color: #fff; }
 .rs-cell--future, .rs-cell--empty, .rs-cell--none { opacity: .55; }
+button.rs-cell--write { opacity: 1; color: var(--c-ink); }
+button.rs-cell--write .rs-cell__label { color: var(--c-muted); font-weight: 600; }
 .rs-cell--today { outline: 3px solid var(--c-ink); outline-offset: 2px; }
 .rs-legend { display: flex; flex-wrap: wrap; gap: 8px 18px; font-size: 13px; color: var(--c-muted); }
 .rs-legend span { display: inline-flex; align-items: center; gap: 6px; }

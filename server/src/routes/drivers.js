@@ -4,7 +4,11 @@ import { pool } from '../db.js';
 import { authenticate } from '../middleware/auth.js';
 import { requireRole } from '../middleware/rbac.js';
 import { writeAudit } from '../middleware/audit.js';
-import { isDay, localToday, localDay, addDays, daysBetween, dayStartUtc, defaultBranchId, driverLedgerRows, ledgerTotals, rentStatus } from '../carMoney.js';
+import {
+  isDay, localToday, localDay, addDays, daysBetween, dayStartUtc, defaultBranchId,
+  driverLedgerRows, ledgerTotals, rentStatus, shiftPayFromOnStartChange, ensureCarRateFrom,
+  syncCarRateToAssignments,
+} from '../carMoney.js';
 
 const router = Router();
 
@@ -394,18 +398,27 @@ router.post('/:id/day-report', async (req, res) => {
     let assignment = [...own].reverse().find((row) => coversDay(row, day, today));
     let backdated = false;
 
+    // Отчёт за дату — ставка и начисление должны покрывать этот день (как ввели в отчёте).
+    if (assignment) {
+      await ensureCarRateFrom(client, assignment.car_id, day, req.user.id);
+      await syncCarRateToAssignments(client, assignment.car_id, req.user.id);
+    }
+
     if (!assignment) {
+      // Текущая выдача, либо последняя, которую можно продлить назад до выбранного дня.
       const open = [...own].reverse().find((row) => !row.end_at);
-      if (!open) {
+      const earlier = [...own].reverse().find((row) => localDay(row.start_at) > day);
+      const target = open || earlier;
+      if (!target) {
         await client.query('ROLLBACK');
         return fail(res, 409, 'CONFLICT', 'Сначала выдайте водителю машину. Дату выдачи можно указать задним числом.');
       }
-      const start = localDay(open.start_at);
+      const start = localDay(target.start_at);
       if (day < start) {
         const gapTo = addDays(start, -1);
         const { rows: others } = await client.query(
-          'SELECT driver_id, start_at, end_at FROM car_assignments WHERE car_id = $1 AND id <> $2',
-          [open.car_id, open.id]
+          'SELECT car_id, driver_id, start_at, end_at FROM car_assignments WHERE id <> $1 AND (car_id = $2 OR driver_id = $3)',
+          [target.id, target.car_id, driver.id]
         );
         const busy = others.some((row) => {
           const from = localDay(row.start_at);
@@ -414,12 +427,19 @@ router.post('/:id/day-report', async (req, res) => {
         });
         if (busy) {
           await client.query('ROLLBACK');
-          return fail(res, 409, 'CONFLICT', 'В эти дни машина была у другого водителя');
+          return fail(res, 409, 'CONFLICT', 'В эти дни машина была у другого водителя или водитель уже был на другой машине');
         }
-        await client.query('UPDATE car_assignments SET start_at = $1 WHERE id = $2', [dayStartUtc(day), open.id]);
+        // Дата выдачи сдвигается на день отчёта, иначе аренда за прошлые дни не начисляется.
+        const oldStart = localDay(target.start_at);
+        const payFrom = shiftPayFromOnStartChange(target.pay_from, oldStart, day);
+        await client.query(
+          'UPDATE car_assignments SET start_at = $1, pay_from = $2 WHERE id = $3',
+          [dayStartUtc(day), payFrom, target.id]
+        );
+        await ensureCarRateFrom(client, target.car_id, day, req.user.id);
         backdated = true;
       }
-      assignment = open;
+      assignment = target;
     }
 
     const note = [req.body.comment, `Отчёт за ${day}`].map((part) => String(part || '').trim()).filter(Boolean).join(' · ').slice(0, 500);

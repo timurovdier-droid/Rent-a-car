@@ -32,7 +32,7 @@ export function MyProfile({ profile }) {
         <div><dt>ФИО</dt><dd>{profile.full_name}</dd></div>
         <div><dt>Телефон</dt><dd>{profile.phone || '—'}</dd></div>
         <div><dt>Водительское удостоверение</dt><dd>{profile.license_no || '—'}</dd></div>
-        <div><dt>ВУ действует до</dt><dd>{profile.license_expires ? fmtDay(profile.license_expires) : '—'}</dd></div>
+        <div><dt>ПИНФЛ</dt><dd>{profile.pinfl || '—'}</dd></div>
         <div><dt>Паспорт</dt><dd>{profile.passport || '—'}</dd></div>
         <div><dt>Депозит</dt><dd><b>{`${fmtMoney(profile.deposit)} сум`}</b></dd></div>
       </dl>
@@ -279,7 +279,7 @@ function DriverHero({ data, debt }) {
   }
   if (otherDebt > 0) cards.push({ tone: 'bad', label: 'Другие долги', value: `${fmtMoney(otherDebt)} сум`, hint: 'ремонт, штрафы' });
   if (profile) cards.push({ label: 'Депозит', value: `${fmtMoney(profile.deposit)} сум` });
-  if (profile?.license_expires) cards.push({ label: 'ВУ действует до', value: fmtDay(profile.license_expires) });
+  if (profile?.pinfl) cards.push({ label: 'ПИНФЛ', value: profile.pinfl });
 
   return (
     <div className="dhero">

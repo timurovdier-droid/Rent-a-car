@@ -2,6 +2,7 @@ import { createClient } from '@libsql/client';
 import bcrypt from 'bcryptjs';
 import { config } from './config.js';
 import { SCHEMA, SCHEMA_VERSION, SCHEMA_V2_COLUMNS, SCHEMA_V2_TABLES, SCHEMA_EXTRA_TABLES } from './schema.js';
+import { syncCarRateToAssignments } from './carMoney.js';
 
 let client;
 let ready;
@@ -269,7 +270,20 @@ async function migrate() {
       await db.execute(`ALTER TABLE ${table} ADD COLUMN time TEXT`);
     }
   }
+  await repairAssignmentRates(db);
   console.log(`База Qween готова (${config.tursoUrl.startsWith('file:') ? 'локальный файл' : 'Turso'})`);
+}
+
+async function repairAssignmentRates(db) {
+  const { rows } = await db.execute(
+    `SELECT DISTINCT ca.car_id AS car_id
+     FROM car_assignments ca
+     INNER JOIN drivers d ON d.id = ca.driver_id`
+  );
+  const query = (sql, params) => executeOn(db, sql, params);
+  for (const row of rows) {
+    await syncCarRateToAssignments({ query }, Number(row.car_id), null);
+  }
 }
 
 export function initDb() {

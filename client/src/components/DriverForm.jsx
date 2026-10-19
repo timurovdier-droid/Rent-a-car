@@ -69,7 +69,7 @@ export default function DriverForm({ driver, onClose, onSaved }) {
             <input id="df-license" className="field__input" value={form.license_no} onChange={set('license_no')} placeholder="AF 1234567" />
           </div>
           <div className="field">
-            <label className="field__label" htmlFor="df-pinfl">ПИНФЛ</label>
+            <label className="field__label" htmlFor="df-pinfl">ПИНФЛ водителя</label>
             <input
               id="df-pinfl"
               className="field__input"

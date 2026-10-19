@@ -342,7 +342,12 @@ function DriverPanel({ hub, canWrite, onChanged }) {
               {current.driver_phone ? ` · ${current.driver_phone}` : ''}
             </div>
             {current.pay_from && (
-              <div className="person__sub"><b>{`Платит с ${fmtDay(current.pay_from)}`}</b></div>
+              <div className="person__sub">
+                <b>{`Платит с ${fmtDay(current.pay_from)}`}</b>
+                {localDayOf(current.start_at) < current.pay_from && (
+                  <span className="muted"> · до этой даты аренда не начисляется, хотя машина у водителя</span>
+                )}
+              </div>
             )}
           </div>
           {canWrite && (
@@ -430,8 +435,112 @@ function DriverName({ a, linkDrivers }) {
     : <span className="dh__name">{name}</span>;
 }
 
-function DriverHistory({ hub, linkDrivers, canDelete = false, onChanged }) {
+function PastAssignmentModal({ car, today, onClose, onDone }) {
+  const [drivers, setDrivers] = useState([]);
+  const [driverId, setDriverId] = useState('');
+  const [startDay, setStartDay] = useState('');
+  const [endDay, setEndDay] = useState('');
+  const [mileageStart, setMileageStart] = useState(car.mileage != null ? String(car.mileage) : '');
+  const [mileageEnd, setMileageEnd] = useState('');
+  const [note, setNote] = useState('');
+  const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    api.get('/drivers')
+      .then((data) => setDrivers(Array.isArray(data) ? data : (data?.drivers || data?.items || [])))
+      .catch(() => setDrivers([]));
+  }, []);
+
+  async function submit(e) {
+    e.preventDefault();
+    if (!startDay || !endDay) {
+      setError('Укажите даты «с» и «по»');
+      return;
+    }
+    if (startDay > endDay) {
+      setError('Дата «по» не может быть раньше даты «с»');
+      return;
+    }
+    setSaving(true);
+    setError('');
+    try {
+      const body = {
+        driver_id: driverId,
+        start_date: startDay,
+        end_date: endDay,
+        note: note.trim() || undefined,
+      };
+      if (mileageStart !== '') body.mileage_start = mileageStart;
+      if (mileageEnd !== '') body.mileage_end = mileageEnd;
+      await api.post(`/cars/${car.id}/assignments/past`, body);
+      onDone();
+    } catch (err) {
+      setError(errText(err, 'Не удалось записать период'));
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Modal title="Период работы водителя" onClose={onClose}>
+      <form onSubmit={submit}>
+        <p className="muted small" style={{ marginTop: 0 }}>
+          Отметьте промежуток: с какого по какое число водитель уже ездил (например, с 1 по 10, хотя сегодня 19).
+          Аренда начислится за эти дни. Если сейчас на машине другой водитель и даты пересекаются — его выдача сдвинется на день после конца периода.
+        </p>
+        <div className="field">
+          <label className="field__label" htmlFor="pa-driver">Водитель</label>
+          <Select
+            id="pa-driver"
+            value={driverId}
+            onChange={setDriverId}
+            required
+            placeholder="— выберите водителя —"
+            options={drivers.map((d) => ({ value: d.id, label: d.full_name || d.name, hint: d.phone }))}
+          />
+          {drivers.length === 0 && <span className="muted small">Список водителей пуст или не загрузился</span>}
+        </div>
+        <div className="form-grid">
+          <div className="field">
+            <label className="field__label" htmlFor="pa-from">Работал с</label>
+            <DateInput id="pa-from" className="field__input" value={startDay} max={endDay || today} onChange={(e) => setStartDay(e.target.value)} required />
+          </div>
+          <div className="field">
+            <label className="field__label" htmlFor="pa-to">Работал по</label>
+            <DateInput id="pa-to" className="field__input" value={endDay} min={startDay || undefined} max={today} onChange={(e) => setEndDay(e.target.value)} required />
+          </div>
+        </div>
+        <div className="form-grid">
+          <div className="field">
+            <label className="field__label" htmlFor="pa-km1">Пробег при выдаче</label>
+            <MoneyInput id="pa-km1" value={mileageStart} onChange={setMileageStart} suffix="км" />
+            <span className="muted small">можно не заполнять</span>
+          </div>
+          <div className="field">
+            <label className="field__label" htmlFor="pa-km2">Пробег при сдаче</label>
+            <MoneyInput id="pa-km2" value={mileageEnd} onChange={setMileageEnd} suffix="км" />
+            <span className="muted small">можно не заполнять</span>
+          </div>
+        </div>
+        <div className="field">
+          <label className="field__label" htmlFor="pa-note">Комментарий</label>
+          <input id="pa-note" className="field__input" value={note} onChange={(e) => setNote(e.target.value)} maxLength={300} placeholder="необязательно" />
+        </div>
+        {error && <div className="notice notice--error">{error}</div>}
+        <div className="form-actions">
+          <button className="btn" type="submit" disabled={saving || !driverId || !startDay || !endDay}>
+            {saving ? 'Сохраняю…' : 'Сохранить период'}
+          </button>
+          <button className="btn btn--quiet" type="button" onClick={onClose}>Отмена</button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+function DriverHistory({ hub, linkDrivers, canWrite = false, canDelete = false, onChanged }) {
   const { assignments, today, car } = hub;
+  const [pastOpen, setPastOpen] = useState(false);
   const [picked, setPicked] = useState(today);
   const [month, setMonth] = useState(today.slice(0, 7));
   const [busy, setBusy] = useState(null);
@@ -471,6 +580,17 @@ function DriverHistory({ hub, linkDrivers, canDelete = false, onChanged }) {
         <h3 className="panel__title" style={{ margin: 0 }}>Кто ездил на машине</h3>
         {assignments.length > 0 && <span className="muted small">{assignments.length} {plural(assignments.length, 'выдача', 'выдачи', 'выдач')}</span>}
       </div>
+
+      {canWrite && (
+        <div style={{ marginBottom: 12 }}>
+          <button type="button" className="btn btn--sm" onClick={() => setPastOpen(true)}>
+            Отметить период работы
+          </button>
+          <p className="muted small" style={{ margin: '6px 0 0' }}>
+            Если водитель ездил раньше (например, с 1 по 10), а вы отмечаете сегодня — укажите даты здесь.
+          </p>
+        </div>
+      )}
 
       <p className="muted small" style={{ margin: '0 0 12px' }}>Выберите дату — покажем, какой водитель был на машине в этот день. Цветом отмечены дни, когда машина была у водителя.</p>
       <DayCalendar month={month} onMonth={setMonth} onPick={setPicked} dayClass={dayClass} today={today} max={today} label="Дата" />
@@ -538,6 +658,14 @@ function DriverHistory({ hub, linkDrivers, canDelete = false, onChanged }) {
           </ol>
         </>
       )}
+      {pastOpen && (
+        <PastAssignmentModal
+          car={car}
+          today={today}
+          onClose={() => setPastOpen(false)}
+          onDone={() => { setPastOpen(false); onChanged?.(); }}
+        />
+      )}
     </div>
   );
 }
@@ -587,15 +715,27 @@ function ReleaseModal({ car, current, today, onClose, onDone }) {
 
 function StartDateModal({ car, current, today, onClose, onDone }) {
   const [day, setDay] = useState(localDayOf(current.start_at));
+  const [endDay, setEndDay] = useState('');
+  const [mileageEnd, setMileageEnd] = useState('');
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
+  const closedPeriod = Boolean(endDay);
 
   async function submit(e) {
     e.preventDefault();
+    if (endDay && endDay < day) {
+      setError('Дата «работал по» не может быть раньше даты «взял машину»');
+      return;
+    }
     setSaving(true);
     setError('');
     try {
-      await api.patch(`/cars/${car.id}/assignments/${current.id}/start`, { date: day });
+      const body = { date: day };
+      if (endDay) {
+        body.end_date = endDay;
+        if (mileageEnd !== '') body.mileage_end = mileageEnd;
+      }
+      await api.patch(`/cars/${car.id}/assignments/${current.id}/start`, body);
       onDone();
     } catch (err) {
       setError(errText(err, 'Не удалось изменить дату'));
@@ -609,14 +749,47 @@ function StartDateModal({ car, current, today, onClose, onDone }) {
         <p className="muted" style={{ marginTop: 0 }}>
           <span data-no-translate>{current.driver_name}</span> · <span>Сейчас записано с</span> {fmtDay(localDayOf(current.start_at))}
         </p>
-        <p className="muted small">Укажите день, когда водитель на самом деле взял машину — аренда будет считаться с этого дня.</p>
-        <div className="field">
-          <label className="field__label" htmlFor="sd-date">Взял машину</label>
-          <DateInput id="sd-date" className="field__input" value={day} max={today} onChange={(e) => setDay(e.target.value)} required />
+        <p className="muted small">
+          Укажите, когда водитель взял машину — аренда считается с этого дня по сегодня.
+          Если период уже закончился — заполните «Работал по»: будет запись «с … по …», машина освободится.
+        </p>
+        <div className="form-grid">
+          <div className="field">
+            <label className="field__label" htmlFor="sd-date">Взял машину</label>
+            <DateInput
+              id="sd-date"
+              className="field__input"
+              value={day}
+              max={endDay || today}
+              onChange={(e) => setDay(e.target.value)}
+              required
+            />
+          </div>
+          <div className="field">
+            <label className="field__label" htmlFor="sd-end">Работал по</label>
+            <DateInput
+              id="sd-end"
+              className="field__input"
+              value={endDay}
+              min={day || undefined}
+              max={today}
+              onChange={(e) => setEndDay(e.target.value)}
+            />
+            <span className="muted small">{closedPeriod ? `Период: ${fmtDay(day)} — ${fmtDay(endDay)}` : 'Пусто = по сей день'}</span>
+          </div>
         </div>
+        {closedPeriod && (
+          <div className="field">
+            <label className="field__label" htmlFor="sd-km">Пробег при сдаче</label>
+            <MoneyInput id="sd-km" value={mileageEnd} onChange={setMileageEnd} suffix="км" />
+            <span className="muted small">можно не заполнять</span>
+          </div>
+        )}
         {error && <div className="notice notice--error">{error}</div>}
         <div className="form-actions">
-          <button className="btn" type="submit" disabled={saving || !day}>{saving ? 'Сохраняю…' : 'Сохранить'}</button>
+          <button className="btn" type="submit" disabled={saving || !day}>
+            {saving ? 'Сохраняю…' : (closedPeriod ? 'Сохранить период' : 'Сохранить')}
+          </button>
           <button className="btn btn--quiet" type="button" onClick={onClose}>Отмена</button>
         </div>
       </form>
@@ -1224,7 +1397,13 @@ export default function CarPage() {
               )}
             </div>
             <div>
-              <DriverHistory hub={hub} linkDrivers={role !== 'OWNER'} canDelete={role === 'ADMIN'} onChanged={load} />
+              <DriverHistory
+                hub={hub}
+                linkDrivers={role !== 'OWNER'}
+                canWrite={canWrite}
+                canDelete={role === 'ADMIN'}
+                onChanged={load}
+              />
             </div>
           </div>
         )}

@@ -51,6 +51,56 @@ export function daysBetween(from, to) {
   return out;
 }
 
+export function dayDiff(from, to) {
+  if (!isDay(from) || !isDay(to)) return 0;
+  const a = new Date(`${from}T00:00:00Z`).getTime();
+  const b = new Date(`${to}T00:00:00Z`).getTime();
+  return Math.round((b - a) / DAY_MS);
+}
+
+// Если дату выдачи сдвинули, «платит с» двигается на тот же интервал; иначе остаётся «лишний» период без начисления.
+export function shiftPayFromOnStartChange(payFrom, oldStart, newStart) {
+  if (!payFrom || !isDay(payFrom)) return null;
+  if (!isDay(oldStart) || !isDay(newStart) || oldStart === newStart) {
+    return payFrom > newStart ? payFrom : null;
+  }
+  const shifted = addDays(payFrom, dayDiff(oldStart, newStart));
+  if (!isDay(shifted) || shifted <= newStart) return null;
+  return shifted;
+}
+
+// Ставка должна действовать с первого дня выдачи, иначе долг «начинается» позже в календаре.
+export async function ensureCarRateFrom(db, carId, day, userId) {
+  if (!isDay(day)) return;
+  // Берём первую ПОЛОЖИТЕЛЬНУЮ ставку — нулевые «заглушки» с 2000-01-01 не считаются.
+  const { rows } = await db.query(
+    `SELECT id, rate, valid_from FROM car_rate_history
+     WHERE car_id = $1 AND rate > 0
+     ORDER BY substr(valid_from, 1, 10) ASC, id ASC LIMIT 1`,
+    [carId]
+  );
+  const first = rows[0];
+  if (!first) return;
+  const from = String(first.valid_from).slice(0, 10);
+  if (!isDay(from) || from <= day) return;
+  await db.query(
+    'UPDATE car_rate_history SET valid_from = $1 WHERE id = $2',
+    [day, first.id]
+  );
+}
+
+// Ставка должна действовать с первого дня выдачи — иначе в отчёте «дыра» (долг с 9-го при выдаче с 1-го).
+export async function syncCarRateToAssignments(db, carId, userId = null) {
+  const id = Number(carId);
+  if (!id) return;
+  const { rows } = await db.query(
+    'SELECT MIN(start_at) AS start_at FROM car_assignments WHERE car_id = $1',
+    [id]
+  );
+  const start = localDay(rows[0]?.start_at);
+  if (start) await ensureCarRateFrom(db, id, start, userId);
+}
+
 function placeholders(list, offset = 0) {
   return list.map((_, i) => `$${i + 1 + offset}`).join(', ');
 }
@@ -119,14 +169,31 @@ export function computeAccruals(inputs, { from = null, to = null } = {}) {
     }
     for (const row of off.get(carId) || []) days.delete(row.day);
 
-    const carRates = rates.get(carId) || [];
+    // valid_from иногда приходит с временем — сравниваем только YYYY-MM-DD.
+    const carRates = (rates.get(carId) || []).map((row) => ({
+      ...row,
+      valid_from: String(row.valid_from || '').slice(0, 10),
+      rate: Number(row.rate) || 0,
+    })).filter((row) => isDay(row.valid_from));
     const sorted = [...days].sort();
     let total = 0;
     const detail = [];
     let r = -1;
     for (const day of sorted) {
       while (r + 1 < carRates.length && carRates[r + 1].valid_from <= day) r += 1;
-      const rate = r >= 0 ? Number(carRates[r].rate) : 0;
+      // Частый случай: в истории стоит 0 с 2000-01-01, а реальная ставка с 9-го.
+      // Пока машина у водителя и «текущая» ставка 0 — берём ближайшую положительную цену.
+      let rate = r >= 0 ? carRates[r].rate : 0;
+      if (rate <= 0) {
+        for (let i = Math.max(r + 1, 0); i < carRates.length; i += 1) {
+          if (carRates[i].rate > 0) { rate = carRates[i].rate; break; }
+        }
+      }
+      if (rate <= 0) {
+        for (let i = r; i >= 0; i -= 1) {
+          if (carRates[i].rate > 0) { rate = carRates[i].rate; break; }
+        }
+      }
       total += rate;
       detail.push({ day, rate });
     }
@@ -285,6 +352,12 @@ export async function rentStatus(db, driverId) {
   const firstDay = localDay(first[0]?.start_at);
   if (!firstDay) return null;
 
+  const { rows: cars } = await db.query(
+    'SELECT DISTINCT car_id FROM car_assignments WHERE driver_id = $1',
+    [id]
+  );
+  for (const row of cars) await syncCarRateToAssignments(db, row.car_id);
+
   const rows = await driverLedgerRows(db, [id], firstDay, today);
   const byDay = new Map();
   for (const r of rows) {
@@ -381,6 +454,7 @@ function closeCalendarDays(days) {
 export async function carRentStatus(db, carId) {
   const id = Number(carId);
   const today = localToday();
+  await syncCarRateToAssignments(db, id);
   const { rows: first } = await db.query(
     'SELECT MIN(start_at) AS start_at FROM car_assignments WHERE car_id = $1',
     [id]

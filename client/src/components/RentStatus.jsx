@@ -185,6 +185,7 @@ function DayReportModal({ driverId, carId, status, day, onClose, onDone }) {
             onChange={(e) => setDate(e.target.value)}
             required
           />
+          <span className="muted small">Любой прошедший день, в том числе до того, как водителя добавили в систему.</span>
         </div>
         {early && (
           <div className="notice">
@@ -401,17 +402,19 @@ export function RentStatusView({ status, driverId, carId, canWrite = false, onSa
             const state = cellState(day, info, status);
             const openReport = canWrite && day <= status.today;
             const hasMoney = (info?.paid || 0) + (info?.pending || 0) > 0;
+            const blank = !info || state === 'empty' || state === 'none' || state === 'future';
             const Tag = openReport ? 'button' : 'div';
             return (
               <Tag
                 key={day}
                 type={openReport ? 'button' : undefined}
-                className={`rs-cell rs-cell--${state} ${day === status.today ? 'rs-cell--today' : ''}`}
-                title={openReport ? `${fmtDay(day)}: записать отчёт` : (info ? `${fmtDay(day)}: начислено ${fmtMoney(info.accrued)}, закрыто ${fmtMoney(info.covered)}` : fmtDay(day))}
+                className={`rs-cell rs-cell--${state} ${day === status.today ? 'rs-cell--today' : ''} ${openReport && blank ? 'rs-cell--write' : ''}`}
+                title={openReport ? `${fmtDay(day)}: написать отчёт` : (info ? `${fmtDay(day)}: начислено ${fmtMoney(info.accrued)}, закрыто ${fmtMoney(info.covered)}` : fmtDay(day))}
                 onClick={openReport ? () => (hasMoney ? setChoiceDay(day) : setReportDay(day)) : undefined}
               >
                 <span className="rs-cell__num">{Number(day.slice(8))}</span>
                 <CellBody state={state} info={info} />
+                {openReport && blank && <span className="rs-cell__label">Отчёт</span>}
               </Tag>
             );
           })}
@@ -427,7 +430,7 @@ export function RentStatusView({ status, driverId, carId, canWrite = false, onSa
         </div>
         <p className="muted small" style={{ margin: 0 }}>
           {canWrite
-            ? 'Нажмите на любой прошедший день и запишите отчёт. Если за день уже есть деньги, можно добавить сумму или исправить и удалить записи. Если водитель работал до того, как его добавили, дату можно поставить задним числом.'
+            ? 'Нажмите на любой прошедший день — откроется отчёт. Можно записать и задним числом: если водителя добавили сегодня, а он работал раньше, выберите тот день и впишите сумму. Аренда начнёт считаться с этой даты.'
             : 'День закрыт, если в этот день водитель отдал его сумму полностью. Деньги в выходной уменьшают общий долг.'}
         </p>
       </div>
