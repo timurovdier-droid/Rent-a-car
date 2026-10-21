@@ -349,7 +349,7 @@ export async function carDailyLedger(db, carId, from, to, { driverId = null } = 
   return { from, to: upper, rows, totals: ledgerTotals(rows) };
 }
 
-// Незакрытые дни машины: кто из водителей должен и за какое число. Оплаты гасят самые старые дни первыми.
+// Незакрытые дни машины: кто из водителей должен и за какое число. Оплаты гасят дни только своего водителя.
 export async function carDebtDays(db, carId) {
   const id = Number(carId);
   const today = localToday();
@@ -371,8 +371,7 @@ export async function carDebtDays(db, carId) {
   return { debt: ledger.totals.debt, pending: ledger.totals.pending, days };
 }
 
-// Если водитель в целом за период не должен, недоплаченные дни закрыты его переплатой в другие дни.
-function coverFromOverpay(rows) {
+function groupByDriver(rows) {
   const groups = new Map();
   for (const r of rows) {
     const key = r.driver_id ?? 'none';
@@ -380,7 +379,12 @@ function coverFromOverpay(rows) {
     list.push(r);
     groups.set(key, list);
   }
-  for (const list of groups.values()) {
+  return groups;
+}
+
+// Если водитель в целом не должен, его недоплаченные дни закрыты его же переплатой. Чужие деньги не трогаем.
+function coverFromOverpay(rows) {
+  for (const list of groupByDriver(rows).values()) {
     const balance = list.reduce((s, r) => s + r.accrued - r.paid, 0);
     if (balance > 0) continue;
     for (const r of list) {
@@ -392,44 +396,40 @@ function coverFromOverpay(rows) {
   }
 }
 
+function driverMoney(rows) {
+  let debt = 0;
+  let overpaid = 0;
+  for (const list of groupByDriver(rows).values()) {
+    const balance = list.reduce((s, r) => s + r.accrued - r.paid, 0);
+    if (balance > 0) debt += balance;
+    else overpaid += -balance;
+  }
+  return { debt, overpaid };
+}
+
 export function ledgerTotals(rows) {
   coverFromOverpay(rows);
   const sum = (key) => rows.reduce((s, r) => s + r[key], 0);
-  const balance = sum('accrued') - sum('paid');
+  const { debt, overpaid } = driverMoney(rows);
   return {
     accrued: sum('accrued'),
     cash: sum('cash'),
     transfer: sum('transfer'),
     paid: sum('paid'),
     pending: sum('pending'),
-    // Платёж за несколько дней сразу гасит долг прошлых дней, поэтому итог — разница, а не сумма по строкам.
-    debt: Math.max(balance, 0),
-    overpaid: Math.max(-balance, 0),
+    // Долг каждого водителя отдельно: переплата предыдущего не гасит долг следующего.
+    debt,
+    overpaid,
     debt_days: rows.filter((r) => r.debt > 0).length,
-    balance,
+    balance: sum('accrued') - sum('paid'),
   };
 }
 
-// Насколько закрыта аренда у водителя: деньги гасят самые старые дни первыми.
-export async function rentStatus(db, driverId) {
-  const id = Number(driverId);
-  const today = localToday();
-  const { rows: first } = await db.query(
-    'SELECT MIN(start_at) AS start_at FROM car_assignments WHERE driver_id = $1',
-    [id]
-  );
-  const firstDay = localDay(first[0]?.start_at);
-  if (!firstDay) return null;
-
-  const { rows: cars } = await db.query(
-    'SELECT DISTINCT car_id FROM car_assignments WHERE driver_id = $1',
-    [id]
-  );
-  for (const row of cars) await syncCarRateToAssignments(db, row.car_id);
-
-  const rows = await driverLedgerRows(db, [id], firstDay, today);
+// Сводка календаря водителя по строкам ведомости. carId — не смешивать дни другой машины.
+export function driverCalendarFromRows(rows, { carId = null } = {}) {
+  const scoped = carId ? rows.filter((r) => Number(r.car_id) === Number(carId)) : rows;
   const byDay = new Map();
-  for (const r of rows) {
+  for (const r of scoped) {
     const d = byDay.get(r.day) || { day: r.day, accrued: 0, paid: 0, pending: 0, day_off: true, plates: [] };
     d.accrued += r.accrued;
     d.paid += r.paid;
@@ -440,10 +440,16 @@ export async function rentStatus(db, driverId) {
     byDay.set(r.day, d);
   }
   const days = [...byDay.values()].sort((a, b) => (a.day < b.day ? -1 : 1));
-  const closed = closeCalendarDays(days);
+  return { days, closed: closeCalendarDays(days) };
+}
+
+// Насколько закрыта аренда у водителя по текущей машине. Дни прошлой машины сюда не входят.
+export async function rentStatus(db, driverId) {
+  const id = Number(driverId);
+  const today = localToday();
 
   const { rows: current } = await db.query(
-    `SELECT ca.car_id, c.plate, c.brand, c.model,
+    `SELECT ca.car_id, ca.start_at, c.plate, c.brand, c.model,
             (SELECT rate FROM car_rate_history r WHERE r.car_id = ca.car_id AND r.valid_from <= $2
              ORDER BY r.valid_from DESC, r.id DESC LIMIT 1) AS rate
      FROM car_assignments ca JOIN cars c ON c.id = ca.car_id
@@ -452,6 +458,32 @@ export async function rentStatus(db, driverId) {
     [id, today]
   );
   const car = current[0] || null;
+
+  let firstDay;
+  let rows;
+  if (car) {
+    const carId = Number(car.car_id);
+    await syncCarRateToAssignments(db, carId);
+    firstDay = localDay(car.start_at);
+    if (!firstDay) return null;
+    const ledger = await carDailyLedger(db, carId, firstDay, today, { driverId: id });
+    rows = ledger.rows.map((r) => ({ ...r, car_id: carId, plate: car.plate }));
+  } else {
+    const { rows: first } = await db.query(
+      'SELECT MIN(start_at) AS start_at FROM car_assignments WHERE driver_id = $1',
+      [id]
+    );
+    firstDay = localDay(first[0]?.start_at);
+    if (!firstDay) return null;
+    const { rows: cars } = await db.query(
+      'SELECT DISTINCT car_id FROM car_assignments WHERE driver_id = $1',
+      [id]
+    );
+    for (const row of cars) await syncCarRateToAssignments(db, row.car_id);
+    rows = await driverLedgerRows(db, [id], firstDay, today);
+  }
+
+  const { days, closed } = driverCalendarFromRows(rows, { carId: car ? Number(car.car_id) : null });
   const rate = car?.rate ? Number(car.rate) : 0;
   const aheadDays = closed.pool > 0 && rate > 0 ? Math.floor(closed.pool / rate) : 0;
 
@@ -465,21 +497,19 @@ export async function rentStatus(db, driverId) {
     paid_through: closed.paidThrough,
     debt_from: closed.debtFrom,
     ahead_until: aheadDays ? addDays(today, aheadDays) : null,
-    days: days.map(({ day, accrued, paid, pending: wait, covered, left, status, plates, idle }) => ({
-      day, accrued, paid, pending: wait, covered, left, status, plates, idle: status === 'off' ? idle || null : null,
+    days: days.map(({ day, accrued, paid, pending: wait, covered, left, status, plates, idle, day_off }) => ({
+      day, accrued, paid, pending: wait, covered, left, status, plates,
+      idle: status === 'off' ? idle || null : null,
+      day_off: Boolean(day_off),
     })),
   };
 }
 
-function closeCalendarDays(days) {
+function closeDriverDays(days) {
   const accrued = days.reduce((s, d) => s + d.accrued, 0);
   const paid = days.reduce((s, d) => s + d.paid, 0);
   const pending = days.reduce((s, d) => s + d.pending, 0);
-  const pool = Math.max(paid - accrued, 0);
   const noDebt = paid >= accrued;
-  let paidThrough = null;
-  let debtFrom = null;
-  let debtDays = 0;
   for (const d of days) {
     if (!d.accrued) {
       d.status = d.day_off ? 'off' : 'none';
@@ -492,30 +522,56 @@ function closeCalendarDays(days) {
     d.left = d.accrued - cover;
     if (d.left === 0) {
       d.status = 'paid';
-      if (!debtFrom) paidThrough = d.day;
     } else if (noDebt) {
       d.status = 'covered';
       d.covered = d.accrued;
       d.left = 0;
-      paidThrough = d.day;
     } else {
       d.status = cover > 0 ? 'part' : 'unpaid';
+    }
+  }
+  return {
+    accrued,
+    paid,
+    pending,
+    debt: Math.max(accrued - paid, 0),
+    overpaid: Math.max(paid - accrued, 0),
+  };
+}
+
+// Деньги гасят дни только своего водителя: переплата предыдущего не закрывает долг следующего.
+export function closeCalendarDays(days) {
+  let accrued = 0;
+  let paid = 0;
+  let pending = 0;
+  let debt = 0;
+  let overpaid = 0;
+  for (const list of groupByDriver(days).values()) {
+    const closed = closeDriverDays(list);
+    accrued += closed.accrued;
+    paid += closed.paid;
+    pending += closed.pending;
+    debt += closed.debt;
+    overpaid += closed.overpaid;
+  }
+  let paidThrough = null;
+  let debtFrom = null;
+  let debtDays = 0;
+  for (const d of days) {
+    if (!d.accrued) continue;
+    if (d.status === 'paid' || d.status === 'covered') {
+      if (!debtFrom) paidThrough = d.day;
+    } else if (d.status === 'part' || d.status === 'unpaid') {
       if (!debtFrom) debtFrom = d.day;
       debtDays += 1;
     }
   }
   return {
-    pool,
+    pool: debt > 0 ? 0 : overpaid,
     paidThrough,
     debtFrom,
     debtDays,
-    totals: {
-      accrued,
-      paid,
-      pending,
-      debt: Math.max(accrued - paid, 0),
-      overpaid: pool,
-    },
+    totals: { accrued, paid, pending, debt, overpaid },
   };
 }
 
@@ -561,9 +617,10 @@ export async function carRentStatus(db, carId) {
     paid_through: closed.paidThrough,
     debt_from: closed.debtFrom,
     ahead_until: aheadDays ? addDays(today, aheadDays) : null,
-    days: days.map(({ day, accrued, paid, pending: wait, covered, left, status, idle, driver_id, driver_name }) => ({
+    days: days.map(({ day, accrued, paid, pending: wait, covered, left, status, idle, driver_id, driver_name, day_off }) => ({
       day, accrued, paid, pending: wait, covered, left, status,
       idle: status === 'off' ? idle || null : null,
+      day_off: Boolean(day_off),
       driver_id: driver_id || null,
       driver_name: driver_name || null,
       plates: car.plate ? [car.plate] : [],

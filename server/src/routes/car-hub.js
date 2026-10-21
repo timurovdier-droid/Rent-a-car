@@ -103,8 +103,8 @@ function txPermissions(tx, user) {
 }
 
 function summaryForRole(role, totals) {
-  const debt = Math.max(totals.accrued - totals.received, 0);
-  const overpaid = Math.max(totals.received - totals.accrued, 0);
+  const debt = totals.debt ?? Math.max(totals.accrued - totals.received, 0);
+  const overpaid = totals.overpaid ?? Math.max(totals.received - totals.accrued, 0);
   if (role === 'ADMIN') {
     return { ...totals, debt, overpaid, profit: totals.income_all - totals.expenses };
   }
@@ -207,6 +207,9 @@ router.get('/:id/hub', async (req, res) => {
         .reduce((s, r) => s + Number(r.total), 0);
 
     const accrual = computeAccruals(await loadAccrualInputs(pool, [carId])).get(carId);
+    const starts = assignments.map((a) => localDay(a.start_at)).filter(Boolean).sort();
+    const ledgerFrom = starts[0] || today;
+    const ledger = await carDailyLedger(pool, carId, ledgerFrom, today);
     const totals = {
       accrued: accrual.total,
       accrued_days: accrual.days.length,
@@ -215,6 +218,8 @@ router.get('/:id/hub', async (req, res) => {
       pending_expenses: sum('EXPENSE', 'PENDING'),
       income_all: sum('INCOME', 'CONFIRMED'),
       expenses: sum('EXPENSE', 'CONFIRMED'),
+      debt: ledger.totals.debt,
+      overpaid: ledger.totals.overpaid,
     };
 
     let txSql = `

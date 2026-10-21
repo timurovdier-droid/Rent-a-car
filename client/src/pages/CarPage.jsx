@@ -187,8 +187,8 @@ function Summary({ role, s, rate, onDebt, onRate }) {
       <Stat label="Начислено" value={s.accrued} hint={`за ${s.accrued_days} дн. аренды`} />
       <Stat label="Получено" value={s.received} tone="ok" hint={s.pending ? `ещё ${fmtMoney(s.pending)} ждёт подтверждения` : 'подтверждено'} />
       <Stat
-        label={s.overpaid ? 'Переплата' : 'Долг'}
-        value={s.overpaid || s.debt}
+        label={s.debt ? 'Долг' : s.overpaid ? 'Переплата' : 'Долг'}
+        value={s.debt || s.overpaid}
         tone={s.debt ? 'danger' : 'ok'}
         hint={s.debt ? 'нажмите — кто и за какие дни' : undefined}
         onClick={s.debt ? onDebt : undefined}

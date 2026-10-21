@@ -994,6 +994,8 @@ export const DICT = {
   'Не удалось загрузить статус аренды': 'Ijara holatini yuklab boʻlmadi',
   'Деньги закрывают самые старые дни первыми: если водитель заплатил сразу за несколько дней, они все станут закрытыми.':
     'Pul eng eski kunlarni birinchi yopadi: haydovchi bir necha kun uchun birdan toʻlasa, ularning hammasi yopiladi.',
+  'День закрыт, если в этот день водитель отдал его сумму полностью. Деньги в выходной уменьшают долг этого водителя.':
+    'Kun yopiladi, agar haydovchi oʻsha kuni summasini toʻliq bersa. Dam olish kunidagi pul shu haydovchining qarzini kamaytiradi.',
   'Отмечайте по каждому дню: дал водитель деньги или нет': 'Har bir kun uchun belgilang: haydovchi pul berdimi yoki yoʻq',
   'Все водители': 'Barcha haydovchilar',
   'Карта / баланс': 'Karta / balans',

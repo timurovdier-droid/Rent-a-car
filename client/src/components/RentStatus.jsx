@@ -29,7 +29,7 @@ function monthCells(month) {
 }
 
 function cellState(day, info, status) {
-  if (info?.status === 'off' && info.paid > 0) return 'offpaid';
+  if ((info?.status === 'off' || info?.status === 'none') && info.paid > 0) return 'offpaid';
   if (info) return info.status;
   if (day > status.today && status.ahead_until && day <= status.ahead_until) return 'ahead';
   if (day > status.today) return 'future';
@@ -107,9 +107,10 @@ function CellBody({ state, info }) {
     );
   }
   if (state === 'offpaid') {
+    const why = info?.idle ? 'Простой' : info?.day_off ? 'Выходной' : null;
     return (
       <>
-        <span className="rs-cell__label">{`${info.idle ? 'Простой' : 'Выходной'} · дал`}</span>
+        <span className="rs-cell__label">{why ? `${why} · дал` : 'Дал'}</span>
         <PaidSum value={info?.paid} />
         <DriverMark info={info} />
       </>
@@ -536,7 +537,7 @@ export function RentStatusView({ status, driverId, carId, canWrite = false, onSa
             if (!day) return <div key={`x${i}`} className="rs-cell rs-cell--blank" />;
             const info = byDay.get(day);
             const state = cellState(day, info, status);
-            const openReport = canWrite && day <= status.today;
+            const openReport = canWrite && day <= status.today && (!status.first_day || day >= status.first_day);
             const hasMoney = (info?.paid || 0) + (info?.pending || 0) > 0;
             const blank = !info || state === 'empty' || state === 'none' || state === 'future';
             const Tag = openReport ? 'button' : 'div';
@@ -567,7 +568,7 @@ export function RentStatusView({ status, driverId, carId, canWrite = false, onSa
         <p className="muted small" style={{ margin: 0 }}>
           {canWrite
             ? 'Нажмите на любой прошедший день — откроется отчёт. Можно записать и задним числом: если водителя добавили сегодня, а он работал раньше, выберите тот день и впишите сумму. Аренда начнёт считаться с этой даты.'
-            : 'День закрыт, если в этот день водитель отдал его сумму полностью. Деньги в выходной уменьшают общий долг.'}
+            : 'День закрыт, если в этот день водитель отдал его сумму полностью. Деньги в выходной уменьшают долг этого водителя.'}
         </p>
       </div>
       {debtOpen && <DebtDaysModal status={status} onClose={() => setDebtOpen(false)} />}
