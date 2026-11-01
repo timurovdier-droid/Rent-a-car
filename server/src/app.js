@@ -39,7 +39,7 @@ app.use(cors({
   },
   credentials: true,
 }));
-app.use(express.json({ limit: '3mb' }));
+app.use(express.json({ limit: '5mb' }));
 app.use(cookieParser());
 
 app.use(async (req, res, next) => {

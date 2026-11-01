@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api, ApiError } from '../api';
 import Plate from '../components/Plate';
+import CarDocuments from '../components/CarDocuments';
 import Modal from '../components/Modal';
 import MoneyInput from '../components/MoneyInput';
 import DateInput from '../components/DateInput';
@@ -102,11 +103,17 @@ export function DriverCarPage() {
         </dl>
       </div>
       <div className="panel" style={{ marginTop: 16 }}>
-        <h3 className="panel__title">Документы</h3>
+        <h3 className="panel__title">Сроки</h3>
         <dl className="kv">
           <Row label="Страховка до">{expiryText(car.insurance_expires, data.today)}</Row>
           <Row label="Техосмотр до">{expiryText(car.inspection_expires, data.today)}</Row>
         </dl>
+      </div>
+      <div style={{ marginTop: 16 }}>
+        <CarDocuments
+          documents={data.documents}
+          filePath={(kind) => `/api/v1/me/car-document/${kind}`}
+        />
       </div>
       {data.services?.length > 0 && (
         <div className="panel" style={{ marginTop: 16 }}>

@@ -272,7 +272,7 @@ router.delete('/:id', requireRole('ADMIN'), async (req, res) => {
       await client.query(
         'DELETE FROM payments WHERE daily_report_id IN (SELECT id FROM daily_reports WHERE car_id = $1)', [carId]
       );
-      for (const table of ['daily_reports', 'car_photos', 'car_transactions', 'car_days_off',
+      for (const table of ['daily_reports', 'car_photos', 'car_documents', 'car_transactions', 'car_days_off',
         'car_rate_history', 'service_records', 'car_assignments']) {
         await client.query(`DELETE FROM ${table} WHERE car_id = $1`, [carId]);
       }

@@ -178,7 +178,7 @@ export async function loadAccrualInputs(db, carIds) {
   const ids = [...new Set(carIds.map(Number))].filter(Boolean);
   if (!ids.length) return { ids, assignments: [], rates: [], daysOff: [] };
   const list = placeholders(ids);
-  // Выдачи удалённых водителей не начисляются: их долг пропадает вместе с водителем.
+  // Выдачи удалённых водителей тоже начисляются: отчёт по машине не должен меняться от удаления водителя.
   // handed_over: в тот же день водитель взял другую выдачу — этот день начисляется только по новой.
   const { rows: assignments } = await db.query(
     `SELECT ca.car_id, ca.start_at, ca.end_at, ca.pay_from,
@@ -188,7 +188,6 @@ export async function loadAccrualInputs(db, carIds) {
                 AND date(n.start_at, '+5 hours') = date(ca.end_at, '+5 hours')
             ) THEN 1 ELSE 0 END AS handed_over
      FROM car_assignments ca
-     JOIN drivers d ON d.id = ca.driver_id
      WHERE ca.car_id IN (${list})`,
     ids
   );
@@ -354,8 +353,7 @@ export async function carDebtDays(db, carId) {
   const id = Number(carId);
   const today = localToday();
   const { rows: first } = await db.query(
-    `SELECT MIN(ca.start_at) AS start_at FROM car_assignments ca
-     JOIN drivers d ON d.id = ca.driver_id WHERE ca.car_id = $1`,
+    'SELECT MIN(ca.start_at) AS start_at FROM car_assignments ca WHERE ca.car_id = $1',
     [id]
   );
   const firstDay = localDay(first[0]?.start_at);

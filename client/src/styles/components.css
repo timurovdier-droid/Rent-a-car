@@ -368,6 +368,38 @@ a.person:hover, .person--link:hover { border-color: #CFCDC8; box-shadow: 0 6px 1
 .kv dt { color: var(--c-muted); font-size: 12px; }
 .kv dd { margin: 2px 0 0; font-weight: 500; overflow-wrap: anywhere; }
 
+.doc-list { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 10px; }
+.doc-list__lead { margin: 0; color: var(--c-muted); font-size: 13px; line-height: 1.45; }
+.doc-card {
+  display: grid;
+  grid-template-columns: 88px minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  padding: 10px;
+  border: 1px solid var(--c-line);
+  border-radius: 14px;
+  background: var(--c-bg);
+}
+.doc-card__preview {
+  width: 88px;
+  height: 72px;
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--c-surface);
+  border: 1px solid var(--c-line);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.doc-card__preview img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.doc-card__badge { font-size: 13px; font-weight: 800; letter-spacing: .04em; }
+.doc-card__empty { font-size: 11px; color: var(--c-muted); text-align: center; padding: 0 6px; }
+.doc-card__title { font-weight: 700; }
+.doc-card__meta { margin-top: 2px; color: var(--c-muted); font-size: 13px; overflow-wrap: anywhere; }
+.doc-card__actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.doc-card__actions .btn { display: inline-flex; align-items: center; justify-content: center; cursor: pointer; text-decoration: none; }
+.doc-card__actions .is-disabled { opacity: .6; pointer-events: none; }
+
 /* Панели страницы машины */
 .panel { background: var(--c-surface); border: 1px solid var(--c-line); border-radius: 16px; padding: 16px; }
 .panel + .panel { margin-top: 12px; }
@@ -1091,6 +1123,7 @@ button.rs-cell--write .rs-cell__label { color: var(--c-muted); font-weight: 600;
 .panel__head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
 .driver-actions { display: flex; flex-direction: column; gap: 6px; align-items: stretch; }
 .dh__delete { flex: none; align-self: flex-start; margin-top: 10px; font-size: 12px; white-space: nowrap; }
+.dh__actions { flex: none; align-self: flex-start; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; margin-top: 10px; font-size: 12px; white-space: nowrap; }
 .notice--idle { background: #FFF1E0; color: #8A4B00; }
 .cal__day--idle, .cal__day--idle:hover:not(:disabled) { background: #FFB15C; color: #3A2000; }
 .charge-list { list-style: none; margin: 12px 0 0; padding: 0; }

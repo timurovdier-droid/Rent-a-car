@@ -325,6 +325,10 @@ router.get('/car', async (req, res) => {
        WHERE car_id = $1 AND status = 'SCHEDULED' ORDER BY COALESCE(scheduled_at, created_at) LIMIT 5`,
       [carId]
     );
+    const { rows: documents } = await pool.query(
+      'SELECT kind, name, mime, updated_at FROM car_documents WHERE car_id = $1 ORDER BY kind',
+      [carId]
+    );
     const car = cars[0];
     res.json({
       today,
@@ -333,6 +337,7 @@ router.get('/car', async (req, res) => {
       rate: rates[0] ? Number(rates[0].rate) : 0,
       last_odometer: await lastOdometer(req.user.driver_id, carId),
       services,
+      documents,
     });
   } catch (err) {
     console.error('Ошибка данных машины для водителя:', err);
@@ -640,6 +645,32 @@ router.get('/report', async (req, res) => {
     });
   } catch (err) {
     console.error('Ошибка отчёта водителя:', err);
+    fail(res, 500, 'INTERNAL_ERROR', 'Внутренняя ошибка сервера');
+  }
+});
+
+const DRIVER_DOC_KINDS = ['INSURANCE', 'AD_PASSPORT', 'LICENSE'];
+
+// GET /me/car-document/:kind — файл документа машины, на которой водитель ездит сейчас
+router.get('/car-document/:kind', async (req, res) => {
+  try {
+    if (!driverOnly(req, res)) return;
+    const kind = String(req.params.kind || '').toUpperCase();
+    if (!DRIVER_DOC_KINDS.includes(kind)) return fail(res, 404, 'NOT_FOUND', 'Документ не найден');
+    const assignment = await currentCar(req.user.driver_id);
+    if (!assignment) return fail(res, 404, 'NOT_FOUND', 'Машины нет');
+    const { rows } = await pool.query(
+      'SELECT name, mime, data FROM car_documents WHERE car_id = $1 AND kind = $2',
+      [assignment.car_id, kind]
+    );
+    if (!rows.length) return fail(res, 404, 'NOT_FOUND', 'Файл не загружен');
+    const name = String(rows[0].name || 'document').replace(/[\r\n"]/g, '').slice(0, 120);
+    res.set('Content-Type', rows[0].mime);
+    res.set('Content-Disposition', `inline; filename="${name.replace(/[^\x20-\x7E]/g, '_')}"; filename*=UTF-8''${encodeURIComponent(name)}`);
+    res.set('Cache-Control', 'private, max-age=3600');
+    res.send(Buffer.from(String(rows[0].data).replace(/\s/g, ''), 'base64'));
+  } catch (err) {
+    console.error('Ошибка документа для водителя:', err);
     fail(res, 500, 'INTERNAL_ERROR', 'Внутренняя ошибка сервера');
   }
 });

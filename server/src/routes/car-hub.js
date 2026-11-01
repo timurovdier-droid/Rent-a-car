@@ -276,12 +276,18 @@ router.get('/:id/hub', async (req, res) => {
       ));
     }
 
+    const { rows: documents } = await pool.query(
+      `SELECT kind, name, mime, updated_at FROM car_documents WHERE car_id = $1 ORDER BY kind`,
+      [carId]
+    );
+
     res.json({
       car: {
         ...car,
         insurance_due: documentDue(car.insurance_expires, reminders, today),
         inspection_due: documentDue(car.inspection_expires, reminders, today),
       },
+      documents,
       today,
       current,
       assignments,
@@ -754,6 +760,86 @@ function assignmentOverlaps(row, from, to, today) {
   return Boolean(aFrom && aFrom <= to && aTo >= from);
 }
 
+// PATCH /cars/:id/assignments/:aid/driver — поменять водителя в выдаче (текущей или прошлой).
+// Даты, пробег, начисления и оплаты остаются как были — меняется только, кто ездил.
+router.patch('/:id/assignments/:aid/driver', requireRole('ADMIN', 'DISPATCHER'), async (req, res) => {
+  const car = await loadCar(req, res, { write: true }).catch((err) => { serverError(res, 'Ошибка:', err); return null; });
+  if (!car) return;
+  const driverId = parseInt(req.body.driver_id, 10);
+  if (!driverId) return fail(res, 400, 'BAD_REQUEST', 'Выберите водителя', 'driver_id');
+  const today = localToday();
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const { rows } = await client.query(
+      'SELECT * FROM car_assignments WHERE id = $1 AND car_id = $2',
+      [parseInt(req.params.aid, 10), car.id]
+    );
+    const assignment = rows[0];
+    if (!assignment) {
+      await client.query('ROLLBACK');
+      return fail(res, 404, 'NOT_FOUND', 'Запись не найдена');
+    }
+    if (Number(assignment.driver_id) === driverId) {
+      await client.query('ROLLBACK');
+      return res.json({ id: assignment.id, driver_id: driverId, changed: false });
+    }
+    const active = !assignment.end_at;
+    const { rows: drivers } = await client.query(
+      `SELECT d.id, d.archived_at, u.full_name FROM drivers d JOIN users u ON u.id = d.user_id WHERE d.id = $1`,
+      [driverId]
+    );
+    const driver = drivers[0];
+    if (!driver) {
+      await client.query('ROLLBACK');
+      return fail(res, 404, 'NOT_FOUND', 'Водитель не найден', 'driver_id');
+    }
+    if (active && driver.archived_at) {
+      await client.query('ROLLBACK');
+      return fail(res, 409, 'CONFLICT', 'Водитель в архиве — сначала верните его из архива', 'driver_id');
+    }
+    const from = localDay(assignment.start_at);
+    const to = active ? today : localDay(assignment.end_at);
+    const { rows: others } = await client.query(
+      'SELECT * FROM car_assignments WHERE driver_id = $1 AND id <> $2',
+      [driverId, assignment.id]
+    );
+    // День передачи (один вернул, другой взял в тот же день) пересечением не считается.
+    const clash = others.find((row) => {
+      const aFrom = localDay(row.start_at);
+      const aTo = row.end_at ? localDay(row.end_at) : today;
+      if (!aFrom) return false;
+      return (aFrom < to && aTo > from) || aFrom === from || (active && !row.end_at);
+    });
+    if (clash) {
+      await client.query('ROLLBACK');
+      return fail(res, 409, 'CONFLICT', !clash.end_at && active
+        ? 'Этот водитель сейчас ездит на другой машине. Сначала примите её у него.'
+        : 'В эти дни этот водитель ездил на другой машине', 'driver_id');
+    }
+
+    await client.query('UPDATE car_assignments SET driver_id = $1 WHERE id = $2', [driverId, assignment.id]);
+    if (active) {
+      await client.query(`UPDATE drivers SET status = 'RENTED' WHERE id = $1`, [driverId]);
+      await client.query(
+        `UPDATE drivers SET status = 'FREE' WHERE id = $1
+           AND NOT EXISTS (SELECT 1 FROM car_assignments WHERE driver_id = $1 AND end_at IS NULL)`,
+        [assignment.driver_id]
+      );
+    }
+    await writeAudit(client, req.user.id, 'ASSIGNMENT_DRIVER_CHANGED', 'car_assignment', assignment.id,
+      { car_id: car.id, driver_id: assignment.driver_id, from, to: active ? null : to },
+      { car_id: car.id, driver_id: driverId, driver_name: driver.full_name, from, to: active ? null : to }, req.ip);
+    await client.query('COMMIT');
+    res.json({ id: assignment.id, driver_id: driverId, changed: true });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    serverError(res, 'Ошибка смены водителя:', err);
+  } finally {
+    client.release();
+  }
+});
+
 // POST /cars/:id/assignments/past — закрытая выдача за прошлый период (кто и когда ездил).
 // Если период пересекается с текущей открытой выдачей на этой машине — сдвигаем её старт на день после конца периода.
 router.post('/:id/assignments/past', requireRole('ADMIN', 'DISPATCHER'), async (req, res) => {
@@ -1122,6 +1208,92 @@ router.delete('/:id/service/:sid', requireRole('ADMIN', 'DISPATCHER'), async (re
 
 const PHOTO_PATTERN = /^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/;
 const MAX_PHOTO_BYTES = 1_500_000;
+
+const DOC_KINDS = ['INSURANCE', 'AD_PASSPORT', 'LICENSE'];
+const DOC_PATTERN = /^data:(application\/pdf|image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=\s]+)$/;
+const MAX_DOC_BYTES = 2_400_000;
+
+function cleanDocName(name, mime) {
+  const fallback = mime === 'application/pdf' ? 'document.pdf' : 'document.jpg';
+  const raw = String(name || fallback).replace(/[\r\n"]/g, '').trim().slice(0, 120);
+  return raw || fallback;
+}
+
+function sendDocument(res, row) {
+  const name = cleanDocName(row.name, row.mime);
+  res.set('Content-Type', row.mime);
+  res.set('Content-Disposition', `inline; filename="${name.replace(/[^\x20-\x7E]/g, '_')}"; filename*=UTF-8''${encodeURIComponent(name)}`);
+  res.set('Cache-Control', 'private, max-age=3600');
+  res.send(Buffer.from(String(row.data).replace(/\s/g, ''), 'base64'));
+}
+
+// GET /:id/documents/:kind — файл документа (видят все, у кого есть доступ к машине)
+router.get('/:id/documents/:kind', async (req, res) => {
+  try {
+    const kind = String(req.params.kind || '').toUpperCase();
+    if (!DOC_KINDS.includes(kind)) return fail(res, 404, 'NOT_FOUND', 'Документ не найден');
+    const car = await loadCar(req, res);
+    if (!car) return;
+    const { rows } = await pool.query(
+      'SELECT name, mime, data FROM car_documents WHERE car_id = $1 AND kind = $2',
+      [car.id, kind]
+    );
+    if (!rows.length) return fail(res, 404, 'NOT_FOUND', 'Файл не загружен');
+    sendDocument(res, rows[0]);
+  } catch (err) {
+    serverError(res, 'Ошибка получения документа:', err);
+  }
+});
+
+// PUT /:id/documents/:kind — загрузить или заменить файл { file, name }
+router.put('/:id/documents/:kind', requireRole('ADMIN', 'DISPATCHER'), async (req, res) => {
+  try {
+    const kind = String(req.params.kind || '').toUpperCase();
+    if (!DOC_KINDS.includes(kind)) return fail(res, 400, 'BAD_REQUEST', 'Неизвестный тип документа', 'kind');
+    const car = await loadCar(req, res, { write: true });
+    if (!car) return;
+    const match = DOC_PATTERN.exec(String(req.body?.file || ''));
+    if (!match) return fail(res, 400, 'BAD_REQUEST', 'Нужен файл PDF, JPG, PNG или WEBP', 'file');
+    const payload = match[2].replace(/\s/g, '');
+    const bytes = Math.floor((payload.length * 3) / 4);
+    if (bytes > MAX_DOC_BYTES) return fail(res, 400, 'BAD_REQUEST', 'Файл слишком большой (максимум 2,4 МБ)', 'file');
+    const name = cleanDocName(req.body?.name, match[1]);
+    await pool.query(
+      `INSERT INTO car_documents (car_id, kind, name, mime, data, updated_by, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, datetime('now'))
+       ON CONFLICT (car_id, kind) DO UPDATE SET name = excluded.name, mime = excluded.mime,
+         data = excluded.data, updated_by = excluded.updated_by, updated_at = excluded.updated_at`,
+      [car.id, kind, name, match[1], payload, req.user.id]
+    );
+    const { rows } = await pool.query(
+      'SELECT kind, name, mime, updated_at FROM car_documents WHERE car_id = $1 AND kind = $2',
+      [car.id, kind]
+    );
+    await writeAudit(pool, req.user.id, 'CAR_DOCUMENT_UPDATED', 'car', car.id, null, { kind, name, bytes }, req.ip);
+    res.json(rows[0]);
+  } catch (err) {
+    serverError(res, 'Ошибка загрузки документа:', err);
+  }
+});
+
+// DELETE /:id/documents/:kind — убрать файл
+router.delete('/:id/documents/:kind', requireRole('ADMIN', 'DISPATCHER'), async (req, res) => {
+  try {
+    const kind = String(req.params.kind || '').toUpperCase();
+    if (!DOC_KINDS.includes(kind)) return fail(res, 404, 'NOT_FOUND', 'Документ не найден');
+    const car = await loadCar(req, res, { write: true });
+    if (!car) return;
+    const { rows } = await pool.query(
+      'DELETE FROM car_documents WHERE car_id = $1 AND kind = $2 RETURNING kind',
+      [car.id, kind]
+    );
+    if (!rows.length) return fail(res, 404, 'NOT_FOUND', 'Файл не загружен');
+    await writeAudit(pool, req.user.id, 'CAR_DOCUMENT_DELETED', 'car', car.id, { kind }, null, req.ip);
+    res.json({ kind, deleted: true });
+  } catch (err) {
+    serverError(res, 'Ошибка удаления документа:', err);
+  }
+});
 
 // GET /:id/photo — фото машины (кэшируется по ?v=photo_version)
 router.get('/:id/photo', async (req, res) => {

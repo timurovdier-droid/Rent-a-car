@@ -114,32 +114,23 @@
   :root .notice--error,
   :root .notice--idle,
   :root .pay-status--wait,
-  :root .cpick__status--rent,
-  :root .rs-cell--part { background: var(--c-yellow-soft); color: var(--c-hl-ink); }
+  :root .cpick__status--rent { background: var(--c-yellow-soft); color: var(--c-hl-ink); }
   :root .status--bad,
   :root .badge--danger,
   :root .pay-status--unpaid,
-  :root .rs-cell--unpaid,
   :root .car-tab__count--alert { background: #FCE000; color: #28282B; }
   :root .status--done,
   :root .badge--ok,
   :root .tx__icon--in,
   :root .notice--ok,
-  :root .cpick__status,
-  :root .rs-cell--ahead { background: var(--c-soft); color: var(--c-ink); }
+  :root .cpick__status { background: var(--c-soft); color: var(--c-ink); }
   :root .status--fixed,
   :root .badge--muted,
   :root .avatar--muted { background: var(--c-soft); color: var(--c-muted); }
-  :root .rs-cell--paid { background: var(--c-ink); color: var(--c-bg); }
-  :root .rs-dot--paid { background: var(--c-ink); }
-  :root .rs-cell--covered { background: repeating-linear-gradient(135deg, var(--c-ink) 0 8px, color-mix(in srgb, var(--c-ink) 78%, var(--c-bg)) 8px 16px); color: var(--c-bg); }
-  :root .rs-dot--covered { background: repeating-linear-gradient(135deg, var(--c-ink) 0 3px, color-mix(in srgb, var(--c-ink) 70%, var(--c-bg)) 3px 6px); }
-  :root .rs-dot--part { background: rgb(252 224 0 / .5); }
-  :root .rs-dot--unpaid { background: #FCE000; }
-  :root .rs-dot--ahead { background: var(--c-soft); border-color: var(--c-ink); }
-  :root .rs-hero--bad { background: #FCE000; color: #28282B; }
-  :root .rs-hero--ok { background: #28282B; color: #FFFFFF; }
-  :root[data-theme='dark'] .rs-hero--ok { background: var(--c-solid-soft); }
+
+  /* Календари — те же цвета, что на компьютере: зелёный оплачено, оранжевый частично, красный долг */
+  :root .rs, :root .cal { --c-ok: #0B7A43; --c-danger: #C42B1C; }
+  :root[data-theme='dark'] .rs, :root[data-theme='dark'] .cal { --c-ok: #3DD68C; --c-danger: #FF6B5E; }
   :root .stat--accent .stat__label,
   :root .stat--accent .stat__hint,
   :root .stat--accent .stat__value small { color: rgb(40 40 43 / .7); }
@@ -166,8 +157,6 @@
   :root .cal__day--on,
   :root .cal__day--on:hover:not(:disabled) { background: #FCE000; color: #28282B; }
   :root .cal__day--new { box-shadow: inset 0 0 0 2px var(--c-ink); }
-  :root .cal__day--idle,
-  :root .cal__day--idle:hover:not(:disabled) { background: var(--c-yellow-soft); color: var(--c-hl-ink); }
   :root .dh__item--now .dh__dot { background: #FCE000; box-shadow: 0 0 0 4px rgb(252 224 0 / .3); }
   :root .dh__item--hit .dh__body { box-shadow: inset 3px 0 0 #FCE000; }
   :root .bar--expense { background: var(--bar-expense); }

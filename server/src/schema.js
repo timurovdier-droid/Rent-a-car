@@ -281,6 +281,16 @@ CREATE TABLE IF NOT EXISTS push_subscriptions (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_push_subscriptions_driver ON push_subscriptions (driver_id);
+CREATE TABLE IF NOT EXISTS car_documents (
+  car_id INTEGER NOT NULL,
+  kind TEXT NOT NULL,
+  name TEXT NOT NULL,
+  mime TEXT NOT NULL,
+  data TEXT NOT NULL,
+  updated_by INTEGER,
+  updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (car_id, kind)
+);
 `;
 
 export const SCHEMA_VERSION = 4;
