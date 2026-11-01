@@ -1011,6 +1011,7 @@ export const DICT = {
   'Закрыто по': 'Yopilgan sana',
   'Должен с': 'Qarz sanasi',
   'Осталось закрыть': 'Yopish kerak',
+  'Доход за выбранный период': 'Tanlangan davr uchun daromad',
   'Не оплачено': 'Toʻlanmagan',
   'Водитель ещё не брал машину': 'Haydovchi hali mashina olmagan',
   'Не удалось загрузить статус аренды': 'Ijara holatini yuklab boʻlmadi',

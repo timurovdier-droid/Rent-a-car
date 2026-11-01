@@ -522,6 +522,7 @@ export function RentStatusView({ status, driverId, carId, canWrite = false, onSa
   const [period, setPeriod] = useState(null);
   const shown = useMemo(() => periodStatus(status, period), [status, period]);
   const hasDebt = shown.debt > 0;
+  const income = shown.days.reduce((s, d) => s + (d.paid || 0), 0);
   const [y, m] = month.split('-').map(Number);
 
   function changePeriod(next) {
@@ -568,11 +569,9 @@ export function RentStatusView({ status, driverId, carId, canWrite = false, onSa
           {shown.pending > 0 && <span className="rs-tile__hint">{`ещё ждёт подтверждения ${fmtMoney(shown.pending)}`}</span>}
         </DebtTile>
         <div className="rs-tile">
-          <span className="rs-tile__label">Аренда в день</span>
-          <b className="rs-tile__value">{`${fmtMoney(status.rate)} сум`}</b>
-          {status.driver?.name
-            ? <span className="rs-tile__hint">{status.driver.name}</span>
-            : status.car && <span className="rs-tile__hint"><Plate value={status.car.plate} /></span>}
+          <span className="rs-tile__label">Доход за выбранный период</span>
+          <b className="rs-tile__value">{`${fmtMoney(income)} сум`}</b>
+          {status.car?.plate && <span className="rs-tile__hint"><Plate value={status.car.plate} /></span>}
         </div>
       </div>
 
