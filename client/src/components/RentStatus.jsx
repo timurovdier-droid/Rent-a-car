@@ -7,6 +7,7 @@ import MoneyInput from './MoneyInput';
 import { fmtMoney, fmtDay } from '../labels';
 import DateInput from './DateInput';
 import TxList from './TxList';
+import PeriodPicker, { defaultPeriod } from './PeriodPicker';
 
 const MONTHS = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
 const WEEK = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
@@ -421,11 +422,13 @@ function DebtTile({ hasDebt, onOpen, children }) {
   return <button type="button" className="rs-tile rs-tile--bad rs-tile--link" onClick={onOpen}>{children}</button>;
 }
 
-function DebtDaysModal({ status, onClose }) {
-  const days = status.days.filter((d) => d.left > 0).reverse();
-  const otherPaid = days.reduce((s, d) => s + d.left, 0) - status.debt;
+function DebtDaysModal({ status, period, onClose }) {
+  const inPeriod = period ? status.days.filter((d) => d.day >= period.from && d.day <= period.to) : status.days;
+  const days = inPeriod.filter((d) => d.left > 0).reverse();
+  const debt = period ? days.reduce((s, d) => s + d.left, 0) : status.debt;
+  const otherPaid = days.reduce((s, d) => s + d.left, 0) - debt;
   return (
-    <Modal title="За какие дни долг" onClose={onClose}>
+    <Modal title={period ? `Долг с ${fmtDay(period.from)} по ${fmtDay(period.to)}` : 'За какие дни долг'} onClose={onClose}>
       <p className="muted small" style={{ marginTop: 0 }}>
         Дни, за которые водитель не отдал деньги полностью в тот же день.
       </p>
@@ -460,7 +463,7 @@ function DebtDaysModal({ status, onClose }) {
             )}
             <tr>
               <td className="table__td" colSpan={3}><b>Итого долг</b></td>
-              <td className="table__td table__num ledger__debt"><b>{fmtMoney(status.debt)} сум</b></td>
+              <td className="table__td table__num ledger__debt"><b>{fmtMoney(debt)} сум</b></td>
             </tr>
           </tfoot>
         </table>
@@ -476,11 +479,32 @@ export function RentStatusView({ status, driverId, carId, canWrite = false, onSa
   const [choiceDay, setChoiceDay] = useState(null);
   const [editDay, setEditDay] = useState(null);
   const [debtOpen, setDebtOpen] = useState(false);
+  const [periodDebtOpen, setPeriodDebtOpen] = useState(false);
+  const [period, setPeriod] = useState(defaultPeriod);
   const byDay = useMemo(() => new Map(status.days.map((d) => [d.day, d])), [status]);
   const minMonth = shiftMonth(status.today.slice(0, 7), -36);
   const maxMonth = (status.ahead_until && status.ahead_until > status.today ? status.ahead_until : status.today).slice(0, 7);
   const hasDebt = status.debt > 0;
   const [y, m] = month.split('-').map(Number);
+  const totals = useMemo(() => {
+    const t = { accrued: 0, paid: 0, pending: 0, left: 0, debtDays: 0 };
+    for (const d of status.days) {
+      if (d.day < period.from || d.day > period.to) continue;
+      t.accrued += d.accrued || 0;
+      t.paid += d.paid || 0;
+      t.pending += d.pending || 0;
+      t.left += d.left || 0;
+      if (d.left > 0) t.debtDays += 1;
+    }
+    return t;
+  }, [status, period]);
+
+  function changePeriod(next) {
+    const [from, to] = next.from <= next.to ? [next.from, next.to] : [next.to, next.from];
+    setPeriod({ from, to });
+    const target = to.slice(0, 7);
+    setMonth(target > maxMonth ? maxMonth : target < minMonth ? minMonth : target);
+  }
 
   return (
     <div className="rs">
@@ -525,6 +549,31 @@ export function RentStatusView({ status, driverId, carId, canWrite = false, onSa
         </div>
       </div>
 
+      <div className="rs-period">
+        <PeriodPicker value={period} onChange={changePeriod} />
+        <div className="rs-tiles">
+          <div className="rs-tile">
+            <span className="rs-tile__label">Начислено за период</span>
+            <b className="rs-tile__value">{`${fmtMoney(totals.accrued)} сум`}</b>
+            <span className="rs-tile__hint">{`${fmtDay(period.from)} — ${fmtDay(period.to)}`}</span>
+          </div>
+          <div className="rs-tile">
+            <span className="rs-tile__label">Оплачено за период</span>
+            <b className="rs-tile__value">{`${fmtMoney(totals.paid)} сум`}</b>
+            {totals.pending > 0 && <span className="rs-tile__hint">{`ещё ждёт подтверждения ${fmtMoney(totals.pending)}`}</span>}
+          </div>
+          <DebtTile hasDebt={totals.left > 0} onOpen={() => setPeriodDebtOpen(true)}>
+            <span className="rs-tile__label">Не закрыто за период</span>
+            <b className="rs-tile__value">{`${fmtMoney(totals.left)} сум`}</b>
+            {totals.left > 0 && <span className="rs-tile__hint">нажмите — покажет дни</span>}
+          </DebtTile>
+          <DebtTile hasDebt={totals.debtDays > 0} onOpen={() => setPeriodDebtOpen(true)}>
+            <span className="rs-tile__label">Дней с долгом</span>
+            <b className="rs-tile__value">{totals.debtDays}</b>
+          </DebtTile>
+        </div>
+      </div>
+
       <div className="rs-cal">
         <div className="rs-cal__head">
           <button type="button" className="btn btn--quiet" onClick={() => setMonth(shiftMonth(month, -1))} disabled={month <= minMonth} aria-label="Прошлый месяц">←</button>
@@ -545,7 +594,7 @@ export function RentStatusView({ status, driverId, carId, canWrite = false, onSa
               <Tag
                 key={day}
                 type={openReport ? 'button' : undefined}
-                className={`rs-cell rs-cell--${state} ${day === status.today ? 'rs-cell--today' : ''} ${openReport && blank ? 'rs-cell--write' : ''}`}
+                className={`rs-cell rs-cell--${state} ${day === status.today ? 'rs-cell--today' : ''} ${openReport && blank ? 'rs-cell--write' : ''} ${day < period.from || day > period.to ? 'rs-cell--out' : ''}`}
                 title={openReport ? `${fmtDay(day)}: написать отчёт` : (info ? `${fmtDay(day)}: начислено ${fmtMoney(info.accrued)}, закрыто ${fmtMoney(info.covered)}` : fmtDay(day))}
                 onClick={openReport ? () => (hasMoney ? setChoiceDay(day) : setReportDay(day)) : undefined}
               >
@@ -572,6 +621,7 @@ export function RentStatusView({ status, driverId, carId, canWrite = false, onSa
         </p>
       </div>
       {debtOpen && <DebtDaysModal status={status} onClose={() => setDebtOpen(false)} />}
+      {periodDebtOpen && <DebtDaysModal status={status} period={period} onClose={() => setPeriodDebtOpen(false)} />}
       {choiceDay && (
         <DayChoiceModal
           day={choiceDay}
