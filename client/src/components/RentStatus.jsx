@@ -7,6 +7,7 @@ import MoneyInput from './MoneyInput';
 import { fmtMoney, fmtDay } from '../labels';
 import DateInput from './DateInput';
 import TxList from './TxList';
+import PeriodPicker from './PeriodPicker';
 
 const MONTHS = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
 const WEEK = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
@@ -26,6 +27,45 @@ function monthCells(month) {
   for (let d = 1; d <= count; d += 1) cells.push(`${month}-${String(d).padStart(2, '0')}`);
   while (cells.length % 7) cells.push(null);
   return cells;
+}
+
+// Те же правила, что у сервера (closeCalendarDays), но только по дням периода.
+function periodStatus(status, period) {
+  if (!period) return status;
+  const days = status.days.filter((d) => d.day >= period.from && d.day <= period.to);
+  const byDriver = new Map();
+  let pending = 0;
+  for (const d of days) {
+    const key = d.driver_id || 0;
+    const g = byDriver.get(key) || { accrued: 0, paid: 0 };
+    g.accrued += d.accrued || 0;
+    g.paid += d.paid || 0;
+    byDriver.set(key, g);
+    pending += d.pending || 0;
+  }
+  const debt = [...byDriver.values()].reduce((s, g) => s + Math.max(g.accrued - g.paid, 0), 0);
+  let paidThrough = null;
+  let debtFrom = null;
+  let debtDays = 0;
+  for (const d of days) {
+    if (!d.accrued) continue;
+    if (d.status === 'paid' || d.status === 'covered') {
+      if (!debtFrom) paidThrough = d.day;
+    } else if (d.status === 'part' || d.status === 'unpaid') {
+      if (!debtFrom) debtFrom = d.day;
+      debtDays += 1;
+    }
+  }
+  return {
+    ...status,
+    days,
+    debt,
+    pending,
+    paid_through: paidThrough,
+    debt_from: debtFrom,
+    debt_days: debtDays,
+    ahead_until: null,
+  };
 }
 
 function cellState(day, info, status) {
@@ -479,23 +519,34 @@ export function RentStatusView({ status, driverId, carId, canWrite = false, onSa
   const byDay = useMemo(() => new Map(status.days.map((d) => [d.day, d])), [status]);
   const minMonth = shiftMonth(status.today.slice(0, 7), -36);
   const maxMonth = (status.ahead_until && status.ahead_until > status.today ? status.ahead_until : status.today).slice(0, 7);
-  const hasDebt = status.debt > 0;
+  const [period, setPeriod] = useState(null);
+  const shown = useMemo(() => periodStatus(status, period), [status, period]);
+  const hasDebt = shown.debt > 0;
   const [y, m] = month.split('-').map(Number);
+
+  function changePeriod(next) {
+    setPeriod(next.from <= next.to ? next : { from: next.to, to: next.from });
+  }
 
   return (
     <div className="rs">
+      <div className="rs-filter">
+        <PeriodPicker value={period || { from: '', to: '' }} onChange={changePeriod} />
+        {period && <button type="button" className="btn btn--quiet" onClick={() => setPeriod(null)}>За всё время</button>}
+      </div>
+
       <div className={`rs-hero ${hasDebt ? 'rs-hero--bad' : 'rs-hero--ok'}`}>
         <div className="rs-hero__main">
           <span className="rs-hero__label">{hasDebt ? 'Аренда закрыта по' : 'Аренда закрыта'}</span>
           <b className="rs-hero__value">
             {hasDebt
-              ? (status.paid_through ? fmtDay(status.paid_through) : 'Ещё не платил')
-              : (status.ahead_until ? `вперёд до ${fmtDay(status.ahead_until)}` : 'Всё оплачено')}
+              ? (shown.paid_through ? fmtDay(shown.paid_through) : 'Ещё не платил')
+              : (shown.ahead_until ? `вперёд до ${fmtDay(shown.ahead_until)}` : 'Всё оплачено')}
           </b>
         </div>
         <span className="rs-hero__note">
           {hasDebt
-            ? `Должен с ${fmtDay(status.debt_from)} · осталось закрыть ${fmtMoney(status.debt)} сум`
+            ? `Должен с ${fmtDay(shown.debt_from)} · осталось закрыть ${fmtMoney(shown.debt)} сум`
             : 'Долгов нет'}
         </span>
       </div>
@@ -503,18 +554,18 @@ export function RentStatusView({ status, driverId, carId, canWrite = false, onSa
       <div className="rs-tiles">
         <div className="rs-tile">
           <span className="rs-tile__label">Закрыто по</span>
-          <b className="rs-tile__value">{status.paid_through ? fmtDay(status.paid_through) : '—'}</b>
-          {status.ahead_until && <span className="rs-tile__hint rs-tile__hint--ok">{`вперёд до ${fmtDay(status.ahead_until)}`}</span>}
+          <b className="rs-tile__value">{shown.paid_through ? fmtDay(shown.paid_through) : '—'}</b>
+          {shown.ahead_until && <span className="rs-tile__hint rs-tile__hint--ok">{`вперёд до ${fmtDay(shown.ahead_until)}`}</span>}
         </div>
         <DebtTile hasDebt={hasDebt} onOpen={() => setDebtOpen(true)}>
           <span className="rs-tile__label">Должен с</span>
-          <b className="rs-tile__value">{hasDebt ? fmtDay(status.debt_from) : 'Долгов нет'}</b>
-          {hasDebt && <span className="rs-tile__hint">{`${status.debt_days} дн. не закрыто · нажмите`}</span>}
+          <b className="rs-tile__value">{hasDebt ? fmtDay(shown.debt_from) : 'Долгов нет'}</b>
+          {hasDebt && <span className="rs-tile__hint">{`${shown.debt_days} дн. не закрыто · нажмите`}</span>}
         </DebtTile>
         <DebtTile hasDebt={hasDebt} onOpen={() => setDebtOpen(true)}>
           <span className="rs-tile__label">Осталось закрыть</span>
-          <b className="rs-tile__value">{`${fmtMoney(status.debt)} сум`}</b>
-          {status.pending > 0 && <span className="rs-tile__hint">{`ещё ждёт подтверждения ${fmtMoney(status.pending)}`}</span>}
+          <b className="rs-tile__value">{`${fmtMoney(shown.debt)} сум`}</b>
+          {shown.pending > 0 && <span className="rs-tile__hint">{`ещё ждёт подтверждения ${fmtMoney(shown.pending)}`}</span>}
         </DebtTile>
         <div className="rs-tile">
           <span className="rs-tile__label">Аренда в день</span>
@@ -571,7 +622,7 @@ export function RentStatusView({ status, driverId, carId, canWrite = false, onSa
             : 'День закрыт, если в этот день водитель отдал его сумму полностью. Деньги в выходной уменьшают долг этого водителя.'}
         </p>
       </div>
-      {debtOpen && <DebtDaysModal status={status} onClose={() => setDebtOpen(false)} />}
+      {debtOpen && <DebtDaysModal status={shown} onClose={() => setDebtOpen(false)} />}
       {choiceDay && (
         <DayChoiceModal
           day={choiceDay}
