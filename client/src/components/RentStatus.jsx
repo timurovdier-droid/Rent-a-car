@@ -313,7 +313,7 @@ export function DayReportModal({ carId, status: givenStatus, day, onClose, onDon
   return (
     <Modal title={`Отчёт за ${fmtDay(date)}`} onClose={onClose}>
       <form onSubmit={submit} className="pay-day">
-        <div className="form-grid">
+        <div className="pay-day__head">
           <div className="field">
             <label className="field__label" htmlFor="drp-date">Дата отчёта</label>
             <DateInput
@@ -344,7 +344,7 @@ export function DayReportModal({ carId, status: givenStatus, day, onClose, onDon
           </div>
         )}
 
-        <div className="seg" role="tablist" aria-label="Оплата за день">
+        <div className="seg pay-day__seg" role="tablist" aria-label="Оплата за день">
           <button type="button" className={`seg__btn seg__btn--income ${paidMode ? 'seg__btn--on' : ''}`} onClick={() => setPaidMode(true)}>Платил</button>
           <button type="button" className={`seg__btn seg__btn--expense ${!paidMode ? 'seg__btn--on' : ''}`} onClick={() => setPaidMode(false)}>Не платил</button>
         </div>
@@ -439,12 +439,14 @@ export function DayReportModal({ carId, status: givenStatus, day, onClose, onDon
             {saving ? 'Записываю…' : paidMode ? 'Записать отчёт' : 'Записать: не платил'}
           </button>
           <button className="btn btn--quiet" type="button" onClick={onClose}>Отмена</button>
-          {info?.reported && (
-            <button className="btn btn--ghost" type="button" disabled={saving} onClick={removeDriver}>
+        </div>
+        {info?.reported && (
+          <div className="pay-day__remove">
+            <button className="link-btn link-btn--danger" type="button" disabled={saving} onClick={removeDriver}>
               Убрать водителя с этого дня
             </button>
-          )}
-        </div>
+          </div>
+        )}
       </form>
     </Modal>
   );

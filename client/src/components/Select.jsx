@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 
 const SEARCH_FROM = 8;
 const PANEL_MAX = 320;
+const PANEL_MIN = 280;
 
 function norm(value) {
   return String(value ?? '').toLowerCase().replace(/\s+/g, ' ').trim();
@@ -44,9 +45,10 @@ export default function Select({
     if (!r) return;
     const below = window.innerHeight - r.bottom;
     const up = below < Math.min(PANEL_MAX, 240) && r.top > below;
+    const width = Math.min(Math.max(r.width, PANEL_MIN), window.innerWidth - 16);
     setPos({
-      left: r.left,
-      width: r.width,
+      left: Math.max(8, Math.min(r.left, window.innerWidth - width - 8)),
+      width,
       top: up ? undefined : r.bottom + 6,
       bottom: up ? window.innerHeight - r.top + 6 : undefined,
       maxHeight: Math.max(160, Math.min(PANEL_MAX + (withSearch ? 60 : 0), (up ? r.top : below) - 16)),

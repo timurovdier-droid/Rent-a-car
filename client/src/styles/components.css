@@ -896,7 +896,7 @@ button.rs-cell--write .rs-cell__label { color: var(--c-muted); font-weight: 600;
 .sel__item--active { background: var(--c-row-hover); }
 .sel__item--on { background: rgb(252 224 0 / .16); font-weight: 600; }
 .sel__item--on.sel__item--active { background: rgb(252 224 0 / .26); }
-.sel__label { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.sel__label { flex: 1; min-width: 0; overflow-wrap: break-word; }
 .sel__item-hint { flex: none; font-size: 13px; font-weight: 500; color: var(--c-muted); font-variant-numeric: tabular-nums; }
 .sel__check { flex: none; color: var(--c-ink); }
 .sel__empty { padding: 16px 10px; text-align: center; color: var(--c-muted); font-size: 14px; }
@@ -1006,8 +1006,19 @@ button.rs-cell--write .rs-cell__label { color: var(--c-muted); font-weight: 600;
 .pay-status--wait { color: var(--c-signal, #C48A00); background: color-mix(in srgb, #F5C26B 22%, transparent); }
 .pay-status--off { color: var(--c-muted); background: var(--c-soft); font-weight: 500; }
 .pay-day { display: flex; flex-direction: column; gap: 14px; }
+.pay-day .field { margin-bottom: 0; }
+.pay-day__head { display: grid; grid-template-columns: minmax(9rem, 11rem) minmax(0, 1fr); gap: 12px; align-items: start; }
+.pay-day__head .field { max-width: none; min-width: 0; }
+.pay-day__seg { display: flex; margin: 0; }
+.pay-day__seg .seg__btn { flex: 1; padding: 10px 16px; }
+.pay-day .form-actions { margin-top: 2px; }
+.pay-day__remove { margin-top: -4px; padding-top: 12px; border-top: 1px solid var(--c-line); }
+@media (max-width: 520px) {
+  .pay-day__head { grid-template-columns: 1fr; }
+}
 .pay-day__info { display: flex; flex-direction: column; gap: 10px; padding: 12px 14px; border-radius: 12px; background: var(--c-soft); }
-.pay-day__kv { margin: 0; }
+.pay-day__kv { margin: 0; grid-template-columns: repeat(auto-fill, minmax(8rem, 1fr)); gap: 10px 16px; }
+.pay-day__kv > div:first-child { grid-column: 1 / -1; }
 .pay-day__kv dd { min-width: 0; }
 .pay-day__kv .money-input { width: 100%; max-width: 16rem; }
 .pay-day__rate-link {
