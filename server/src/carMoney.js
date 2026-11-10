@@ -183,9 +183,10 @@ export async function driverOnCarDay(db, carId, day) {
 }
 
 /** Водитель по умолчанию на машине: записан на этот день, иначе последний до этой даты. */
-export function defaultDriverOnCar(reportRows, day) {
+export function defaultDriverOnCar(reportRows, day, defaultDriverId = null) {
   const own = reportRows.find((r) => r.day === day);
   if (own) return Number(own.driver_id);
+  if (defaultDriverId) return Number(defaultDriverId);
   let last = null;
   for (const r of reportRows) if (r.day < day) last = Number(r.driver_id);
   return last;
@@ -780,14 +781,19 @@ export async function carRentStatus(db, carId) {
   const closed = closeCalendarDays(days);
 
   const { rows: carRows } = await db.query(
-    `SELECT c.plate, c.brand, c.model,
+    `SELECT c.plate, c.brand, c.model, c.default_driver_id, ud.full_name AS default_driver_name,
             (SELECT rate FROM car_rate_history r WHERE r.car_id = c.id AND r.valid_from <= $2
              ORDER BY r.valid_from DESC, r.id DESC LIMIT 1) AS rate
      FROM cars c
+     LEFT JOIN drivers dd ON dd.id = c.default_driver_id
+     LEFT JOIN users ud ON ud.id = dd.user_id
      WHERE c.id = $1`,
     [id, today]
   );
   const car = carRows[0] || {};
+  const defaultDriver = car.default_driver_id
+    ? { id: Number(car.default_driver_id), name: car.default_driver_name || 'Удалённый водитель' }
+    : null;
   const rate = car.rate ? Number(car.rate) : 0;
   const aheadDays = closed.pool > 0 && rate > 0 ? Math.floor(closed.pool / rate) : 0;
   const todayRow = days.find((d) => d.day === today);
@@ -813,6 +819,7 @@ export async function carRentStatus(db, carId) {
     today,
     first_day: from,
     car: { id, plate: car.plate, brand: car.brand, model: car.model },
+    default_driver: defaultDriver,
     driver: todayRow?.driver_id ? { id: Number(todayRow.driver_id), name: todayRow.driver_name } : null,
     rate,
     ...closed.totals,
@@ -824,7 +831,7 @@ export async function carRentStatus(db, carId) {
       let report_blocked = false;
       let report_block_reason = null;
       if (!reported && day <= today) {
-        const def = defaultDriverOnCar(carReportRows, day);
+        const def = defaultDriverOnCar(carReportRows, day, car.default_driver_id);
         const hit = def ? otherByDriverDay.get(`${def}|${day}`) : null;
         if (hit) {
           report_blocked = true;

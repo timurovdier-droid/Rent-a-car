@@ -34,7 +34,27 @@ function readCarFields(body) {
       values[key] = body[key] || null;
     }
   }
+  if (body.default_driver_id !== undefined) {
+    if (body.default_driver_id === null || body.default_driver_id === '') {
+      values.default_driver_id = null;
+    } else {
+      const id = parseInt(body.default_driver_id, 10);
+      if (!id) return { error: ['Неверный водитель', 'default_driver_id'] };
+      values.default_driver_id = id;
+    }
+  }
   return { values };
+}
+
+async function assertDriverAllowed(user, driverId) {
+  const params = [driverId];
+  let sql = 'SELECT id FROM drivers WHERE id = $1 AND archived_at IS NULL';
+  if (user.role === 'DISPATCHER' && user.branch_id) {
+    params.push(user.branch_id);
+    sql += ` AND branch_id = $${params.length}`;
+  }
+  const { rows } = await pool.query(sql, params);
+  return rows.length > 0;
 }
 
 router.use(authenticate);
@@ -143,6 +163,9 @@ router.patch('/:id', requireRole('ADMIN', 'DISPATCHER'), async (req, res) => {
     }
     if (req.user.role === 'ADMIN' && req.body.owner_id !== undefined) {
       values.owner_id = req.body.owner_id ? Number(req.body.owner_id) : null;
+    }
+    if (values.default_driver_id && !(await assertDriverAllowed(req.user, values.default_driver_id))) {
+      return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Водитель не найден или в архиве', field: 'default_driver_id' } });
     }
 
     const keys = Object.keys(values);

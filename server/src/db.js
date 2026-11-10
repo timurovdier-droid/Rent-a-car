@@ -272,6 +272,10 @@ async function migrate() {
   if (txInfo.rows.length && !txInfo.rows.some((row) => row.name === 'driver_id')) {
     await db.execute('ALTER TABLE car_transactions ADD COLUMN driver_id INTEGER');
   }
+  const carsInfo = await db.execute("SELECT name FROM pragma_table_info('cars')");
+  if (carsInfo.rows.length && !carsInfo.rows.some((row) => row.name === 'default_driver_id')) {
+    await db.execute('ALTER TABLE cars ADD COLUMN default_driver_id INTEGER');
+  }
   for (const table of ['driver_mileage', 'driver_expenses']) {
     const info = await db.execute(`SELECT name FROM pragma_table_info('${table}')`);
     if (info.rows.length && !info.rows.some((row) => row.name === 'time')) {

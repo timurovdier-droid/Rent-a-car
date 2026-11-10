@@ -794,6 +794,11 @@ export default function CarPage() {
                 {`Водитель: ${hub.driver.name}${hub.driver.day !== hub.today ? ` (${fmtDay(hub.driver.day)})` : ''}`}
               </span>
             )}
+            {car.default_driver_id && car.default_driver_name && (
+              <span className="badge badge--muted" title="Подставляется в новый отчёт за день">
+                {`По умолчанию: ${car.default_driver_name}`}
+              </span>
+            )}
             {serviceDue && <DueBadge state={serviceDue.due} soon={`Скоро: ${serviceDue.label}`} overdue="Пора на обслуживание" />}
             <DueBadge state={car.insurance_due} soon="Страховка скоро кончится" overdue="Страховка просрочена" />
             <DueBadge state={car.inspection_due} soon="Техосмотр скоро" overdue="Техосмотр просрочен" />

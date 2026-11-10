@@ -73,10 +73,13 @@ async function loadCar(req, res, { write = false } = {}) {
     return null;
   }
   const { rows } = await pool.query(
-    `SELECT c.*, o.name AS owner_name, b.name AS branch_name
+    `SELECT c.*, o.name AS owner_name, b.name AS branch_name,
+            ud.full_name AS default_driver_name
      FROM cars c
      LEFT JOIN owners o ON o.id = c.owner_id
      LEFT JOIN branches b ON b.id = c.branch_id
+     LEFT JOIN drivers dd ON dd.id = c.default_driver_id
+     LEFT JOIN users ud ON ud.id = dd.user_id
      WHERE c.id = $1 AND c.archived_at IS NULL`,
     [id]
   );

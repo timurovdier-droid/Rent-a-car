@@ -161,10 +161,11 @@ function CellBody({ state, info }) {
   return null;
 }
 
-// Водитель по умолчанию: записанный на этот день, иначе тот, кто ездил последним до этой даты.
-function defaultDriverFor(days, date) {
+// Водитель по умолчанию: уже в отчёте за день → закреплён за машиной → последний по отчётам.
+function defaultDriverFor(days, date, defaultDriver) {
   const own = days.find((d) => d.day === date && !d.extra && d.driver_id);
   if (own) return own.driver_id;
+  if (defaultDriver?.id) return defaultDriver.id;
   let last = null;
   for (const d of days) if (d.day < date && !d.extra && d.driver_id) last = d.driver_id;
   return last;
@@ -188,6 +189,7 @@ export function DayReportModal({ carId, status: givenStatus, day, onClose, onDon
   const [rateSaved, setRateSaved] = useState(false);
   const [error, setError] = useState('');
   const [busyDrivers, setBusyDrivers] = useState([]);
+  const [defaultBusy, setDefaultBusy] = useState(false);
 
   const days = status?.days || [];
   const info = days.find((item) => item.day === date && !item.extra);
@@ -233,7 +235,7 @@ export function DayReportModal({ carId, status: givenStatus, day, onClose, onDon
   useEffect(() => {
     if (!status) return;
     const dayInfo = days.find((item) => item.day === date && !item.extra);
-    const pick = defaultDriverFor(status.days, date);
+    const pick = defaultDriverFor(status.days, date, status.default_driver);
     if (dayInfo?.reported) {
       setDriverId(pick ? String(pick) : '');
       return;
@@ -347,6 +349,39 @@ export function DayReportModal({ carId, status: givenStatus, day, onClose, onDon
 
   const otherDriver = info?.reported && info.driver_id && String(info.driver_id) !== String(driverId);
   const driverConflict = driverId ? busyById.get(String(driverId)) : null;
+  const defaultDriver = status.default_driver;
+  const canSaveDefault = (user?.role === 'ADMIN' || user?.role === 'DISPATCHER')
+    && driverId && !driverConflict
+    && String(defaultDriver?.id || '') !== String(driverId);
+
+  async function saveDefaultDriver() {
+    if (!driverId || defaultBusy) return;
+    setDefaultBusy(true);
+    setError('');
+    try {
+      await api.patch(`/cars/${carId}`, { default_driver_id: driverId });
+      const who = driver?.full_name || 'Водитель';
+      setStatus((s) => (s ? { ...s, default_driver: { id: Number(driverId), name: who } } : s));
+    } catch (err) {
+      setError(err.message || 'Не удалось сохранить водителя по умолчанию');
+    } finally {
+      setDefaultBusy(false);
+    }
+  }
+
+  async function clearDefaultDriver() {
+    if (defaultBusy) return;
+    setDefaultBusy(true);
+    setError('');
+    try {
+      await api.patch(`/cars/${carId}`, { default_driver_id: null });
+      setStatus((s) => (s ? { ...s, default_driver: null } : s));
+    } catch (err) {
+      setError(err.message || 'Не удалось убрать водителя по умолчанию');
+    } finally {
+      setDefaultBusy(false);
+    }
+  }
 
   return (
     <Modal title={`Отчёт за ${fmtDay(date)}`} onClose={onClose}>
@@ -385,6 +420,26 @@ export function DayReportModal({ carId, status: givenStatus, day, onClose, onDon
             />
           </div>
         </div>
+        {defaultDriver?.name && (
+          <p className="muted small" style={{ margin: '0 0 8px' }}>
+            {`На этой машине по умолчанию: ${defaultDriver.name}. В отчёте можно выбрать другого водителя.`}
+            {(user?.role === 'ADMIN' || user?.role === 'DISPATCHER') && (
+              <>
+                {' '}
+                <button type="button" className="link-btn" disabled={defaultBusy} onClick={clearDefaultDriver}>
+                  Убрать
+                </button>
+              </>
+            )}
+          </p>
+        )}
+        {canSaveDefault && (
+          <p className="muted small" style={{ margin: '0 0 8px' }}>
+            <button type="button" className="link-btn" disabled={defaultBusy} onClick={saveDefaultDriver}>
+              Запомнить выбранного как водителя по умолчанию для этой машины
+            </button>
+          </p>
+        )}
         {driverConflict && (
           <div className="notice notice--error">
             {`${driverConflict.driver_name || 'Водитель'} уже записан на ${driverConflict.plate} (${driverConflict.brand} ${driverConflict.model}) за ${fmtDay(date)}. Выберите другого водителя или исправьте отчёт на той машине.`}

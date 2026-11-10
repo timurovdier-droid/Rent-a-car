@@ -62,6 +62,7 @@ CREATE TABLE IF NOT EXISTS cars (
   branch_id INTEGER,
   owner_id INTEGER,
   archived_at TEXT,
+  default_driver_id INTEGER,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 

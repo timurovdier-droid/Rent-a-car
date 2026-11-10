@@ -42,6 +42,7 @@ function initial(car) {
     insurance_expires: car?.insurance_expires ? String(car.insurance_expires).slice(0, 10) : '',
     inspection_expires: car?.inspection_expires ? String(car.inspection_expires).slice(0, 10) : '',
     owner_id: car?.owner_id ? String(car.owner_id) : '',
+    default_driver_id: car?.default_driver_id ? String(car.default_driver_id) : '',
     daily_rate: '',
   };
 }
@@ -51,6 +52,7 @@ export default function CarForm({ car, onClose, onSaved }) {
   const isAdmin = user?.role === 'ADMIN';
   const [form, setForm] = useState(() => initial(car));
   const [owners, setOwners] = useState([]);
+  const [drivers, setDrivers] = useState([]);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
   const [photo, setPhoto] = useState({ data: null, remove: false });
@@ -70,6 +72,13 @@ export default function CarForm({ car, onClose, onSaved }) {
     if (!isAdmin) return;
     api.get('/owners/active').then(setOwners).catch(() => setOwners([]));
   }, [isAdmin]);
+
+  useEffect(() => {
+    if (!car || user?.role === 'OWNER') return;
+    api.get('/drivers')
+      .then((list) => setDrivers(Array.isArray(list) ? list : []))
+      .catch(() => setDrivers([]));
+  }, [car, user?.role]);
 
   const set = (key) => (e) => setForm({ ...form, [key]: e.target.value });
 
@@ -91,6 +100,9 @@ export default function CarForm({ car, onClose, onSaved }) {
         inspection_expires: form.inspection_expires || null,
       };
       if (isAdmin) body.owner_id = form.owner_id || null;
+      if (car && user?.role !== 'OWNER') {
+        body.default_driver_id = form.default_driver_id ? Number(form.default_driver_id) : null;
+      }
       let saved;
       if (car) {
         saved = await api.patch(`/cars/${car.id}`, body);
@@ -196,6 +208,28 @@ export default function CarForm({ car, onClose, onSaved }) {
             </div>
           </div>
         </fieldset>
+
+        {car && user?.role !== 'OWNER' && (
+          <fieldset className="cf__section">
+            <legend className="cf__legend">Отчёт за день</legend>
+            <div className="field">
+              <label className="field__label" htmlFor="cf-default-driver">Водитель по умолчанию</label>
+              <Select
+                id="cf-default-driver"
+                value={form.default_driver_id}
+                onChange={(v) => setForm({ ...form, default_driver_id: v })}
+                placeholder="Не задан — подставится последний по отчётам"
+                options={[
+                  { value: '', label: '— не задан —' },
+                  ...drivers.map((d) => ({ value: String(d.id), label: d.full_name, hint: d.phone })),
+                ]}
+              />
+              <p className="muted small" style={{ margin: '6px 0 0' }}>
+                Подставляется при новом отчёте на этой машине. В отчёте можно выбрать другого водителя.
+              </p>
+            </div>
+          </fieldset>
+        )}
 
         {isAdmin && (
           <fieldset className="cf__section">
