@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { closeCalendarDays, ledgerTotals, driverCalendarFromRows } from './carMoney.js';
 
 function day(partial) {
-  return { day_off: false, pending: 0, paid: 0, accrued: 0, ...partial };
+  return { day_off: false, reported: false, pending: 0, paid: 0, accrued: 0, ...partial };
 }
 
 test('переплата одного водителя не гасит долг другого: 3 дня × 300 000 = 900 000', () => {
@@ -69,6 +69,18 @@ test('календарь водителя не подмешивает закры
   assert.equal(closed.paidThrough, null);
   assert.deepEqual(days.map((d) => d.day), ['2026-10-19', '2026-10-20', '2026-10-21']);
   assert.ok(days.every((d) => d.accrued === 300000));
+});
+
+test('оплата в выходной без отчёта — offpaid, не ломает долг другого водителя', () => {
+  const days = [
+    day({ day: '2026-10-11', driver_id: 1, accrued: 0, paid: 320000, day_off: true, reported: false }),
+    day({ day: '2026-10-12', driver_id: 1, accrued: 0, paid: 50000, day_off: false, reported: false }),
+    day({ day: '2026-10-19', driver_id: 2, accrued: 300000, paid: 0 }),
+  ];
+  closeCalendarDays(days);
+  assert.equal(days[0].status, 'offpaid');
+  assert.equal(days[1].status, 'offpaid');
+  assert.equal(days[2].status, 'unpaid');
 });
 
 test('ledgerTotals: долг машины — сумма долгов водителей, а не общий нетто', () => {

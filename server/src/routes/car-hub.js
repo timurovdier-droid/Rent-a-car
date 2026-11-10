@@ -25,6 +25,7 @@ import {
   carRentStatus,
   carFirstDay,
   driverOtherCarReport,
+  ensureCarDayReportForRent,
 } from '../carMoney.js';
 import { undoDepositRentTx, dayLabelRu } from '../depositRent.js';
 
@@ -469,14 +470,31 @@ router.post('/:id/transactions/:txId/confirm', requireRole('ADMIN'), async (req,
     const tx = await loadTx(req, res, car);
     if (!tx) return;
     if (tx.status !== 'PENDING') return fail(res, 409, 'CONFLICT', 'Запись уже подтверждена');
-    const { rows } = await pool.query(
-      `UPDATE car_transactions SET status = 'CONFIRMED', confirmed_by = $1, confirmed_at = datetime('now')
-       WHERE id = $2 RETURNING *`,
-      [req.user.id, tx.id]
-    );
-    await writeAudit(pool, req.user.id, 'CAR_TX_CONFIRMED', 'car_transaction', tx.id,
-      { status: tx.status }, { status: 'CONFIRMED', amount: tx.amount }, req.ip);
-    res.json(rows[0]);
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const { rows } = await client.query(
+        `UPDATE car_transactions SET status = 'CONFIRMED', confirmed_by = $1, confirmed_at = datetime('now')
+         WHERE id = $2 RETURNING *`,
+        [req.user.id, tx.id]
+      );
+      const confirmed = rows[0];
+      if (confirmed?.kind === 'INCOME' && confirmed.category === 'RENT' && confirmed.driver_id) {
+        const day = String(confirmed.tx_date).slice(0, 10);
+        if (isDay(day)) {
+          await ensureCarDayReportForRent(client, car.id, confirmed.driver_id, day, req.user.id);
+        }
+      }
+      await writeAudit(client, req.user.id, 'CAR_TX_CONFIRMED', 'car_transaction', tx.id,
+        { status: tx.status }, { status: 'CONFIRMED', amount: tx.amount }, req.ip);
+      await client.query('COMMIT');
+      res.json(confirmed);
+    } catch (err) {
+      try { await client.query('ROLLBACK'); } catch { /* ignore */ }
+      throw err;
+    } finally {
+      client.release();
+    }
   } catch (err) {
     serverError(res, 'Ошибка подтверждения операции:', err);
   }
@@ -487,16 +505,35 @@ router.post('/:id/transactions-confirm-all', requireRole('ADMIN'), async (req, r
   try {
     const car = await loadCar(req, res, { write: true });
     if (!car) return;
-    const { rows } = await pool.query(
-      `UPDATE car_transactions SET status = 'CONFIRMED', confirmed_by = $1, confirmed_at = datetime('now')
-       WHERE car_id = $2 AND status = 'PENDING' RETURNING id, amount`,
-      [req.user.id, car.id]
-    );
-    if (rows.length) {
-      await writeAudit(pool, req.user.id, 'CAR_TX_CONFIRMED_ALL', 'car', car.id, null,
-        { ids: rows.map((r) => r.id) }, req.ip);
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const { rows } = await client.query(
+        `UPDATE car_transactions SET status = 'CONFIRMED', confirmed_by = $1, confirmed_at = datetime('now')
+         WHERE car_id = $2 AND status = 'PENDING'
+         RETURNING id, amount, driver_id, kind, category, tx_date`,
+        [req.user.id, car.id]
+      );
+      for (const r of rows) {
+        if (r.kind === 'INCOME' && r.category === 'RENT' && r.driver_id) {
+          const day = String(r.tx_date).slice(0, 10);
+          if (isDay(day)) {
+            await ensureCarDayReportForRent(client, car.id, r.driver_id, day, req.user.id);
+          }
+        }
+      }
+      if (rows.length) {
+        await writeAudit(client, req.user.id, 'CAR_TX_CONFIRMED_ALL', 'car', car.id, null,
+          { ids: rows.map((r) => r.id) }, req.ip);
+      }
+      await client.query('COMMIT');
+      res.json({ confirmed: rows.length });
+    } catch (err) {
+      try { await client.query('ROLLBACK'); } catch { /* ignore */ }
+      throw err;
+    } finally {
+      client.release();
     }
-    res.json({ confirmed: rows.length });
   } catch (err) {
     serverError(res, 'Ошибка подтверждения операций:', err);
   }

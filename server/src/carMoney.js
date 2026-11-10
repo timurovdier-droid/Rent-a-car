@@ -70,6 +70,23 @@ export function shiftPayFromOnStartChange(payFrom, oldStart, newStart) {
 }
 
 // Ставка должна действовать с первого дня выдачи, иначе долг «начинается» позже в календаре.
+/** Подтверждённая аренда = рабочий день: отчёт и снятие выходного (если платёж без отчёта). */
+export async function ensureCarDayReportForRent(db, carId, driverId, day, userId = null) {
+  const car = Number(carId);
+  const driver = Number(driverId);
+  if (!car || !driver || !isDay(day)) return;
+  await db.query('DELETE FROM car_days_off WHERE car_id = $1 AND day = $2', [car, day]);
+  await db.query(
+    `INSERT INTO car_day_reports (car_id, driver_id, day, created_by)
+     VALUES ($1, $2, $3, $4)
+     ON CONFLICT (car_id, day) DO UPDATE SET
+       driver_id = excluded.driver_id,
+       updated_at = datetime('now')`,
+    [car, driver, day, userId]
+  );
+  await ensureCarRateFrom(db, car, day, userId);
+}
+
 export async function ensureCarRateFrom(db, carId, day, userId) {
   if (!isDay(day)) return;
   // Берём первую ПОЛОЖИТЕЛЬНУЮ ставку — нулевые «заглушки» с 2000-01-01 не считаются.
@@ -449,10 +466,17 @@ export function computeAccruals(inputs, { from = null, to = null } = {}) {
       for (const day of daysBetween(start, end)) days.add(day);
     }
     // Отчёт за день: водитель ездил — аренда за этот день начислена, даже если он не платил.
+    const reportDays = new Set();
     for (const row of reports.get(carId) || []) {
-      if ((!from || row.day >= from) && row.day <= upper) days.add(row.day);
+      if ((!from || row.day >= from) && row.day <= upper) {
+        days.add(row.day);
+        reportDays.add(row.day);
+      }
     }
-    for (const row of off.get(carId) || []) days.delete(row.day);
+    // Выходной снимает начисление, но отчёт за этот день важнее — иначе оплата уйдёт в «дал в выходной».
+    for (const row of off.get(carId) || []) {
+      if (!reportDays.has(row.day)) days.delete(row.day);
+    }
 
     // valid_from иногда приходит с временем — сравниваем только YYYY-MM-DD.
     const carRates = (rates.get(carId) || []).map((row) => ({
@@ -530,21 +554,25 @@ export async function carDailyLedger(db, carId, from, to, { driverId = null } = 
     else slot.transfer += amount;
   }
 
-  const makeRow = (day, driver, accrued, { cash = 0, transfer = 0, pending = 0 } = {}, extra = false) => ({
+  const makeRow = (day, driver, accrued, { cash = 0, transfer = 0, pending = 0 } = {}, extra = false) => {
+    const reported = Boolean(driver?.reported);
+    const off = offDays.has(day) && !reported;
+    return {
     day,
     driver_id: driver?.driver_id ?? null,
     driver_name: driver?.driver_name ?? null,
-    reported: Boolean(driver?.reported),
+    reported,
     extra,
-    day_off: offDays.has(day),
-    idle: offDays.get(day) || null,
+    day_off: off,
+    idle: off ? offDays.get(day) || null : null,
     accrued,
     cash,
     transfer,
     paid: cash + transfer,
     pending,
     debt: Math.max(accrued - cash - transfer, 0),
-  });
+  };
+  };
 
   const rows = [];
   for (const day of daysBetween(from, upper)) {
@@ -693,7 +721,7 @@ export async function rentStatus(db, driverId) {
     ahead_until: aheadDays ? addDays(today, aheadDays) : null,
     days: days.map(({ day, accrued, paid, pending: wait, covered, left, status, plates, idle, day_off }) => ({
       day, accrued, paid, pending: wait, covered, left, status, plates,
-      idle: status === 'off' ? idle || null : null,
+      idle: day_off ? idle || null : null,
       day_off: Boolean(day_off),
     })),
   };
@@ -706,10 +734,19 @@ function closeDriverDays(days) {
   const noDebt = paid >= accrued;
   for (const d of days) {
     if (!d.accrued) {
-      d.status = d.day_off ? 'off' : 'none';
-      d.covered = 0;
-      d.left = 0;
-      continue;
+      if (d.reported && d.paid > 0) {
+        d.accrued = d.paid;
+      } else if (d.paid > 0) {
+        d.status = 'offpaid';
+        d.covered = 0;
+        d.left = 0;
+        continue;
+      } else {
+        d.status = d.day_off ? 'off' : 'none';
+        d.covered = 0;
+        d.left = 0;
+        continue;
+      }
     }
     const cover = Math.min(d.paid, d.accrued);
     d.covered = cover;
@@ -841,7 +878,7 @@ export async function carRentStatus(db, carId) {
       }
       return {
         day, accrued, paid, pending: wait, covered, left, status,
-        idle: status === 'off' ? idle || null : null,
+        idle: day_off ? idle || null : null,
         day_off: Boolean(day_off),
         driver_id: driver_id || null,
         driver_name: driver_name || null,
