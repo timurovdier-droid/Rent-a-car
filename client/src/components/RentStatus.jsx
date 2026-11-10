@@ -30,10 +30,18 @@ function monthCells(month) {
   return cells;
 }
 
+function monthBounds(month) {
+  const [y, m] = month.split('-').map(Number);
+  const last = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  return { from: `${month}-01`, to: `${month}-${String(last).padStart(2, '0')}` };
+}
+
 // Те же правила, что у сервера (closeCalendarDays), но только по дням периода.
 function periodStatus(status, period) {
   if (!period) return status;
-  const days = status.days.filter((d) => d.day >= period.from && d.day <= period.to);
+  const days = status.days
+    .filter((d) => d.day >= period.from && d.day <= period.to)
+    .sort((a, b) => (a.day < b.day ? -1 : 1));
   const byDriver = new Map();
   let pending = 0;
   for (const d of days) {
@@ -70,6 +78,7 @@ function periodStatus(status, period) {
 }
 
 function cellState(day, info, status) {
+  if (info?.status === 'offpaid') return 'offpaid';
   if ((info?.status === 'off' || info?.status === 'none') && info.paid > 0) return 'offpaid';
   if (info) return info.status;
   if (day > status.today && status.ahead_until && day <= status.ahead_until) return 'ahead';
@@ -115,7 +124,7 @@ function CellBody({ state, info }) {
   if (state === 'covered') {
     return (
       <>
-        <span className="rs-cell__label">Из переплаты</span>
+        <span className="rs-cell__label">Закрыто из переплаты</span>
         <PaidSum value={info?.paid} />
         <DriverMark info={info} />
       </>
@@ -667,20 +676,34 @@ export function RentStatusView({ status, driverId, carId, canWrite = false, onSa
   const minMonth = shiftMonth(status.today.slice(0, 7), -36);
   const maxMonth = (status.ahead_until && status.ahead_until > status.today ? status.ahead_until : status.today).slice(0, 7);
   const [period, setPeriod] = useState(null);
-  const shown = useMemo(() => periodStatus(status, period), [status, period]);
+  const monthPeriod = useMemo(() => monthBounds(month), [month]);
+  const activePeriod = period ?? monthPeriod;
+  const shown = useMemo(() => periodStatus(status, activePeriod), [status, activePeriod]);
   const hasDebt = shown.debt > 0;
   const income = shown.days.reduce((s, d) => s + (d.paid || 0), 0);
   const [y, m] = month.split('-').map(Number);
+  const periodHint = period
+    ? `${fmtDay(activePeriod.from)} – ${fmtDay(activePeriod.to)}`
+    : `${MONTHS[m - 1]} ${y}`;
 
   function changePeriod(next) {
     setPeriod(next.from <= next.to ? next : { from: next.to, to: next.from });
   }
 
+  function showAllTime() {
+    const from = status.first_day || status.days[0]?.day || status.today;
+    setPeriod({ from, to: status.today });
+  }
+
   return (
     <div className="rs">
       <div className="rs-filter">
-        <PeriodPicker value={period || { from: '', to: '' }} onChange={changePeriod} />
-        {period && <button type="button" className="btn btn--quiet" onClick={() => setPeriod(null)}>За всё время</button>}
+        <PeriodPicker value={activePeriod} onChange={changePeriod} />
+        {period ? (
+          <button type="button" className="btn btn--quiet" onClick={() => setPeriod(null)}>Месяц в календаре</button>
+        ) : (
+          <button type="button" className="btn btn--quiet" onClick={showAllTime}>За всё время</button>
+        )}
       </div>
 
       <div className={`rs-hero ${hasDebt ? 'rs-hero--bad' : 'rs-hero--ok'}`}>
@@ -718,7 +741,7 @@ export function RentStatusView({ status, driverId, carId, canWrite = false, onSa
         <div className="rs-tile">
           <span className="rs-tile__label">Доход за выбранный период</span>
           <b className="rs-tile__value">{`${fmtMoney(income)} сум`}</b>
-          {status.car?.plate && <span className="rs-tile__hint"><Plate value={status.car.plate} /></span>}
+          <span className="rs-tile__hint">{periodHint}{status.car?.plate && <> · <Plate value={status.car.plate} /></>}</span>
         </div>
       </div>
 
