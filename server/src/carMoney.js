@@ -182,6 +182,33 @@ export async function driverOnCarDay(db, carId, day) {
   return driverOn(carId, day);
 }
 
+/** Водитель по умолчанию на машине: записан на этот день, иначе последний до этой даты. */
+export function defaultDriverOnCar(reportRows, day) {
+  const own = reportRows.find((r) => r.day === day);
+  if (own) return Number(own.driver_id);
+  let last = null;
+  for (const r of reportRows) if (r.day < day) last = Number(r.driver_id);
+  return last;
+}
+
+/** Отчёт водителя на другой машине в тот же день (кроме exceptCarId). */
+export async function driverOtherCarReport(db, driverId, day, exceptCarId = null) {
+  const params = [Number(driverId), day];
+  let sql = `SELECT r.car_id, c.plate, c.brand, c.model, u.full_name AS driver_name
+             FROM car_day_reports r
+             JOIN cars c ON c.id = r.car_id
+             LEFT JOIN drivers d ON d.id = r.driver_id
+             LEFT JOIN users u ON u.id = d.user_id
+             WHERE r.driver_id = $1 AND r.day = $2`;
+  if (exceptCarId != null) {
+    params.push(Number(exceptCarId));
+    sql += ` AND r.car_id <> $${params.length}`;
+  }
+  sql += ' ORDER BY r.id DESC LIMIT 1';
+  const { rows } = await db.query(sql, params);
+  return rows[0] || null;
+}
+
 // Машины, на которых водители ездили в периоде (по отчётам и старым выдачам).
 export async function driverCarIds(db, driverIds, { from = null, to = null } = {}) {
   const ids = [...new Set(driverIds.map(Number))].filter(Boolean);
@@ -765,6 +792,23 @@ export async function carRentStatus(db, carId) {
   const aheadDays = closed.pool > 0 && rate > 0 ? Math.floor(closed.pool / rate) : 0;
   const todayRow = days.find((d) => d.day === today);
 
+  const { rows: carReportRows } = await db.query(
+    'SELECT day, driver_id FROM car_day_reports WHERE car_id = $1 AND day >= $2 AND day <= $3 ORDER BY day',
+    [id, from, today]
+  );
+  const { rows: otherReportRows } = await db.query(
+    `SELECT r.driver_id, r.day, c.plate, c.brand, c.model, u.full_name AS driver_name
+     FROM car_day_reports r
+     JOIN cars c ON c.id = r.car_id
+     LEFT JOIN drivers d ON d.id = r.driver_id
+     LEFT JOIN users u ON u.id = d.user_id
+     WHERE r.car_id <> $1 AND r.day >= $2 AND r.day <= $3`,
+    [id, from, today]
+  );
+  const otherByDriverDay = new Map(
+    otherReportRows.map((r) => [`${Number(r.driver_id)}|${r.day}`, r])
+  );
+
   return {
     today,
     first_day: from,
@@ -776,16 +820,31 @@ export async function carRentStatus(db, carId) {
     paid_through: closed.paidThrough,
     debt_from: closed.debtFrom,
     ahead_until: aheadDays ? addDays(today, aheadDays) : null,
-    days: days.map(({ day, accrued, paid, pending: wait, covered, left, status, idle, driver_id, driver_name, reported, extra, day_off }) => ({
-      day, accrued, paid, pending: wait, covered, left, status,
-      idle: status === 'off' ? idle || null : null,
-      day_off: Boolean(day_off),
-      driver_id: driver_id || null,
-      driver_name: driver_name || null,
-      reported: Boolean(reported),
-      extra: Boolean(extra),
-      plates: car.plate ? [car.plate] : [],
-    })),
+    days: days.map(({ day, accrued, paid, pending: wait, covered, left, status, idle, driver_id, driver_name, reported, extra, day_off }) => {
+      let report_blocked = false;
+      let report_block_reason = null;
+      if (!reported && day <= today) {
+        const def = defaultDriverOnCar(carReportRows, day);
+        const hit = def ? otherByDriverDay.get(`${def}|${day}`) : null;
+        if (hit) {
+          report_blocked = true;
+          const who = hit.driver_name || driver_name || 'Водитель';
+          report_block_reason = `${who} уже записан на ${hit.plate} (${hit.brand} ${hit.model}) в этот день — отчёт на этой машине недоступен`;
+        }
+      }
+      return {
+        day, accrued, paid, pending: wait, covered, left, status,
+        idle: status === 'off' ? idle || null : null,
+        day_off: Boolean(day_off),
+        driver_id: driver_id || null,
+        driver_name: driver_name || null,
+        reported: Boolean(reported),
+        extra: Boolean(extra),
+        plates: car.plate ? [car.plate] : [],
+        report_blocked,
+        report_block_reason,
+      };
+    }),
   };
 }
 

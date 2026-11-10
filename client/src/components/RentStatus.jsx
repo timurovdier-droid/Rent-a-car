@@ -187,6 +187,7 @@ export function DayReportModal({ carId, status: givenStatus, day, onClose, onDon
   const [saving, setSaving] = useState(false);
   const [rateSaved, setRateSaved] = useState(false);
   const [error, setError] = useState('');
+  const [busyDrivers, setBusyDrivers] = useState([]);
 
   const days = status?.days || [];
   const info = days.find((item) => item.day === date && !item.extra);
@@ -216,10 +217,33 @@ export function DayReportModal({ carId, status: givenStatus, day, onClose, onDon
   }, []);
 
   useEffect(() => {
+    if (!date) return undefined;
+    let alive = true;
+    api.get(`/cars/${carId}/busy-drivers?day=${encodeURIComponent(date)}`)
+      .then((data) => { if (alive) setBusyDrivers(Array.isArray(data.busy) ? data.busy : []); })
+      .catch(() => { if (alive) setBusyDrivers([]); });
+    return () => { alive = false; };
+  }, [carId, date]);
+
+  const busyById = useMemo(
+    () => new Map(busyDrivers.map((b) => [String(b.driver_id), b])),
+    [busyDrivers]
+  );
+
+  useEffect(() => {
     if (!status) return;
+    const dayInfo = days.find((item) => item.day === date && !item.extra);
     const pick = defaultDriverFor(status.days, date);
+    if (dayInfo?.reported) {
+      setDriverId(pick ? String(pick) : '');
+      return;
+    }
+    if (pick && busyById.has(String(pick))) {
+      setDriverId('');
+      return;
+    }
     setDriverId(pick ? String(pick) : '');
-  }, [status, date]);
+  }, [status, date, busyById, days]);
 
   useEffect(() => {
     setDayRateEdit(dayRate ? String(dayRate) : '');
@@ -308,7 +332,21 @@ export function DayReportModal({ carId, status: givenStatus, day, onClose, onDon
     );
   }
 
+  if (info?.report_blocked) {
+    return (
+      <Modal title={`Отчёт за ${fmtDay(date)}`} onClose={onClose}>
+        <div className="notice notice--error" style={{ marginTop: 0 }}>
+          {info.report_block_reason || 'В этот день водитель уже записан на другую машину. Отчёт на этой машине недоступен.'}
+        </div>
+        <div className="form-actions">
+          <button className="btn btn--quiet" type="button" onClick={onClose}>Закрыть</button>
+        </div>
+      </Modal>
+    );
+  }
+
   const otherDriver = info?.reported && info.driver_id && String(info.driver_id) !== String(driverId);
+  const driverConflict = driverId ? busyById.get(String(driverId)) : null;
 
   return (
     <Modal title={`Отчёт за ${fmtDay(date)}`} onClose={onClose}>
@@ -334,10 +372,24 @@ export function DayReportModal({ carId, status: givenStatus, day, onClose, onDon
               required
               disabled={!drivers}
               placeholder={drivers ? '— кто ездил в этот день —' : 'Загрузка…'}
-              options={(drivers || []).map((d) => ({ value: String(d.id), label: d.full_name, hint: d.phone }))}
+              options={(drivers || []).map((d) => {
+                const hit = busyById.get(String(d.id));
+                if (!hit) return { value: String(d.id), label: d.full_name, hint: d.phone };
+                return {
+                  value: String(d.id),
+                  label: d.full_name,
+                  hint: `уже на ${hit.plate} в этот день`,
+                  disabled: true,
+                };
+              })}
             />
           </div>
         </div>
+        {driverConflict && (
+          <div className="notice notice--error">
+            {`${driverConflict.driver_name || 'Водитель'} уже записан на ${driverConflict.plate} (${driverConflict.brand} ${driverConflict.model}) за ${fmtDay(date)}. Выберите другого водителя или исправьте отчёт на той машине.`}
+          </div>
+        )}
         {otherDriver && (
           <div className="notice">
             {`На ${fmtDay(date)} записан ${info.driver_name}. После сохранения день и его аренда перейдут к выбранному водителю.`}
@@ -435,7 +487,7 @@ export function DayReportModal({ carId, status: givenStatus, day, onClose, onDon
         </div>
         {error && <div className="notice notice--error">{error}</div>}
         <div className="form-actions">
-          <button className="btn" type="submit" disabled={saving || !date || !driverId}>
+          <button className="btn" type="submit" disabled={saving || !date || !driverId || Boolean(driverConflict)}>
             {saving ? 'Записываю…' : paidMode ? 'Записать отчёт' : 'Записать: не платил'}
           </button>
           <button className="btn btn--quiet" type="button" onClick={onClose}>Отмена</button>
@@ -627,16 +679,20 @@ export function RentStatusView({ status, driverId, carId, canWrite = false, onSa
             if (!day) return <div key={`x${i}`} className="rs-cell rs-cell--blank" />;
             const info = byDay.get(day);
             const state = cellState(day, info, status);
-            const openReport = canWrite && Boolean(carId) && day <= status.today;
+            const blocked = Boolean(info?.report_blocked);
+            const openReport = canWrite && Boolean(carId) && day <= status.today && !blocked;
             const hasMoney = (info?.paid || 0) + (info?.pending || 0) > 0;
             const blank = !info || state === 'empty' || state === 'none' || state === 'future';
             const Tag = openReport ? 'button' : 'div';
+            const title = blocked
+              ? (info.report_block_reason || `${fmtDay(day)}: отчёт недоступен — водитель на другой машине`)
+              : (openReport ? `${fmtDay(day)}: написать отчёт` : (info ? `${fmtDay(day)}: начислено ${fmtMoney(info.accrued)}, закрыто ${fmtMoney(info.covered)}` : fmtDay(day)));
             return (
               <Tag
                 key={day}
                 type={openReport ? 'button' : undefined}
-                className={`rs-cell rs-cell--${state} ${day === status.today ? 'rs-cell--today' : ''} ${openReport && blank ? 'rs-cell--write' : ''}`}
-                title={openReport ? `${fmtDay(day)}: написать отчёт` : (info ? `${fmtDay(day)}: начислено ${fmtMoney(info.accrued)}, закрыто ${fmtMoney(info.covered)}` : fmtDay(day))}
+                className={`rs-cell rs-cell--${state} ${day === status.today ? 'rs-cell--today' : ''} ${openReport && blank ? 'rs-cell--write' : ''} ${blocked ? 'rs-cell--blocked' : ''}`}
+                title={title}
                 onClick={openReport ? () => (hasMoney ? setChoiceDay(day) : setReportDay(day)) : undefined}
               >
                 <span className="rs-cell__num">{Number(day.slice(8))}</span>

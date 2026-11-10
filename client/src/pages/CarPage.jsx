@@ -17,7 +17,7 @@ import DateInput from '../components/DateInput';
 import NavIcon from '../components/NavIcon';
 import {
   EXPENSE_CATEGORIES, INCOME_CATEGORIES, PAY_METHODS,
-  FUEL_LABELS, SERVICE_TYPES, fmtMoney, fmtNumber, fmtDay, localDayOf, todayLocal,
+  FUEL_LABELS, SERVICE_TYPES, fmtMoney, fmtNumber, fmtDay, todayLocal,
 } from '../labels';
 
 const errText = (err, fallback) => (err instanceof ApiError ? err.message : fallback);
@@ -281,186 +281,6 @@ function AddEntry({ carId, isAdmin, onClose, onDone }) {
       {!isAdmin && <p className="muted small" style={{ marginBottom: 0 }}>Сумма попадёт в отчёт после подтверждения админом</p>}
     </form>
     </Modal>
-  );
-}
-
-function daysBetween(from, to) {
-  const [y1, m1, d1] = from.split('-').map(Number);
-  const [y2, m2, d2] = to.split('-').map(Number);
-  return Math.max(1, Math.round((Date.UTC(y2, m2 - 1, d2) - Date.UTC(y1, m1 - 1, d1)) / 86400000));
-}
-
-function plural(n, one, few, many) {
-  const m10 = n % 10;
-  const m100 = n % 100;
-  if (m10 === 1 && m100 !== 11) return one;
-  if (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14)) return few;
-  return many;
-}
-
-function assignmentSpan(a, today) {
-  return { from: localDayOf(a.start_at), to: a.end_at ? localDayOf(a.end_at) : today };
-}
-
-function DriverName({ a, linkDrivers }) {
-  const name = a.driver_name || 'Удалённый водитель';
-  return linkDrivers && a.driver_id && a.driver_name
-    ? <Link to={`/drivers/${a.driver_id}`} className="dh__name">{name}</Link>
-    : <span className="dh__name">{name}</span>;
-}
-
-function DriverHistory({ hub, linkDrivers, canDelete = false, onChanged }) {
-  const { assignments, day_reports: reports = [], today, car } = hub;
-  const [picked, setPicked] = useState(today);
-  const [month, setMonth] = useState(today.slice(0, 7));
-  const [busy, setBusy] = useState(null);
-  const [error, setError] = useState('');
-
-  const reportByDay = useMemo(() => new Map(reports.map((r) => [r.day, r])), [reports]);
-  const spans = useMemo(
-    () => assignments.map((a) => ({ a, ...assignmentSpan(a, today) })),
-    [assignments, today]
-  );
-  // Отчёт за день важнее старой выдачи.
-  const whoOn = (day) => {
-    const r = reportByDay.get(day);
-    if (r) return { driver_id: r.driver_id, driver_name: r.driver_name, comment: r.comment, report: true };
-    let hit = null;
-    for (const s of spans) if (s.from <= day && day <= s.to) hit = s;
-    return hit ? { driver_id: hit.a.driver_id, driver_name: hit.a.driver_name, span: hit } : null;
-  };
-  const onDay = whoOn(picked);
-
-  const recent = useMemo(() => {
-    const from = shiftDay(today, -29);
-    const map = new Map();
-    for (const r of reports) {
-      if (r.day < from) continue;
-      const g = map.get(r.driver_id) || { driver_id: r.driver_id, driver_name: r.driver_name, days: 0, last: r.day };
-      g.days += 1;
-      if (r.day > g.last) g.last = r.day;
-      map.set(r.driver_id, g);
-    }
-    return [...map.values()].sort((a, b) => (a.last < b.last ? 1 : -1));
-  }, [reports, today]);
-
-  async function remove(a, from, to) {
-    const who = a.driver_name || 'Удалённый водитель';
-    const text = `Удалить из истории запись «${who}, ${fmtDay(from)} — ${fmtDay(to)}»?\n\n`
-      + 'Аренда за эти дни больше не будет начисляться, долг за них пропадёт. Деньги, которые уже записаны, останутся.';
-    if (!window.confirm(text)) return;
-    setBusy(a.id);
-    setError('');
-    try {
-      await api.delete(`/cars/${car.id}/assignments/${a.id}`);
-      onChanged?.();
-    } catch (err) {
-      setError(errText(err, 'Не удалось удалить запись'));
-    } finally {
-      setBusy(null);
-    }
-  }
-
-  const dayClass = (day) => {
-    if (day === picked) return 'cal__day--pick';
-    return whoOn(day) ? 'cal__day--busy' : '';
-  };
-
-  return (
-    <div className="panel">
-      <div className="dh__head">
-        <h3 className="panel__title" style={{ margin: 0 }}>Кто ездил на машине</h3>
-      </div>
-      <p className="muted small" style={{ margin: '0 0 12px' }}>
-        Водителя к машине не привязывают: кто ездил и платил ли он, записывается в отчёте за день
-        (кнопка «+ Отчёт» или день в календаре на вкладке «Отчёт»). Выберите дату — покажем, кто был на машине.
-      </p>
-      <DayCalendar month={month} onMonth={setMonth} onPick={setPicked} dayClass={dayClass} today={today} max={today} label="Дата" />
-
-      <div className="dh-answer">
-        <div className="dh-answer__date">{fmtDay(picked)}</div>
-        {!onDay ? (
-          <div className="muted">Отчёта за этот день нет — аренда не начислена</div>
-        ) : (
-          <div className="dh-answer__row">
-            <DriverName a={onDay} linkDrivers={linkDrivers} />
-            <span className="muted small">
-              {onDay.report
-                ? `${onDay.comment ? ` · ${onDay.comment}` : ' · по отчёту за день'}`
-                : ` · старая выдача: с ${fmtDay(onDay.span.from)} по ${fmtDay(onDay.span.to)}`}
-            </span>
-          </div>
-        )}
-      </div>
-
-      <div className="dh__sub">За последние 30 дней</div>
-      {recent.length === 0 ? (
-        <p className="muted small" style={{ margin: 0 }}>Отчётов с водителями пока нет</p>
-      ) : (
-        <ol className="dh">
-          {recent.map((g) => (
-            <li key={g.driver_id} className="dh__item">
-              <span className="dh__dot" aria-hidden="true" />
-              <button type="button" className="dh__body" onClick={() => { setPicked(g.last); setMonth(g.last.slice(0, 7)); }} title="Показать в календаре">
-                <div className="dh__top">
-                  <DriverName a={g} linkDrivers={linkDrivers} />
-                  {g.last >= shiftDay(today, -1) && <span className="badge badge--ok">Сейчас</span>}
-                </div>
-                <div className="dh__dates">
-                  {`${g.days} ${plural(g.days, 'день', 'дня', 'дней')}`}
-                  <span className="muted">{` · последний раз ${fmtDay(g.last)}`}</span>
-                </div>
-              </button>
-            </li>
-          ))}
-        </ol>
-      )}
-
-      {assignments.length > 0 && (
-        <details style={{ marginTop: 16 }}>
-          <summary className="muted small" style={{ cursor: 'pointer' }}>
-            {`Старые выдачи машины (${assignments.length})`}
-          </summary>
-          {error && <div className="notice notice--error">{error}</div>}
-          <ol className="dh">
-            {spans.map(({ a, from, to }) => {
-              const days = daysBetween(from, to);
-              const km = a.mileage_end != null && a.mileage_start != null ? a.mileage_end - a.mileage_start : null;
-              return (
-                <li key={a.id} className="dh__item">
-                  <span className="dh__dot" aria-hidden="true" />
-                  <button type="button" className="dh__body" onClick={() => { setPicked(from); setMonth(from.slice(0, 7)); }} title="Показать в календаре">
-                    <div className="dh__top">
-                      <span className="dh__name">{a.driver_name || 'Удалённый водитель'}</span>
-                    </div>
-                    <div className="dh__dates">
-                      {fmtDay(from)} — {fmtDay(to)}
-                      <span className="muted"> · {days} {plural(days, 'день', 'дня', 'дней')}</span>
-                    </div>
-                    <div className="dh__meta">
-                      Пробег {fmtNumber(a.mileage_start)} → {fmtNumber(a.mileage_end)} км{km != null && km >= 0 ? ` (+${fmtNumber(km)})` : ''}
-                    </div>
-                    {a.note && <div className="dh__note">{a.note}</div>}
-                  </button>
-                  {canDelete && (
-                    <div className="dh__actions">
-                      <button
-                        type="button"
-                        className="link-btn link-btn--danger"
-                        disabled={busy === a.id}
-                        onClick={() => remove(a, from, to)}
-                      >
-                        Удалить из истории
-                      </button>
-                    </div>
-                  )}
-                </li>
-              );
-            })}
-          </ol>
-        </details>
-      )}
-    </div>
   );
 }
 
@@ -949,7 +769,6 @@ export default function CarPage() {
 
   const tabs = [
     { key: 'report', label: 'Отчёт', count: pending.length, alert: true },
-    { key: 'driver', label: 'Водители' },
     canWrite && { key: 'days', label: 'Выходные дни', count: upcomingDaysOff },
     { key: 'service', label: 'Обслуживание', count: dueCount, alert: true },
     { key: 'docs', label: 'Документы', count: (hub.documents || []).length },
@@ -1062,17 +881,6 @@ export default function CarPage() {
         )}
         {tab === 'report' && reportView === 'ops' && (
           <TxList carId={car.id} items={hub.transactions} role={role} onChanged={load} />
-        )}
-
-        {tab === 'driver' && (
-          <div className="tab-narrow">
-            <DriverHistory
-              hub={hub}
-              linkDrivers={role !== 'OWNER'}
-              canDelete={role === 'ADMIN'}
-              onChanged={load}
-            />
-          </div>
         )}
 
         {tab === 'days' && canWrite && (

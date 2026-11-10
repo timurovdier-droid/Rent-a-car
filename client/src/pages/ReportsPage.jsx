@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { api } from '../api';
 import Plate from '../components/Plate';
@@ -8,11 +8,13 @@ import CarPicker from '../components/CarPicker';
 import DriverReportPage from './DriverReportPage';
 import AuditPage from './AuditPage';
 import TxJournal from '../components/TxJournal';
+import PendingTx from '../components/PendingTx';
 import DashboardPage from './DashboardPage';
 import SummaryIcon from '../components/SummaryIcon';
 import { fmtMoney, fmtDay, downloadCsv } from '../labels';
 
 const TABS = [
+  ['pending', 'Ждут подтверждения'],
   ['cars', 'По машинам'],
   ['car', 'По машине'],
   ['drivers', 'Отчёт по водителям'],
@@ -35,12 +37,22 @@ export default function ReportsPage() {
   const tab = requested === 'summary' || TABS.some(([key]) => key === requested) ? requested : 'cars';
   const summary = tab === 'summary';
   const carId = params.get('car') || '';
-  const ownTab = summary || tab === 'car' || tab === 'drivers' || tab === 'audit' || tab === 'journal';
-  const ownPeriod = summary || tab === 'drivers' || tab === 'audit' || tab === 'journal';
+  const ownTab = summary || tab === 'car' || tab === 'drivers' || tab === 'audit' || tab === 'journal' || tab === 'pending';
+  const ownPeriod = summary || tab === 'drivers' || tab === 'audit' || tab === 'journal' || tab === 'pending';
   const [period, setPeriod] = useState(defaultPeriod);
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
   const [carList, setCarList] = useState(null);
+  const [pendingCount, setPendingCount] = useState(0);
+
+  const loadPendingCount = useCallback(() => {
+    Promise.all([
+      api.get('/reports/pending-transactions').catch(() => []),
+      api.get('/drivers/payment-requests').catch(() => []),
+    ]).then(([txs, requests]) => setPendingCount(txs.length + requests.length));
+  }, []);
+
+  useEffect(() => { loadPendingCount(); }, [loadPendingCount]);
 
   function setTab(key) {
     const next = new URLSearchParams(params);
@@ -122,7 +134,7 @@ export default function ReportsPage() {
       <div className="tabs">
         {TABS.map(([key, label]) => (
           <button key={key} className={`tab ${tab === key ? 'tab--on' : ''}`} onClick={() => setTab(key)}>
-            {label}{key === 'debts' && debts.length ? ` · ${debts.length}` : ''}
+            {label}{key === 'debts' && debts.length ? ` · ${debts.length}` : ''}{key === 'pending' && pendingCount ? ` · ${pendingCount}` : ''}
           </button>
         ))}
       </div>
@@ -148,6 +160,7 @@ export default function ReportsPage() {
       {tab === 'drivers' && <DriverReportPage embedded />}
       {tab === 'audit' && <AuditPage embedded />}
       {tab === 'journal' && <TxJournal />}
+      {tab === 'pending' && <PendingTx onChanged={loadPendingCount} />}
 
       {!ownTab && error && <div className="notice notice--error">{error}</div>}
       {!ownTab && !data && !error && <div className="muted">Загрузка…</div>}

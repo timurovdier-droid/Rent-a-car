@@ -83,7 +83,7 @@ function RejectModal({ request, onClose, onDone }) {
   );
 }
 
-export default function DriverPaymentRequests() {
+export default function DriverPaymentRequests({ onChanged }) {
   const [list, setList] = useState([]);
   const [error, setError] = useState('');
   const [confirming, setConfirming] = useState(null);
@@ -101,7 +101,7 @@ export default function DriverPaymentRequests() {
   useEffect(() => { load(); }, [load]);
 
   if (!list.length && !error) return null;
-  const done = () => { setConfirming(null); setRejecting(null); load(); };
+  const done = () => { setConfirming(null); setRejecting(null); load(); onChanged?.(); };
 
   return (
     <div className="panel panel--yellow" style={{ marginBottom: 16 }}>

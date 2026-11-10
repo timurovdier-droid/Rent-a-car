@@ -88,6 +88,7 @@ export default function Select({
   }, [active, open, pos]);
 
   function pick(option) {
+    if (option.disabled) return;
     onChange(String(option.value));
     setOpen(false);
     btnRef.current?.focus();
@@ -101,7 +102,7 @@ export default function Select({
     }
     if (e.key === 'ArrowDown') { e.preventDefault(); setActive((i) => Math.min(shown.length - 1, i + 1)); }
     if (e.key === 'ArrowUp') { e.preventDefault(); setActive((i) => Math.max(0, i - 1)); }
-    if (e.key === 'Enter' && shown[active]) { e.preventDefault(); pick(shown[active]); }
+    if (e.key === 'Enter' && shown[active] && !shown[active].disabled) { e.preventDefault(); pick(shown[active]); }
   }
 
   function onBtnKey(e) {
@@ -166,10 +167,11 @@ export default function Select({
                   data-i={i}
                   role="option"
                   aria-selected={isOn}
-                  className={`sel__item ${i === active ? 'sel__item--active' : ''} ${isOn ? 'sel__item--on' : ''}`}
-                  onMouseEnter={() => setActive(i)}
+                  className={`sel__item ${i === active ? 'sel__item--active' : ''} ${isOn ? 'sel__item--on' : ''} ${o.disabled ? 'sel__item--disabled' : ''}`}
+                  onMouseEnter={() => !o.disabled && setActive(i)}
                   onMouseDown={(e) => e.preventDefault()}
                   onClick={() => pick(o)}
+                  aria-disabled={o.disabled || undefined}
                 >
                   <span className="sel__label">{o.label}</span>
                   {o.hint && <span className="sel__item-hint">{o.hint}</span>}

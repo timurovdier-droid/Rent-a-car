@@ -24,6 +24,7 @@ import {
   carDebtDays,
   carRentStatus,
   carFirstDay,
+  driverOtherCarReport,
 } from '../carMoney.js';
 import { undoDepositRentTx, dayLabelRu } from '../depositRent.js';
 
@@ -646,6 +647,38 @@ async function reportDrivers(user, db = pool) {
   return rows.map((d) => ({ ...d, deposit: Number(d.deposit || 0) }));
 }
 
+// GET /cars/:id/busy-drivers?day= — кто из водителей уже записан на другой машине в этот день
+router.get('/:id/busy-drivers', requireRole('ADMIN', 'DISPATCHER'), async (req, res) => {
+  try {
+    const car = await loadCar(req, res);
+    if (!car) return;
+    const day = req.query.day;
+    if (!isDay(day)) return fail(res, 400, 'BAD_REQUEST', 'Укажите дату', 'day');
+    const { rows } = await pool.query(
+      `SELECT r.driver_id, c.plate, c.brand, c.model, u.full_name AS driver_name
+       FROM car_day_reports r
+       JOIN cars c ON c.id = r.car_id
+       LEFT JOIN drivers d ON d.id = r.driver_id
+       LEFT JOIN users u ON u.id = d.user_id
+       WHERE r.day = $1 AND r.car_id <> $2
+       ORDER BY u.full_name`,
+      [day, car.id]
+    );
+    res.json({
+      day,
+      busy: rows.map((r) => ({
+        driver_id: Number(r.driver_id),
+        driver_name: r.driver_name || 'Удалённый водитель',
+        plate: r.plate,
+        brand: r.brand,
+        model: r.model,
+      })),
+    });
+  } catch (err) {
+    serverError(res, 'Ошибка:', err);
+  }
+});
+
 // POST /cars/:id/day-report — отчёт за день: какой водитель ездил и сколько отдал.
 // Без сумм — «не платил»: аренда за день начисляется и становится долгом этого водителя.
 router.post('/:id/day-report', requireRole('ADMIN', 'DISPATCHER'), async (req, res) => {
@@ -682,6 +715,19 @@ router.post('/:id/day-report', requireRole('ADMIN', 'DISPATCHER'), async (req, r
     if (depositPay && depositPay[1] > driver.deposit) {
       await client.query('ROLLBACK');
       return fail(res, 400, 'BAD_REQUEST', 'В депозите меньше этой суммы', 'deposit');
+    }
+
+    const otherCar = await driverOtherCarReport(client, driverId, day, car.id);
+    if (otherCar) {
+      await client.query('ROLLBACK');
+      const who = otherCar.driver_name || driver.full_name || 'Водитель';
+      return fail(
+        res,
+        409,
+        'DRIVER_BUSY',
+        `${who} уже записан на ${otherCar.plate} (${otherCar.brand} ${otherCar.model}) за ${dayLabelRu(day)}. На этой машине отчёт за этот день недоступен.`,
+        'driver_id'
+      );
     }
 
     const { rows: before } = await client.query(

@@ -78,7 +78,7 @@ function EditTx({ carId, tx, onClose, onDone }) {
 }
 
 // carId — для списка одной машины; в списке водителя у каждой записи свой car_id и номер.
-export default function TxList({ carId, items, role, onChanged, showCar = false }) {
+export default function TxList({ carId, items, role, onChanged, showCar = false, title = 'История операций', emptyText = 'Пока нет записей' }) {
   const [filter, setFilter] = useState('ALL');
   const [editing, setEditing] = useState(null);
   const [busy, setBusy] = useState(null);
@@ -110,7 +110,7 @@ export default function TxList({ carId, items, role, onChanged, showCar = false 
   return (
     <div className="panel">
       <div className="section-head" style={{ marginTop: 0 }}>
-        <h3 className="panel__title" style={{ margin: 0 }}>История операций</h3>
+        <h3 className="panel__title" style={{ margin: 0 }}>{title}</h3>
         <div className="chips">
           {[['ALL', 'Все'], ['INCOME', 'Доходы'], ['EXPENSE', 'Расходы'], ...(pendingCount ? [['PENDING', `Ждут (${pendingCount})`]] : [])].map(([v, l]) => (
             <button key={v} type="button" className={`chip ${filter === v ? 'chip--on' : ''}`} onClick={() => setFilter(v)}>{l}</button>
@@ -119,7 +119,7 @@ export default function TxList({ carId, items, role, onChanged, showCar = false 
       </div>
       {error && <div className="notice notice--error">{error}</div>}
       {shown.length === 0 ? (
-        <div className="empty">Пока нет записей</div>
+        <div className="empty">{emptyText}</div>
       ) : (
         <ul className="tx-list">
           {shown.map((t) => {

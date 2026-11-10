@@ -2,10 +2,63 @@ import { Router } from 'express';
 import { pool } from '../db.js';
 import { authenticate } from '../middleware/auth.js';
 import { requireRole } from '../middleware/rbac.js';
+import { writeAudit } from '../middleware/audit.js';
 
 const router = Router();
 
 router.use(authenticate, requireRole('ADMIN'));
+
+// GET /reports/pending-transactions — записи диспетчеров, которые ждут подтверждения админа
+router.get('/pending-transactions', async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT t.id, t.car_id, t.kind, t.category, t.amount, t.method, t.tx_date, t.comment, t.status,
+              t.created_by, t.created_at, c.plate, c.brand, c.model,
+              u.full_name AS author_name, u.role AS author_role
+       FROM car_transactions t
+       JOIN cars c ON c.id = t.car_id
+       LEFT JOIN users u ON u.id = t.created_by
+       WHERE t.status = 'PENDING'
+       ORDER BY t.created_at DESC, t.id DESC
+       LIMIT 500`
+    );
+    res.json(rows.map((t) => ({
+      ...t,
+      car_id: Number(t.car_id),
+      can_confirm: true,
+      can_edit: true,
+      can_delete: true,
+    })));
+  } catch (err) {
+    console.error('Ошибка списка ожидающих операций:', err);
+    res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Внутренняя ошибка сервера' } });
+  }
+});
+
+// POST /reports/pending-transactions/confirm — подтвердить сразу несколько записей
+router.post('/pending-transactions/confirm', async (req, res) => {
+  try {
+    const ids = [...new Set((Array.isArray(req.body.ids) ? req.body.ids : [])
+      .map((v) => parseInt(v, 10)).filter(Number.isFinite))].slice(0, 500);
+    if (!ids.length) {
+      return res.status(400).json({ error: { code: 'BAD_REQUEST', message: 'Не выбраны записи', field: 'ids' } });
+    }
+    const marks = ids.map((_, i) => `$${i + 2}`).join(', ');
+    const { rows } = await pool.query(
+      `UPDATE car_transactions SET status = 'CONFIRMED', confirmed_by = $1, confirmed_at = datetime('now')
+       WHERE status = 'PENDING' AND id IN (${marks}) RETURNING id, amount`,
+      [req.user.id, ...ids]
+    );
+    for (const r of rows) {
+      await writeAudit(pool, req.user.id, 'CAR_TX_CONFIRMED', 'car_transaction', r.id,
+        { status: 'PENDING' }, { status: 'CONFIRMED', amount: r.amount }, req.ip);
+    }
+    res.json({ confirmed: rows.length });
+  } catch (err) {
+    console.error('Ошибка подтверждения операций:', err);
+    res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Внутренняя ошибка сервера' } });
+  }
+});
 
 // GET /reports/revenue — Выручка по дням за период
 router.get('/revenue', async (req, res) => {
