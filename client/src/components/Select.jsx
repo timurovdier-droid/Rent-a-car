@@ -2,8 +2,15 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 
 const SEARCH_FROM = 8;
-const PANEL_MAX = 320;
-const PANEL_MIN = 280;
+const PANEL_MAX = 380;
+const PANEL_MIN = 320;
+
+function hintSide(hint) {
+  const text = String(hint || '').trim();
+  if (!text) return null;
+  if (/^\+?\d[\d\s()-]{6,}$/.test(text)) return text;
+  return null;
+}
 
 function norm(value) {
   return String(value ?? '').toLowerCase().replace(/\s+/g, ' ').trim();
@@ -32,6 +39,7 @@ export default function Select({
 
   const items = options || [];
   const selected = items.find((o) => String(o.value) === String(value ?? '')) || null;
+  const selectedSideHint = hintSide(selected?.hint);
   const withSearch = searchable ?? items.length > SEARCH_FROM;
 
   const shown = useMemo(() => {
@@ -125,7 +133,7 @@ export default function Select({
         <span className={`sel__value ${selected ? '' : 'sel__value--empty'}`}>
           {selected ? selected.label : placeholder}
         </span>
-        {selected?.hint && <span className="sel__hint">{selected.hint}</span>}
+        {selectedSideHint && <span className="sel__hint">{selectedSideHint}</span>}
         <svg className="sel__chevron" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"
           fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="m6 9 6 6 6-6" />
@@ -161,6 +169,8 @@ export default function Select({
             {shown.length === 0 && <li className="sel__empty">Ничего не найдено</li>}
             {shown.map((o, i) => {
               const isOn = String(o.value) === String(value ?? '');
+              const side = hintSide(o.hint);
+              const note = o.hint && !side ? o.hint : null;
               return (
                 <li
                   key={`${o.value}`}
@@ -173,14 +183,17 @@ export default function Select({
                   onClick={() => pick(o)}
                   aria-disabled={o.disabled || undefined}
                 >
-                  <span className="sel__label">{o.label}</span>
-                  {o.hint && <span className="sel__item-hint">{o.hint}</span>}
-                  {isOn && (
-                    <svg className="sel__check" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"
-                      fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="m5 12 5 5 9-10" />
-                    </svg>
-                  )}
+                  <div className="sel__item-row">
+                    <span className="sel__label">{o.label}</span>
+                    {side && <span className="sel__item-hint">{side}</span>}
+                    {isOn && (
+                      <svg className="sel__check" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"
+                        fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="m5 12 5 5 9-10" />
+                      </svg>
+                    )}
+                  </div>
+                  {note && <span className="sel__item-note">{note}</span>}
                 </li>
               );
             })}

@@ -891,15 +891,29 @@ button.rs-cell--write .rs-cell__label { color: var(--c-muted); font-weight: 600;
 }
 .sel__list { flex: 1; min-height: 0; list-style: none; margin: 0; padding: 6px; overflow-y: auto; overscroll-behavior: contain; }
 .sel__item {
-  display: flex; align-items: center; gap: 10px;
+  display: flex; flex-direction: column; align-items: stretch; gap: 2px;
   min-height: 38px; padding: 8px 10px; border-radius: 9px;
-  font-size: 15px; line-height: 1.3; cursor: pointer;
+  font-size: 15px; line-height: 1.25; cursor: pointer;
+}
+.sel__item-row {
+  display: flex; align-items: center; gap: 10px; min-width: 0;
 }
 .sel__item--active { background: var(--c-row-hover); }
 .sel__item--on { background: rgb(252 224 0 / .16); font-weight: 600; }
 .sel__item--on.sel__item--active { background: rgb(252 224 0 / .26); }
-.sel__label { flex: 1; min-width: 0; overflow-wrap: break-word; }
-.sel__item-hint { flex: none; font-size: 13px; font-weight: 500; color: var(--c-muted); font-variant-numeric: tabular-nums; }
+.sel__label {
+  flex: 1; min-width: 0;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.sel__item-hint {
+  flex: none;
+  font-size: 13px; font-weight: 500; color: var(--c-muted); font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.sel__item-note {
+  font-size: 12px; line-height: 1.3; color: var(--c-muted);
+  padding-right: 22px;
+}
 .sel__check { flex: none; color: var(--c-ink); }
 .sel__empty { padding: 16px 10px; text-align: center; color: var(--c-muted); font-size: 14px; }
 
