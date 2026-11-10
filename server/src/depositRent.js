@@ -1,4 +1,4 @@
-import { localDay, localToday } from './carMoney.js';
+import { driverOnCarDay } from './carMoney.js';
 
 /** ДД.ММ.ГГГГ из ISO-даты YYYY-MM-DD */
 export function dayLabelRu(day) {
@@ -13,16 +13,7 @@ export function parseDayLabelRu(reason) {
 }
 
 export async function findDriverIdForCarDay(db, carId, day) {
-  const { rows } = await db.query(
-    'SELECT driver_id, start_at, end_at FROM car_assignments WHERE car_id = $1 ORDER BY start_at DESC',
-    [carId]
-  );
-  const today = localToday();
-  const hit = rows.find((row) => {
-    const from = localDay(row.start_at);
-    const to = row.end_at ? localDay(row.end_at) : today;
-    return from && day >= from && day <= to;
-  });
+  const hit = await driverOnCarDay(db, carId, day);
   return hit ? Number(hit.driver_id) : null;
 }
 
@@ -33,7 +24,7 @@ export async function undoDepositRentTx(db, tx) {
   if (!(amount > 0)) return null;
 
   const day = String(tx.tx_date || '').slice(0, 10);
-  const driverId = await findDriverIdForCarDay(db, tx.car_id, day);
+  const driverId = tx.driver_id != null ? Number(tx.driver_id) : await findDriverIdForCarDay(db, tx.car_id, day);
   if (!driverId) return null;
 
   let histId = null;
@@ -77,33 +68,20 @@ export async function purgeOrphanDepositRentHistory(db) {
      ORDER BY created_at DESC`
   );
 
-  const { rows: assigns } = await db.query(
-    'SELECT car_id, driver_id, start_at, end_at FROM car_assignments'
-  );
-  const today = localToday();
-
   const { rows: txs } = await db.query(
-    `SELECT id, car_id, amount, tx_date FROM car_transactions
+    `SELECT id, car_id, driver_id, amount, tx_date FROM car_transactions
      WHERE kind = 'INCOME' AND method = 'DEPOSIT' AND category = 'RENT'`
   );
   const txById = new Set(txs.map((tx) => Number(tx.id)));
+  // Сколько DEPOSIT-операций у водителя за день и сумму: водитель — из операции или тот, кто ездил в этот день.
   const txBucket = new Map();
   for (const tx of txs) {
     const day = String(tx.tx_date || '').slice(0, 10);
     const amount = Number(tx.amount || 0);
-    const key = `${Number(tx.car_id)}|${day}|${amount}`;
+    const driverId = tx.driver_id != null ? Number(tx.driver_id) : await findDriverIdForCarDay(db, tx.car_id, day);
+    if (!driverId) continue;
+    const key = `${driverId}|${day}|${amount}`;
     txBucket.set(key, (txBucket.get(key) || 0) + 1);
-  }
-
-  function carsForDriverDay(driverId, day) {
-    const out = new Set();
-    for (const row of assigns) {
-      if (Number(row.driver_id) !== driverId) continue;
-      const from = localDay(row.start_at);
-      const to = row.end_at ? localDay(row.end_at) : today;
-      if (from && day >= from && day <= to) out.add(Number(row.car_id));
-    }
-    return out;
   }
 
   const groups = new Map();
@@ -132,11 +110,7 @@ export async function purgeOrphanDepositRentHistory(db) {
   for (const [key, list] of groups) {
     const [driverId, day, amountStr] = key.split('|');
     const amount = Number(amountStr);
-    const cars = carsForDriverDay(Number(driverId), day);
-    let txCount = 0;
-    for (const carId of cars) {
-      txCount += txBucket.get(`${carId}|${day}|${amount}`) || 0;
-    }
+    const txCount = txBucket.get(key) || 0;
     const drop = list.slice(txCount);
     for (const h of drop) {
       await db.query('DELETE FROM driver_deposit_history WHERE id = $1', [h.id]);

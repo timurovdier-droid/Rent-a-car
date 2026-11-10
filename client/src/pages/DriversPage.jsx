@@ -59,11 +59,6 @@ export default function DriversPage() {
   }, [drivers, query]);
 
   async function act(d, action) {
-    if (action !== 'restore' && d.car_plate) {
-      setError(`Сначала примите у ${d.full_name} машину ${d.car_plate} — на странице машины, вкладка «Водитель»`);
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-      return;
-    }
     const texts = {
       archive: `Убрать ${d.full_name} в архив?`,
       restore: `Вернуть ${d.full_name} из архива?`,

@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { pool } from '../db.js';
 import { authenticate } from '../middleware/auth.js';
 import { requireRole } from '../middleware/rbac.js';
+import { loadCarDrivers } from '../carMoney.js';
 
 const router = Router();
 
@@ -90,6 +91,7 @@ router.get('/transactions', async (req, res) => {
       amount: Number(tx.amount),
       tx_date: tx.tx_date ? String(tx.tx_date).slice(0, 10) : null,
       comment: tx.comment || null,
+      payer_id: tx.driver_id != null ? Number(tx.driver_id) : null,
     });
 
     const events = created.map((tx) => ({
@@ -135,40 +137,26 @@ router.get('/transactions', async (req, res) => {
       }
     }
 
-    // Водитель — тот, кто ездил на машине в день операции; в день передачи — кто её взял.
+    // Водитель — тот, кто платил (если записан в операции), иначе тот, кто ездил на машине в этот день.
     const carIds = [...new Set(events.map((e) => e.car_id).filter(Boolean))];
-    const spans = new Map();
-    if (carIds.length) {
-      const { rows: assigns } = await pool.query(
-        `SELECT ca.car_id, ca.driver_id, ca.start_at, ca.end_at, u.full_name AS driver_name
-         FROM car_assignments ca LEFT JOIN drivers d ON d.id = ca.driver_id LEFT JOIN users u ON u.id = d.user_id
-         WHERE ca.car_id IN (${carIds.map((_, i) => `$${i + 1}`).join(', ')})
-         ORDER BY ca.start_at ASC, ca.id ASC`,
-        carIds
+    const driverOn = await loadCarDrivers(pool, carIds);
+    const payerIds = [...new Set(events.map((e) => e.payer_id).filter(Boolean))];
+    const payerName = new Map();
+    if (payerIds.length) {
+      const { rows: payers } = await pool.query(
+        `SELECT d.id, u.full_name FROM drivers d JOIN users u ON u.id = d.user_id
+         WHERE d.id IN (${payerIds.map((_, i) => `$${i + 1}`).join(', ')})`,
+        payerIds
       );
-      const today = localDayOf(new Date().toISOString().slice(0, 19).replace('T', ' '));
-      for (const a of assigns) {
-        const list = spans.get(Number(a.car_id)) || [];
-        list.push({
-          from: localDayOf(a.start_at),
-          to: a.end_at ? localDayOf(a.end_at) : today,
-          name: a.driver_name,
-          driver_id: a.driver_id ? Number(a.driver_id) : null,
-        });
-        spans.set(Number(a.car_id), list);
-      }
+      for (const p of payers) payerName.set(Number(p.id), p.full_name);
     }
     for (const e of events) {
-      let name = null;
-      let driverId = null;
-      for (const s of spans.get(e.car_id) || []) {
-        if (e.tx_date && s.from <= e.tx_date && e.tx_date <= s.to) {
-          name = s.name;
-          driverId = s.driver_id;
-        }
-      }
-      e.driver_name = name;
-      e.driver_id = driverId;
+      const hit = e.payer_id
+        ? { driver_id: e.payer_id, driver_name: payerName.get(e.payer_id) || 'Удалённый водитель' }
+        : e.car_id && e.tx_date ? driverOn(e.car_id, e.tx_date) : null;
+      e.driver_name = hit?.driver_name ?? null;
+      e.driver_id = hit?.driver_id ?? null;
+      delete e.payer_id;
     }
 
     let out = events;

@@ -2,7 +2,7 @@ import { createClient } from '@libsql/client';
 import bcrypt from 'bcryptjs';
 import { config } from './config.js';
 import { SCHEMA, SCHEMA_VERSION, SCHEMA_V2_COLUMNS, SCHEMA_V2_TABLES, SCHEMA_EXTRA_TABLES } from './schema.js';
-import { syncCarRateToAssignments } from './carMoney.js';
+import { syncCarRateToAssignments, localToday, localDay, addDays, dayStartUtc } from './carMoney.js';
 
 let client;
 let ready;
@@ -268,14 +268,59 @@ async function migrate() {
   if (depHistInfo.rows.length && !depHistInfo.rows.some((row) => row.name === 'tx_id')) {
     await db.execute('ALTER TABLE driver_deposit_history ADD COLUMN tx_id INTEGER');
   }
+  const txInfo = await db.execute("SELECT name FROM pragma_table_info('car_transactions')");
+  if (txInfo.rows.length && !txInfo.rows.some((row) => row.name === 'driver_id')) {
+    await db.execute('ALTER TABLE car_transactions ADD COLUMN driver_id INTEGER');
+  }
   for (const table of ['driver_mileage', 'driver_expenses']) {
     const info = await db.execute(`SELECT name FROM pragma_table_info('${table}')`);
     if (info.rows.length && !info.rows.some((row) => row.name === 'time')) {
       await db.execute(`ALTER TABLE ${table} ADD COLUMN time TEXT`);
     }
   }
+  await closeOpenAssignments(db);
   await repairAssignmentRates(db);
   console.log(`База Qween готова (${config.tursoUrl.startsWith('file:') ? 'локальный файл' : 'Turso'})`);
+}
+
+// Водителя больше не привязывают к машине: аренда начисляется только по отчётам за день.
+// Открытые выдачи закрываются вчерашним днём, а сегодня записывается отчётом с тем же водителем,
+// поэтому начисления до перехода не меняются. Повторный запуск ничего не делает.
+async function closeOpenAssignments(db) {
+  const done = await db.execute("SELECT value FROM settings WHERE key = 'day_reports_from'");
+  if (done.rows.length) return;
+  const today = localToday();
+  const yesterday = addDays(today, -1);
+  const { rows } = await db.execute(
+    `SELECT ca.id, ca.car_id, ca.driver_id, ca.start_at, ca.pay_from, c.mileage
+     FROM car_assignments ca LEFT JOIN cars c ON c.id = ca.car_id
+     WHERE ca.end_at IS NULL`
+  );
+  const statements = [];
+  for (const a of rows) {
+    const start = localDay(a.start_at);
+    if (start && start <= yesterday) {
+      statements.push({
+        sql: 'UPDATE car_assignments SET end_at = ?, mileage_end = COALESCE(mileage_end, ?) WHERE id = ? AND end_at IS NULL',
+        args: [dayStartUtc(yesterday), a.mileage ?? null, a.id],
+      });
+    } else {
+      statements.push({ sql: 'DELETE FROM car_assignments WHERE id = ?', args: [a.id] });
+    }
+    if (!a.pay_from || a.pay_from <= today) {
+      statements.push({
+        sql: `INSERT INTO car_day_reports (car_id, driver_id, day, comment) VALUES (?, ?, ?, ?)
+              ON CONFLICT (car_id, day) DO NOTHING`,
+        args: [a.car_id, a.driver_id, today, 'Перенесено из выдачи машины'],
+      });
+    }
+  }
+  statements.push("UPDATE drivers SET status = 'FREE' WHERE status = 'RENTED'");
+  statements.push({
+    sql: "INSERT INTO settings (key, value) VALUES ('day_reports_from', ?) ON CONFLICT (key) DO NOTHING",
+    args: [today],
+  });
+  await db.batch(statements, 'write');
 }
 
 async function repairAssignmentRates(db) {

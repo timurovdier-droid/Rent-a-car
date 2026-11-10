@@ -89,16 +89,171 @@ export async function ensureCarRateFrom(db, carId, day, userId) {
   );
 }
 
-// Ставка должна действовать с первого дня выдачи — иначе в отчёте «дыра» (долг с 9-го при выдаче с 1-го).
+function minDay(a, b) {
+  if (!a) return b || null;
+  if (!b) return a;
+  return a < b ? a : b;
+}
+
+// Первый день аренды машины: по отчётам за день и по старым выдачам.
+export async function carFirstDay(db, carId) {
+  const { rows } = await db.query(
+    `SELECT (SELECT MIN(start_at) FROM car_assignments WHERE car_id = $1) AS start_at,
+            (SELECT MIN(day) FROM car_day_reports WHERE car_id = $1) AS day`,
+    [Number(carId)]
+  );
+  return minDay(localDay(rows[0]?.start_at), rows[0]?.day || null);
+}
+
+export async function driverFirstDay(db, driverId) {
+  const { rows } = await db.query(
+    `SELECT (SELECT MIN(start_at) FROM car_assignments WHERE driver_id = $1) AS start_at,
+            (SELECT MIN(day) FROM car_day_reports WHERE driver_id = $1) AS day`,
+    [Number(driverId)]
+  );
+  return minDay(localDay(rows[0]?.start_at), rows[0]?.day || null);
+}
+
+// Ставка должна действовать с первого дня аренды — иначе в отчёте «дыра» (долг с 9-го при выдаче с 1-го).
 export async function syncCarRateToAssignments(db, carId, userId = null) {
   const id = Number(carId);
   if (!id) return;
-  const { rows } = await db.query(
-    'SELECT MIN(start_at) AS start_at FROM car_assignments WHERE car_id = $1',
+  const start = await carFirstDay(db, id);
+  if (start) await ensureCarRateFrom(db, id, start, userId);
+}
+
+// Кто ездил на машинах по дням: отчёт за день важнее старой выдачи, в день передачи — тот, кто взял.
+export async function loadCarDrivers(db, carIds) {
+  const ids = [...new Set(carIds.map(Number))].filter(Boolean);
+  const spans = new Map();
+  const reports = new Map();
+  if (ids.length) {
+    const today = localToday();
+    const list = placeholders(ids);
+    const { rows: assigns } = await db.query(
+      `SELECT ca.car_id, ca.driver_id, ca.start_at, ca.end_at, u.full_name AS driver_name
+       FROM car_assignments ca
+       LEFT JOIN drivers d ON d.id = ca.driver_id
+       LEFT JOIN users u ON u.id = d.user_id
+       WHERE ca.car_id IN (${list})
+       ORDER BY ca.start_at ASC, ca.id ASC`,
+      ids
+    );
+    for (const a of assigns) {
+      const from = localDay(a.start_at);
+      if (!from) continue;
+      const carId = Number(a.car_id);
+      if (!spans.has(carId)) spans.set(carId, []);
+      spans.get(carId).push({
+        driver_id: Number(a.driver_id),
+        driver_name: a.driver_name || 'Удалённый водитель',
+        from,
+        to: a.end_at ? localDay(a.end_at) : today,
+        reported: false,
+      });
+    }
+    const { rows: days } = await db.query(
+      `SELECT r.car_id, r.day, r.driver_id, u.full_name AS driver_name
+       FROM car_day_reports r
+       LEFT JOIN drivers d ON d.id = r.driver_id
+       LEFT JOIN users u ON u.id = d.user_id
+       WHERE r.car_id IN (${list})`,
+      ids
+    );
+    for (const r of days) {
+      reports.set(`${Number(r.car_id)}|${r.day}`, {
+        driver_id: Number(r.driver_id),
+        driver_name: r.driver_name || 'Удалённый водитель',
+        reported: true,
+      });
+    }
+  }
+  return (carId, day) => {
+    const report = reports.get(`${Number(carId)}|${day}`);
+    if (report) return report;
+    let hit = null;
+    for (const s of spans.get(Number(carId)) || []) if (s.from <= day && day <= s.to) hit = s;
+    return hit;
+  };
+}
+
+export async function driverOnCarDay(db, carId, day) {
+  const driverOn = await loadCarDrivers(db, [carId]);
+  return driverOn(carId, day);
+}
+
+// Машины, на которых водители ездили в периоде (по отчётам и старым выдачам).
+export async function driverCarIds(db, driverIds, { from = null, to = null } = {}) {
+  const ids = [...new Set(driverIds.map(Number))].filter(Boolean);
+  if (!ids.length) return [];
+  const today = localToday();
+  const lo = from || '0000-01-01';
+  const hi = to || '9999-12-31';
+  const list = placeholders(ids);
+  const out = new Set();
+  const { rows: assigns } = await db.query(
+    `SELECT car_id, start_at, end_at FROM car_assignments WHERE driver_id IN (${list})`,
+    ids
+  );
+  for (const a of assigns) {
+    const start = localDay(a.start_at);
+    const end = a.end_at ? localDay(a.end_at) : today;
+    if (start && start <= hi && end >= lo) out.add(Number(a.car_id));
+  }
+  const { rows: reports } = await db.query(
+    `SELECT DISTINCT car_id FROM car_day_reports
+     WHERE driver_id IN (${list}) AND day >= $${ids.length + 1} AND day <= $${ids.length + 2}`,
+    [...ids, lo, hi]
+  );
+  for (const r of reports) out.add(Number(r.car_id));
+  return [...out];
+}
+
+// Машина, на которой водитель ездил последней, и с какого дня он вообще на ней ездил.
+export async function lastCarOfDriver(db, driverId) {
+  const id = Number(driverId);
+  const today = localToday();
+  const { rows: reports } = await db.query(
+    'SELECT car_id, day FROM car_day_reports WHERE driver_id = $1 ORDER BY day DESC, id DESC LIMIT 1',
     [id]
   );
-  const start = localDay(rows[0]?.start_at);
-  if (start) await ensureCarRateFrom(db, id, start, userId);
+  const { rows: assigns } = await db.query(
+    'SELECT car_id, start_at, end_at FROM car_assignments WHERE driver_id = $1',
+    [id]
+  );
+  let best = reports[0] ? { car_id: Number(reports[0].car_id), day: reports[0].day } : null;
+  for (const a of assigns) {
+    const day = a.end_at ? localDay(a.end_at) : today;
+    if (day && (!best || day > best.day)) best = { car_id: Number(a.car_id), day };
+  }
+  if (!best) return null;
+  const { rows } = await db.query(
+    `SELECT (SELECT MIN(start_at) FROM car_assignments WHERE driver_id = $1 AND car_id = $2) AS start_at,
+            (SELECT MIN(day) FROM car_day_reports WHERE driver_id = $1 AND car_id = $2) AS day`,
+    [id, best.car_id]
+  );
+  return { car_id: best.car_id, last_day: best.day, since: minDay(localDay(rows[0]?.start_at), rows[0]?.day || null) };
+}
+
+// «В аренде» — если за вчера или сегодня есть отчёт с водителем. Привязки водителя к машине больше нет.
+const RECENT_DAY_SQL = "date('now', '+5 hours', '-1 day')";
+
+export function carStatusSql(alias = 'c') {
+  return `CASE WHEN EXISTS (SELECT 1 FROM car_day_reports rs WHERE rs.car_id = ${alias}.id AND rs.day >= ${RECENT_DAY_SQL})
+    THEN 'RENTED' ELSE 'FREE' END`;
+}
+
+export function carDriverNameSql(alias = 'c') {
+  return `(SELECT ru.full_name FROM car_day_reports rd
+    JOIN drivers rdd ON rdd.id = rd.driver_id JOIN users ru ON ru.id = rdd.user_id
+    WHERE rd.car_id = ${alias}.id AND rd.day >= ${RECENT_DAY_SQL}
+    ORDER BY rd.day DESC, rd.id DESC LIMIT 1)`;
+}
+
+export function driverCarSql(alias = 'd', column = 'plate') {
+  return `(SELECT rc.${column} FROM car_day_reports rr JOIN cars rc ON rc.id = rr.car_id
+    WHERE rr.driver_id = ${alias}.id AND rr.day >= ${RECENT_DAY_SQL}
+    ORDER BY rr.day DESC, rr.id DESC LIMIT 1)`;
 }
 
 async function rateOnOrBefore(db, carId, day) {
@@ -122,9 +277,29 @@ async function rateBeforeDay(db, carId, day) {
 }
 
 // onlyDay=true: ставка только на один день, со следующего дня прежняя цена.
-export async function applyCarRate(db, carId, rate, validFrom, { onlyDay = false, userId = null } = {}) {
+// validTo: ставка на период validFrom..validTo, со следующего дня — цена, что была там до изменения.
+// Без onlyDay и validTo ставка действует с validFrom и дальше: более поздние изменения ставки заменяются.
+export async function applyCarRate(db, carId, rate, validFrom, { onlyDay = false, validTo = null, userId = null } = {}) {
   const amount = Number(rate) || 0;
-  if (onlyDay) {
+  if (validTo && !onlyDay) {
+    const nextDay = addDays(validTo, 1);
+    const after = await rateOnOrBefore(db, carId, nextDay);
+    await db.query(
+      `DELETE FROM car_rate_history
+       WHERE car_id = $1 AND substr(valid_from, 1, 10) >= $2 AND substr(valid_from, 1, 10) <= $3`,
+      [carId, validFrom, nextDay]
+    );
+    await db.query(
+      'INSERT INTO car_rate_history (car_id, rate, valid_from, created_by) VALUES ($1, $2, $3, $4)',
+      [carId, amount, validFrom, userId]
+    );
+    if (after !== amount) {
+      await db.query(
+        'INSERT INTO car_rate_history (car_id, rate, valid_from, created_by) VALUES ($1, $2, $3, $4)',
+        [carId, after, nextDay, userId]
+      );
+    }
+  } else if (onlyDay) {
     // База — цена до этого дня (не «текущая на этот день», иначе повторное изменение ломает восстановление).
     const base = await rateBeforeDay(db, carId, validFrom);
     const nextDay = addDays(validFrom, 1);
@@ -154,6 +329,10 @@ export async function applyCarRate(db, carId, rate, validFrom, { onlyDay = false
     }
   } else {
     await db.query(
+      `DELETE FROM car_rate_history WHERE car_id = $1 AND substr(valid_from, 1, 10) >= $2`,
+      [carId, validFrom]
+    );
+    await db.query(
       'INSERT INTO car_rate_history (car_id, rate, valid_from, created_by) VALUES ($1, $2, $3, $4)',
       [carId, amount, validFrom, userId]
     );
@@ -165,8 +344,9 @@ export async function applyCarRate(db, carId, rate, validFrom, { onlyDay = false
     daily_rate: current,
     rate: amount,
     valid_from: validFrom,
+    valid_to: onlyDay ? validFrom : validTo || null,
     only_day: Boolean(onlyDay),
-    restored_from: onlyDay ? addDays(validFrom, 1) : null,
+    restored_from: onlyDay ? addDays(validFrom, 1) : validTo ? addDays(validTo, 1) : null,
   };
 }
 
@@ -176,7 +356,7 @@ function placeholders(list, offset = 0) {
 
 export async function loadAccrualInputs(db, carIds) {
   const ids = [...new Set(carIds.map(Number))].filter(Boolean);
-  if (!ids.length) return { ids, assignments: [], rates: [], daysOff: [] };
+  if (!ids.length) return { ids, assignments: [], reports: [], rates: [], daysOff: [] };
   const list = placeholders(ids);
   // Выдачи удалённых водителей тоже начисляются: отчёт по машине не должен меняться от удаления водителя.
   // handed_over: в тот же день водитель взял другую выдачу — этот день начисляется только по новой.
@@ -200,7 +380,11 @@ export async function loadAccrualInputs(db, carIds) {
     `SELECT car_id, day, reason FROM car_days_off WHERE car_id IN (${list})`,
     ids
   );
-  return { ids, assignments, rates, daysOff };
+  const { rows: reports } = await db.query(
+    `SELECT car_id, day FROM car_day_reports WHERE car_id IN (${list})`,
+    ids
+  );
+  return { ids, assignments, reports, rates, daysOff };
 }
 
 // Возвращает Map(carId → { total, days: [{ day, rate }] }).
@@ -219,6 +403,7 @@ export function computeAccruals(inputs, { from = null, to = null } = {}) {
     return map;
   };
   const assignments = byCar(inputs.assignments);
+  const reports = byCar(inputs.reports || []);
   const rates = byCar(inputs.rates);
   const off = byCar(inputs.daysOff);
 
@@ -234,6 +419,10 @@ export function computeAccruals(inputs, { from = null, to = null } = {}) {
       if (from && start < from) start = from;
       if (end > upper) end = upper;
       for (const day of daysBetween(start, end)) days.add(day);
+    }
+    // Отчёт за день: водитель ездил — аренда за этот день начислена, даже если он не платил.
+    for (const row of reports.get(carId) || []) {
+      if ((!from || row.day >= from) && row.day <= upper) days.add(row.day);
     }
     for (const row of off.get(carId) || []) days.delete(row.day);
 
@@ -281,68 +470,68 @@ export async function carDailyLedger(db, carId, from, to, { driverId = null } = 
   const rateByDay = new Map(accrual.days.map((d) => [d.day, d.rate]));
   const offDays = new Map(inputs.daysOff.map((r) => [r.day, r.reason || null]));
 
-  const { rows: assigns } = await db.query(
-    `SELECT ca.driver_id, ca.start_at, ca.end_at, u.full_name AS driver_name
-     FROM car_assignments ca
-     LEFT JOIN drivers d ON d.id = ca.driver_id
-     LEFT JOIN users u ON u.id = d.user_id
-     WHERE ca.car_id = $1
-     ORDER BY ca.start_at ASC, ca.id ASC`,
-    [id]
-  );
-  const spans = assigns
-    .map((a) => ({
-      driver_id: Number(a.driver_id),
-      driver_name: a.driver_name || 'Удалённый водитель',
-      from: localDay(a.start_at),
-      to: a.end_at ? localDay(a.end_at) : today,
-    }))
-    .filter((s) => s.from);
-  // В день передачи машины день считается за того, кто её взял.
-  const driverOn = (day) => {
-    let hit = null;
-    for (const s of spans) if (s.from <= day && day <= s.to) hit = s;
-    return hit;
-  };
+  const driverOnCar = await loadCarDrivers(db, [id]);
+  const driverOn = (day) => driverOnCar(id, day);
 
+  // Оплата идёт тому, кто платил (driver_id в операции), а без него — водителю этого дня.
   const { rows: tx } = await db.query(
-    `SELECT tx_date, method, status, COALESCE(SUM(amount), 0) AS total
-     FROM car_transactions
-     WHERE car_id = $1 AND kind = 'INCOME' AND category <> 'DEPOSIT' AND tx_date >= $2 AND tx_date <= $3
-     GROUP BY tx_date, method, status`,
+    `SELECT t.tx_date, t.method, t.status, t.driver_id, u.full_name AS driver_name,
+            COALESCE(SUM(t.amount), 0) AS total
+     FROM car_transactions t
+     LEFT JOIN drivers d ON d.id = t.driver_id
+     LEFT JOIN users u ON u.id = d.user_id
+     WHERE t.car_id = $1 AND t.kind = 'INCOME' AND t.category <> 'DEPOSIT' AND t.tx_date >= $2 AND t.tx_date <= $3
+     GROUP BY t.tx_date, t.method, t.status, t.driver_id, u.full_name`,
     [id, from, upper]
   );
   const pay = new Map();
   for (const row of tx) {
     const day = String(row.tx_date).slice(0, 10);
-    if (!pay.has(day)) pay.set(day, { cash: 0, transfer: 0, pending: 0 });
-    const slot = pay.get(day);
+    const dayDriver = driverOn(day)?.driver_id ?? null;
+    const payer = row.driver_id == null ? dayDriver : Number(row.driver_id);
+    if (!pay.has(day)) pay.set(day, new Map());
+    const slots = pay.get(day);
+    const key = payer ?? 'none';
+    if (!slots.has(key)) {
+      slots.set(key, { cash: 0, transfer: 0, pending: 0, driver_name: row.driver_name || 'Удалённый водитель' });
+    }
+    const slot = slots.get(key);
     const amount = Number(row.total);
     if (row.status !== 'CONFIRMED') slot.pending += amount;
     else if (row.method === 'CASH') slot.cash += amount;
     else slot.transfer += amount;
   }
 
+  const makeRow = (day, driver, accrued, { cash = 0, transfer = 0, pending = 0 } = {}, extra = false) => ({
+    day,
+    driver_id: driver?.driver_id ?? null,
+    driver_name: driver?.driver_name ?? null,
+    reported: Boolean(driver?.reported),
+    extra,
+    day_off: offDays.has(day),
+    idle: offDays.get(day) || null,
+    accrued,
+    cash,
+    transfer,
+    paid: cash + transfer,
+    pending,
+    debt: Math.max(accrued - cash - transfer, 0),
+  });
+
   const rows = [];
   for (const day of daysBetween(from, upper)) {
     const driver = driverOn(day);
-    if (driverId && (!driver || driver.driver_id !== Number(driverId))) continue;
-    const accrued = rateByDay.get(day) || 0;
-    const { cash = 0, transfer = 0, pending = 0 } = pay.get(day) || {};
-    const paid = cash + transfer;
-    rows.push({
-      day,
-      driver_id: driver?.driver_id ?? null,
-      driver_name: driver?.driver_name ?? null,
-      day_off: offDays.has(day),
-      idle: offDays.get(day) || null,
-      accrued,
-      cash,
-      transfer,
-      paid,
-      pending,
-      debt: Math.max(accrued - paid, 0),
-    });
+    const own = driver?.driver_id ?? 'none';
+    const slots = pay.get(day) || new Map();
+    if (!driverId || (driver && driver.driver_id === Number(driverId))) {
+      rows.push(makeRow(day, driver, rateByDay.get(day) || 0, slots.get(own)));
+    }
+    // Другой водитель отдал деньги в этот день: отдельная строка без начисления, деньги гасят его долг.
+    for (const [key, slot] of slots) {
+      if (key === own || key === 'none') continue;
+      if (driverId && key !== Number(driverId)) continue;
+      rows.push(makeRow(day, { driver_id: key, driver_name: slot.driver_name, reported: false }, 0, slot, true));
+    }
   }
 
   return { from, to: upper, rows, totals: ledgerTotals(rows) };
@@ -352,11 +541,7 @@ export async function carDailyLedger(db, carId, from, to, { driverId = null } = 
 export async function carDebtDays(db, carId) {
   const id = Number(carId);
   const today = localToday();
-  const { rows: first } = await db.query(
-    'SELECT MIN(ca.start_at) AS start_at FROM car_assignments ca WHERE ca.car_id = $1',
-    [id]
-  );
-  const firstDay = localDay(first[0]?.start_at);
+  const firstDay = await carFirstDay(db, id);
   if (!firstDay) return { debt: 0, pending: 0, days: [] };
   const ledger = await carDailyLedger(db, id, firstDay > today ? today : firstDay, today);
   const days = ledger.rows
@@ -441,47 +626,30 @@ export function driverCalendarFromRows(rows, { carId = null } = {}) {
   return { days, closed: closeCalendarDays(days) };
 }
 
-// Насколько закрыта аренда у водителя по текущей машине. Дни прошлой машины сюда не входят.
+// Насколько закрыта аренда у водителя: все дни из отчётов по любым машинам, на которых он ездил.
 export async function rentStatus(db, driverId) {
   const id = Number(driverId);
   const today = localToday();
 
-  const { rows: current } = await db.query(
-    `SELECT ca.car_id, ca.start_at, c.plate, c.brand, c.model,
-            (SELECT rate FROM car_rate_history r WHERE r.car_id = ca.car_id AND r.valid_from <= $2
-             ORDER BY r.valid_from DESC, r.id DESC LIMIT 1) AS rate
-     FROM car_assignments ca JOIN cars c ON c.id = ca.car_id
-     WHERE ca.driver_id = $1 AND ca.end_at IS NULL
-     ORDER BY ca.start_at DESC LIMIT 1`,
-    [id, today]
-  );
-  const car = current[0] || null;
+  const firstDay = await driverFirstDay(db, id);
+  if (!firstDay) return null;
+  for (const carId of await driverCarIds(db, [id])) await syncCarRateToAssignments(db, carId);
+  const rows = await driverLedgerRows(db, [id], firstDay, today);
 
-  let firstDay;
-  let rows;
-  if (car) {
-    const carId = Number(car.car_id);
-    await syncCarRateToAssignments(db, carId);
-    firstDay = localDay(car.start_at);
-    if (!firstDay) return null;
-    const ledger = await carDailyLedger(db, carId, firstDay, today, { driverId: id });
-    rows = ledger.rows.map((r) => ({ ...r, car_id: carId, plate: car.plate }));
-  } else {
-    const { rows: first } = await db.query(
-      'SELECT MIN(start_at) AS start_at FROM car_assignments WHERE driver_id = $1',
-      [id]
-    );
-    firstDay = localDay(first[0]?.start_at);
-    if (!firstDay) return null;
+  const last = await lastCarOfDriver(db, id);
+  let car = null;
+  if (last) {
     const { rows: cars } = await db.query(
-      'SELECT DISTINCT car_id FROM car_assignments WHERE driver_id = $1',
-      [id]
+      `SELECT c.id AS car_id, c.plate, c.brand, c.model,
+              (SELECT rate FROM car_rate_history r WHERE r.car_id = c.id AND r.valid_from <= $2
+               ORDER BY r.valid_from DESC, r.id DESC LIMIT 1) AS rate
+       FROM cars c WHERE c.id = $1`,
+      [last.car_id, today]
     );
-    for (const row of cars) await syncCarRateToAssignments(db, row.car_id);
-    rows = await driverLedgerRows(db, [id], firstDay, today);
+    car = cars[0] || null;
   }
 
-  const { days, closed } = driverCalendarFromRows(rows, { carId: car ? Number(car.car_id) : null });
+  const { days, closed } = driverCalendarFromRows(rows);
   const rate = car?.rate ? Number(car.rate) : 0;
   const aheadDays = closed.pool > 0 && rate > 0 ? Math.floor(closed.pool / rate) : 0;
 
@@ -578,11 +746,7 @@ export async function carRentStatus(db, carId) {
   const id = Number(carId);
   const today = localToday();
   await syncCarRateToAssignments(db, id);
-  const { rows: first } = await db.query(
-    'SELECT MIN(start_at) AS start_at FROM car_assignments WHERE car_id = $1',
-    [id]
-  );
-  const firstDay = localDay(first[0]?.start_at);
+  const firstDay = await carFirstDay(db, id);
   const from = firstDay || today;
   const ledger = await carDailyLedger(db, id, from, today);
   const days = ledger.rows;
@@ -591,36 +755,35 @@ export async function carRentStatus(db, carId) {
   const { rows: carRows } = await db.query(
     `SELECT c.plate, c.brand, c.model,
             (SELECT rate FROM car_rate_history r WHERE r.car_id = c.id AND r.valid_from <= $2
-             ORDER BY r.valid_from DESC, r.id DESC LIMIT 1) AS rate,
-            ca.driver_id, u.full_name AS driver_name
+             ORDER BY r.valid_from DESC, r.id DESC LIMIT 1) AS rate
      FROM cars c
-     LEFT JOIN car_assignments ca ON ca.car_id = c.id AND ca.end_at IS NULL
-     LEFT JOIN drivers d ON d.id = ca.driver_id
-     LEFT JOIN users u ON u.id = d.user_id
      WHERE c.id = $1`,
     [id, today]
   );
   const car = carRows[0] || {};
   const rate = car.rate ? Number(car.rate) : 0;
   const aheadDays = closed.pool > 0 && rate > 0 ? Math.floor(closed.pool / rate) : 0;
+  const todayRow = days.find((d) => d.day === today);
 
   return {
     today,
     first_day: from,
     car: { id, plate: car.plate, brand: car.brand, model: car.model },
-    driver: car.driver_id ? { id: Number(car.driver_id), name: car.driver_name } : null,
+    driver: todayRow?.driver_id ? { id: Number(todayRow.driver_id), name: todayRow.driver_name } : null,
     rate,
     ...closed.totals,
     debt_days: closed.debtDays,
     paid_through: closed.paidThrough,
     debt_from: closed.debtFrom,
     ahead_until: aheadDays ? addDays(today, aheadDays) : null,
-    days: days.map(({ day, accrued, paid, pending: wait, covered, left, status, idle, driver_id, driver_name, day_off }) => ({
+    days: days.map(({ day, accrued, paid, pending: wait, covered, left, status, idle, driver_id, driver_name, reported, extra, day_off }) => ({
       day, accrued, paid, pending: wait, covered, left, status,
       idle: status === 'off' ? idle || null : null,
       day_off: Boolean(day_off),
       driver_id: driver_id || null,
       driver_name: driver_name || null,
+      reported: Boolean(reported),
+      extra: Boolean(extra),
       plates: car.plate ? [car.plate] : [],
     })),
   };
@@ -630,20 +793,13 @@ export async function carRentStatus(db, carId) {
 export async function driverLedgerRows(db, driverIds, from, to) {
   const ids = [...new Set(driverIds.map(Number))].filter(Boolean);
   if (!ids.length) return [];
-  const today = localToday();
-  const { rows: assigns } = await db.query(
-    `SELECT ca.car_id, ca.start_at, ca.end_at, c.plate, c.brand, c.model
-     FROM car_assignments ca JOIN cars c ON c.id = ca.car_id
-     WHERE ca.driver_id IN (${placeholders(ids)})`,
-    ids
+  const carIds = await driverCarIds(db, ids, { from, to });
+  if (!carIds.length) return [];
+  const { rows: carRows } = await db.query(
+    `SELECT id, plate, brand, model FROM cars WHERE id IN (${placeholders(carIds)})`,
+    carIds
   );
-  const cars = new Map();
-  for (const a of assigns) {
-    const start = localDay(a.start_at);
-    const end = a.end_at ? localDay(a.end_at) : today;
-    if (!start || start > to || end < from) continue;
-    cars.set(Number(a.car_id), { plate: a.plate, brand: a.brand, model: a.model });
-  }
+  const cars = new Map(carRows.map((c) => [Number(c.id), { plate: c.plate, brand: c.brand, model: c.model }]));
   const wanted = new Set(ids);
   const out = [];
   for (const [carId, car] of cars) {

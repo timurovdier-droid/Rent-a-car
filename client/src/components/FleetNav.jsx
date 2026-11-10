@@ -31,7 +31,6 @@ const DISPATCHER_SECTIONS = [
     icon: 'car',
     items: [
       { to: '/cars', label: 'Автомобили' },
-      { to: '/assignments', label: 'Выдачи машин' },
       { to: '/service', label: 'Сервис' },
     ],
   },
@@ -85,7 +84,6 @@ const ADMIN_SECTIONS = [
     icon: 'car',
     items: [
       { to: '/cars', label: 'Автомобили' },
-      { to: '/assignments', label: 'Выдачи машин' },
       { to: '/service', label: 'Сервис' },
     ],
   },
@@ -98,6 +96,7 @@ const ADMIN_SECTIONS = [
         title: 'Финансы',
         items: [
           { to: '/reports?tab=summary', label: 'Сводка' },
+          { to: '/reports?tab=pending', label: 'Ждут подтверждения' },
           { to: '/reports?tab=cars', label: 'По машинам' },
           { to: '/reports?tab=drivers', label: 'Отчёт по водителям' },
           { to: '/reports?tab=journal', label: 'Ведомость операций' },

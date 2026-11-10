@@ -23,100 +23,6 @@ const DRIVER_TABS_BASE = [
   { key: 'car', label: 'Машина' },
 ];
 
-function ChangeCarModal({ driver, onClose, onDone }) {
-  const current = driver.assignments.find((a) => !a.end_at) || null;
-  const [cars, setCars] = useState(null);
-  const [carId, setCarId] = useState('');
-  const [day, setDay] = useState(todayLocal());
-  const [mileageOld, setMileageOld] = useState('');
-  const [mileageNew, setMileageNew] = useState('');
-  const [error, setError] = useState('');
-  const [saving, setSaving] = useState(false);
-
-  useEffect(() => {
-    api.get('/cars')
-      .then((list) => setCars(list.filter((c) => c.status !== 'RENTED' && !c.driver_name)))
-      .catch((err) => setError(errText(err, 'Не удалось загрузить машины')));
-  }, []);
-
-  function pick(value) {
-    setCarId(value);
-    const car = cars?.find((c) => String(c.id) === value);
-    setMileageNew(car?.mileage != null ? String(car.mileage) : '');
-  }
-
-  async function submit(e) {
-    e.preventDefault();
-    setSaving(true);
-    setError('');
-    try {
-      await api.post(`/drivers/${driver.id}/change-car`, {
-        car_id: carId, date: day, mileage_old: current ? mileageOld : undefined, mileage_new: mileageNew,
-      });
-      onDone();
-    } catch (err) {
-      setError(errText(err, 'Не удалось сменить машину'));
-      setSaving(false);
-    }
-  }
-
-  return (
-    <Modal title={current ? 'Сменить машину' : 'Выдать машину'} onClose={onClose}>
-      <form onSubmit={submit}>
-        {current && (
-          <>
-            <div className="field">
-              <span className="field__label">Сейчас на машине</span>
-              <span><Plate value={current.plate} /> <span className="muted small">{`${current.brand} ${current.model}`}</span></span>
-            </div>
-            <p className="muted small" style={{ marginTop: 0 }}>
-              Старая машина станет свободной, аренда по ней закончится накануне дня смены. День смены считается за новую машину.
-            </p>
-          </>
-        )}
-        <div className="field">
-          <label className="field__label" htmlFor="cc-car">Новая машина</label>
-          <Select
-            id="cc-car"
-            value={carId}
-            onChange={pick}
-            required
-            disabled={!cars}
-            placeholder={cars ? '— выберите свободную машину —' : 'Загрузка…'}
-            options={(cars || []).map((c) => ({
-              value: c.id,
-              label: `${c.plate} · ${c.brand} ${c.model}`,
-              hint: c.daily_rate ? `${fmtMoney(c.daily_rate)} сум/день` : undefined,
-            }))}
-          />
-          {cars && cars.length === 0 && <span className="muted small">Свободных машин нет</span>}
-        </div>
-        <div className="field">
-          <label className="field__label" htmlFor="cc-date">Дата смены</label>
-          <DateInput id="cc-date" className="field__input" value={day} max={todayLocal()} onChange={(e) => setDay(e.target.value)} required />
-        </div>
-        <div className="form-grid">
-          {current && (
-            <div className="field">
-              <label className="field__label" htmlFor="cc-km-old">{`Пробег сдаваемой (${current.plate})`}</label>
-              <MoneyInput id="cc-km-old" value={mileageOld} onChange={setMileageOld} required suffix="км" />
-            </div>
-          )}
-          <div className="field">
-            <label className="field__label" htmlFor="cc-km-new">Пробег новой машины</label>
-            <MoneyInput id="cc-km-new" value={mileageNew} onChange={setMileageNew} required suffix="км" />
-          </div>
-        </div>
-        {error && <div className="notice notice--error">{error}</div>}
-        <div className="form-actions">
-          <button className="btn" type="submit" disabled={saving || !carId}>{saving ? 'Сохраняю…' : current ? 'Сменить машину' : 'Выдать машину'}</button>
-          <button className="btn btn--quiet" type="button" onClick={onClose}>Отмена</button>
-        </div>
-      </form>
-    </Modal>
-  );
-}
-
 function DepositModal({ driver, onClose, onDone }) {
   const [value, setValue] = useState(String(driver.deposit || 0));
   const [reason, setReason] = useState('');
@@ -241,7 +147,6 @@ export default function DriverPage() {
   const [editing, setEditing] = useState(false);
   const [depositOpen, setDepositOpen] = useState(false);
   const [passwordOpen, setPasswordOpen] = useState(false);
-  const [carOpen, setCarOpen] = useState(false);
   const [ledgerVersion, setLedgerVersion] = useState(0);
   const [searchParams, setSearchParams] = useSearchParams();
   const tabParam = searchParams.get('tab') || 'reports';
@@ -269,10 +174,6 @@ export default function DriverPage() {
   useEffect(() => { load(); }, [load]);
 
   async function act(action) {
-    if (action !== 'restore' && driver.car_id) {
-      setError(`Сначала примите у водителя машину ${driver.car_plate} — это делается на странице машины, вкладка «Водитель»`);
-      return;
-    }
     const texts = {
       archive: `Убрать ${driver.full_name} в архив? Его можно будет вернуть на странице «Водители» → «Архив».`,
       restore: `Вернуть ${driver.full_name} из архива?`,
@@ -425,16 +326,12 @@ export default function DriverPage() {
 
       {tab === 'car' && (
         <div className="panel">
-          <div className="panel__head">
-            <h3 className="panel__title" style={{ margin: 0 }}>Машины водителя</h3>
-            {!archived && (
-              <button className="btn btn--quiet btn--sm" onClick={() => setCarOpen(true)}>
-                {driver.car_id ? 'Сменить машину' : 'Выдать машину'}
-              </button>
-            )}
-          </div>
+          <h3 className="panel__title">Машины водителя</h3>
+          <p className="muted small" style={{ marginTop: 0 }}>
+            Машину водителю не выдают: на какой машине он ездил, видно по отчётам за день на странице машины.
+          </p>
           {driver.assignments.length === 0 ? (
-            <p className="muted">Водитель ещё не брал машину.</p>
+            <p className="muted">Отчётов с этим водителем ещё не было.</p>
           ) : (
             <div className="table-wrap">
               <table className="table">
@@ -448,7 +345,7 @@ export default function DriverPage() {
                 </thead>
                 <tbody>
                   {driver.assignments.map((a) => {
-                    const active = !a.end_at;
+                    const active = a.current ?? !a.end_at;
                     return (
                       <tr key={a.id} className="table__row">
                         <td className="table__td">
@@ -461,7 +358,9 @@ export default function DriverPage() {
                           {fmtDay(localDayOf(a.start_at))} — {a.end_at ? fmtDay(localDayOf(a.end_at)) : 'сейчас'}
                         </td>
                         <td className="table__td table__num">
-                          {fmtNumber(a.mileage_start)} → {a.mileage_end != null ? fmtNumber(a.mileage_end) : '…'} км
+                          {a.mileage_start == null
+                            ? '—'
+                            : `${fmtNumber(a.mileage_start)} → ${a.mileage_end != null ? fmtNumber(a.mileage_end) : '…'} км`}
                         </td>
                         <td className="table__td">
                           {active ? <span className="badge badge--wait">Сейчас</span> : <span className="badge badge--muted">Завершено</span>}
@@ -477,13 +376,6 @@ export default function DriverPage() {
       )}
 
       {editing && <DriverForm driver={driver} onClose={() => setEditing(false)} onSaved={() => { setEditing(false); load(); }} />}
-      {carOpen && (
-        <ChangeCarModal
-          driver={driver}
-          onClose={() => setCarOpen(false)}
-          onDone={() => { setCarOpen(false); load(); setLedgerVersion((v) => v + 1); }}
-        />
-      )}
       {passwordOpen && <PasswordModal driver={driver} onClose={() => setPasswordOpen(false)} onDone={load} />}
       {depositOpen && <DepositModal driver={driver} onClose={() => setDepositOpen(false)} onDone={() => { setDepositOpen(false); load(); }} />}
     </div>

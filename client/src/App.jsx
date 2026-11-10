@@ -15,7 +15,6 @@ import { DriverCarPage, DriverContactsPage, DriverMileagePage, DriverExpensesPag
 import useIsPhone from './components/useIsPhone';
 import DriverReportPage from './pages/DriverReportPage';
 import PaymentsQueuePage from './pages/PaymentsQueuePage';
-import AssignmentsPage from './pages/AssignmentsPage';
 import DailyReportsPage from './pages/DailyReportsPage';
 import ServicePage from './pages/ServicePage';
 import NotificationsPage from './pages/NotificationsPage';
@@ -91,11 +90,6 @@ export default function App() {
           <Route 
             path="/payments-queue" 
             element={<Guard roles={['DISPATCHER', 'ADMIN']}><PaymentsQueuePage /></Guard>} 
-          />
-          
-          <Route 
-            path="/assignments" 
-            element={<Guard roles={['DISPATCHER', 'ADMIN']}><AssignmentsPage /></Guard>} 
           />
           
           <Route 

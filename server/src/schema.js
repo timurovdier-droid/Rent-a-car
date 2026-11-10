@@ -281,6 +281,18 @@ CREATE TABLE IF NOT EXISTS push_subscriptions (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_push_subscriptions_driver ON push_subscriptions (driver_id);
+CREATE TABLE IF NOT EXISTS car_day_reports (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  car_id INTEGER NOT NULL,
+  driver_id INTEGER NOT NULL,
+  day TEXT NOT NULL,
+  comment TEXT,
+  created_by INTEGER,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT,
+  UNIQUE (car_id, day)
+);
+CREATE INDEX IF NOT EXISTS idx_car_day_reports_driver ON car_day_reports (driver_id, day);
 CREATE TABLE IF NOT EXISTS car_documents (
   car_id INTEGER NOT NULL,
   kind TEXT NOT NULL,

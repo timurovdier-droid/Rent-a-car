@@ -5,17 +5,17 @@ import {
   daysBetween,
   addDays,
   localToday,
+  carStatusSql,
+  carDriverNameSql,
 } from './carMoney.js';
 
 export async function visibleCars(db, user) {
   const scope = await carScope(db, user);
   const { rows } = await db.query(
-    `SELECT c.id, c.plate, c.brand, c.model, c.year, c.color, c.status, c.branch_id, c.owner_id,
+    `SELECT c.id, c.plate, c.brand, c.model, c.year, c.color, ${carStatusSql('c')} AS status, c.branch_id, c.owner_id,
             c.daily_rate, c.mileage, c.insurance_expires, c.inspection_expires, c.photo_version,
             o.name AS owner_name, b.name AS branch_name,
-            (SELECT u.full_name FROM car_assignments ca
-               JOIN drivers d ON d.id = ca.driver_id JOIN users u ON u.id = d.user_id
-             WHERE ca.car_id = c.id AND ca.end_at IS NULL LIMIT 1) AS driver_name
+            ${carDriverNameSql('c')} AS driver_name
      FROM cars c
      LEFT JOIN owners o ON o.id = c.owner_id
      LEFT JOIN branches b ON b.id = c.branch_id

@@ -11,7 +11,7 @@ import CarForm from '../components/CarForm';
 import CarDocuments from '../components/CarDocuments';
 import { CarVisual } from '../components/CarTile';
 import DayCalendar from '../components/DayCalendar';
-import { CarRentStatus } from '../components/RentStatus';
+import { CarRentStatus, DayReportModal } from '../components/RentStatus';
 import TxList from '../components/TxList';
 import DateInput from '../components/DateInput';
 import NavIcon from '../components/NavIcon';
@@ -284,139 +284,6 @@ function AddEntry({ carId, isAdmin, onClose, onDone }) {
   );
 }
 
-function DriverPanel({ hub, canWrite, onChanged }) {
-  const { car, current, free_drivers: drivers, assignments, today } = hub;
-  const [driverId, setDriverId] = useState('');
-  const [day, setDay] = useState(today);
-  const [mileage, setMileage] = useState(car.mileage != null ? String(car.mileage) : '');
-  const [releasing, setReleasing] = useState(false);
-  const [dating, setDating] = useState(false);
-  const [payFromOpen, setPayFromOpen] = useState(false);
-  const [changing, setChanging] = useState(false);
-  const [payFrom, setPayFrom] = useState('');
-  const [error, setError] = useState('');
-  const [saving, setSaving] = useState(false);
-
-  useEffect(() => {
-    setMileage(car.mileage != null ? String(car.mileage) : '');
-  }, [car.mileage]);
-
-  async function cancelAssignment() {
-    const text = `Убрать ${current.driver_name || 'водителя'} с машины ${car.plate}, как будто выдачи не было?\n\n`
-      + 'Аренда за эти дни не будет начислена, а запись пропадёт из истории и отчёта. '
-      + 'Если за эти дни на машине ездил другой человек — нажмите «Сменить водителя», отчёт тогда не изменится. '
-      + 'Если водитель реально ездил и вернул машину — нажмите «Принять машину».';
-    if (!window.confirm(text)) return;
-    setError('');
-    try {
-      await api.delete(`/cars/${car.id}/assignments/${current.id}`);
-      onChanged();
-    } catch (err) {
-      setError(errText(err, 'Не удалось убрать водителя'));
-    }
-  }
-
-  async function assign(e) {
-    e.preventDefault();
-    setSaving(true);
-    setError('');
-    try {
-      await api.post(`/cars/${car.id}/assign`, { driver_id: driverId, date: day, mileage, pay_from: payFrom || null });
-      setDriverId('');
-      setPayFrom('');
-      onChanged();
-    } catch (err) {
-      setError(errText(err, 'Не удалось выдать машину'));
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  return (
-    <div className="panel">
-      <h3 className="panel__title">Водитель</h3>
-      {current ? (
-        <div className="person__head" style={{ marginBottom: 12 }}>
-          <div className="avatar"><NavIcon name="users" size={24} /></div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div className="person__name">{current.driver_name || 'Удалённый водитель'}</div>
-            <div className="person__sub">
-              с {fmtDay(localDayOf(current.start_at))} · выдана с пробегом {fmtNumber(current.mileage_start)} км
-              {current.driver_phone ? ` · ${current.driver_phone}` : ''}
-            </div>
-            {current.pay_from && (
-              <div className="person__sub">
-                <b>{`Платит с ${fmtDay(current.pay_from)}`}</b>
-                {localDayOf(current.start_at) < current.pay_from && (
-                  <span className="muted"> · до этой даты аренда не начисляется, хотя машина у водителя</span>
-                )}
-              </div>
-            )}
-          </div>
-          {canWrite && (
-            <div className="driver-actions">
-              <button className="btn btn--quiet btn--sm" onClick={() => setReleasing(true)}>Принять машину</button>
-              <button className="btn btn--ghost btn--sm" onClick={() => setChanging(true)} title="Поменять водителя, не трогая отчёт">Сменить водителя</button>
-              <button className="btn btn--ghost btn--sm" onClick={() => setDating(true)} title="Если водитель взял машину в другой день">Изменить дату</button>
-              <button className="btn btn--ghost btn--sm" onClick={() => setPayFromOpen(true)} title="С какого числа водитель платит за машину">Платит с</button>
-              <button className="btn btn--ghost btn--sm" onClick={cancelAssignment} title="Если записали водителя по ошибке">Убрать с машины</button>
-            </div>
-          )}
-        </div>
-      ) : canWrite ? (
-        <form onSubmit={assign}>
-          <p className="muted small" style={{ marginTop: 0 }}>Машина свободна. Выдайте её водителю — с этого дня начнётся начисление ставки.</p>
-          <div className="field">
-            <label className="field__label" htmlFor="as-driver">Водитель</label>
-            <Select
-              id="as-driver"
-              value={driverId}
-              onChange={setDriverId}
-              required
-              placeholder="— выберите свободного водителя —"
-              options={drivers.map((d) => ({ value: d.id, label: d.full_name, hint: d.phone }))}
-            />
-            {drivers.length === 0 && <span className="muted small">Свободных водителей нет. Добавьте их в разделе «Водители».</span>}
-          </div>
-          <div className="form-grid">
-            <div className="field">
-              <label className="field__label" htmlFor="as-date">Дата выдачи</label>
-              <DateInput id="as-date" className="field__input" value={day} onChange={(e) => setDay(e.target.value)} required />
-            </div>
-            <div className="field">
-              <label className="field__label" htmlFor="as-km">Пробег при выдаче</label>
-              <MoneyInput id="as-km" value={mileage} onChange={setMileage} required suffix="км" />
-            </div>
-            <div className="field">
-              <label className="field__label" htmlFor="as-pay">Платит с</label>
-              <DateInput id="as-pay" className="field__input" value={payFrom} min={day} onChange={(e) => setPayFrom(e.target.value)} />
-              <span className="muted small">Если пусто — с даты выдачи</span>
-            </div>
-          </div>
-          {error && <div className="notice notice--error">{error}</div>}
-          <button className="btn" type="submit" disabled={saving || !driverId}>{saving ? 'Выдаю…' : 'Выдать машину'}</button>
-        </form>
-      ) : (
-        <p className="muted">Сейчас без водителя</p>
-      )}
-      {current && error && <div className="notice notice--error">{error}</div>}
-
-      {releasing && current && (
-        <ReleaseModal car={car} current={current} today={today} onClose={() => setReleasing(false)} onDone={() => { setReleasing(false); onChanged(); }} />
-      )}
-      {dating && current && (
-        <StartDateModal car={car} current={current} today={today} onClose={() => setDating(false)} onDone={() => { setDating(false); onChanged(); }} />
-      )}
-      {payFromOpen && current && (
-        <PayFromModal car={car} current={current} onClose={() => setPayFromOpen(false)} onDone={() => { setPayFromOpen(false); onChanged(); }} />
-      )}
-      {changing && current && (
-        <ChangeDriverModal car={car} assignment={current} today={today} onClose={() => setChanging(false)} onDone={() => { setChanging(false); onChanged(); }} />
-      )}
-    </div>
-  );
-}
-
 function daysBetween(from, to) {
   const [y1, m1, d1] = from.split('-').map(Number);
   const [y2, m2, d2] = to.split('-').map(Number);
@@ -442,179 +309,44 @@ function DriverName({ a, linkDrivers }) {
     : <span className="dh__name">{name}</span>;
 }
 
-function PastAssignmentModal({ car, today, onClose, onDone }) {
-  const [drivers, setDrivers] = useState([]);
-  const [driverId, setDriverId] = useState('');
-  const [startDay, setStartDay] = useState('');
-  const [endDay, setEndDay] = useState('');
-  const [mileageStart, setMileageStart] = useState(car.mileage != null ? String(car.mileage) : '');
-  const [mileageEnd, setMileageEnd] = useState('');
-  const [note, setNote] = useState('');
-  const [error, setError] = useState('');
-  const [saving, setSaving] = useState(false);
-
-  useEffect(() => {
-    api.get('/drivers')
-      .then((data) => setDrivers(Array.isArray(data) ? data : (data?.drivers || data?.items || [])))
-      .catch(() => setDrivers([]));
-  }, []);
-
-  async function submit(e) {
-    e.preventDefault();
-    if (!startDay || !endDay) {
-      setError('Укажите даты «с» и «по»');
-      return;
-    }
-    if (startDay > endDay) {
-      setError('Дата «по» не может быть раньше даты «с»');
-      return;
-    }
-    setSaving(true);
-    setError('');
-    try {
-      const body = {
-        driver_id: driverId,
-        start_date: startDay,
-        end_date: endDay,
-        note: note.trim() || undefined,
-      };
-      if (mileageStart !== '') body.mileage_start = mileageStart;
-      if (mileageEnd !== '') body.mileage_end = mileageEnd;
-      await api.post(`/cars/${car.id}/assignments/past`, body);
-      onDone();
-    } catch (err) {
-      setError(errText(err, 'Не удалось записать период'));
-      setSaving(false);
-    }
-  }
-
-  return (
-    <Modal title="Период работы водителя" onClose={onClose}>
-      <form onSubmit={submit}>
-        <p className="muted small" style={{ marginTop: 0 }}>
-          Отметьте промежуток: с какого по какое число водитель уже ездил (например, с 1 по 10, хотя сегодня 19).
-          Аренда начислится за эти дни. Если сейчас на машине другой водитель и даты пересекаются — его выдача сдвинется на день после конца периода.
-        </p>
-        <div className="field">
-          <label className="field__label" htmlFor="pa-driver">Водитель</label>
-          <Select
-            id="pa-driver"
-            value={driverId}
-            onChange={setDriverId}
-            required
-            placeholder="— выберите водителя —"
-            options={drivers.map((d) => ({ value: d.id, label: d.full_name || d.name, hint: d.phone }))}
-          />
-          {drivers.length === 0 && <span className="muted small">Список водителей пуст или не загрузился</span>}
-        </div>
-        <div className="form-grid">
-          <div className="field">
-            <label className="field__label" htmlFor="pa-from">Работал с</label>
-            <DateInput id="pa-from" className="field__input" value={startDay} max={endDay || today} onChange={(e) => setStartDay(e.target.value)} required />
-          </div>
-          <div className="field">
-            <label className="field__label" htmlFor="pa-to">Работал по</label>
-            <DateInput id="pa-to" className="field__input" value={endDay} min={startDay || undefined} max={today} onChange={(e) => setEndDay(e.target.value)} required />
-          </div>
-        </div>
-        <div className="form-grid">
-          <div className="field">
-            <label className="field__label" htmlFor="pa-km1">Пробег при выдаче</label>
-            <MoneyInput id="pa-km1" value={mileageStart} onChange={setMileageStart} suffix="км" />
-            <span className="muted small">можно не заполнять</span>
-          </div>
-          <div className="field">
-            <label className="field__label" htmlFor="pa-km2">Пробег при сдаче</label>
-            <MoneyInput id="pa-km2" value={mileageEnd} onChange={setMileageEnd} suffix="км" />
-            <span className="muted small">можно не заполнять</span>
-          </div>
-        </div>
-        <div className="field">
-          <label className="field__label" htmlFor="pa-note">Комментарий</label>
-          <input id="pa-note" className="field__input" value={note} onChange={(e) => setNote(e.target.value)} maxLength={300} placeholder="необязательно" />
-        </div>
-        {error && <div className="notice notice--error">{error}</div>}
-        <div className="form-actions">
-          <button className="btn" type="submit" disabled={saving || !driverId || !startDay || !endDay}>
-            {saving ? 'Сохраняю…' : 'Сохранить период'}
-          </button>
-          <button className="btn btn--quiet" type="button" onClick={onClose}>Отмена</button>
-        </div>
-      </form>
-    </Modal>
-  );
-}
-
-function ChangeDriverModal({ car, assignment, today, onClose, onDone }) {
-  const [drivers, setDrivers] = useState([]);
-  const [driverId, setDriverId] = useState('');
-  const [error, setError] = useState('');
-  const [saving, setSaving] = useState(false);
-  const { from, to } = assignmentSpan(assignment, today);
-
-  useEffect(() => {
-    api.get('/drivers')
-      .then((data) => setDrivers((Array.isArray(data) ? data : (data?.drivers || data?.items || []))
-        .filter((d) => Number(d.id) !== Number(assignment.driver_id))))
-      .catch(() => setDrivers([]));
-  }, [assignment.driver_id]);
-
-  async function submit(e) {
-    e.preventDefault();
-    setSaving(true);
-    setError('');
-    try {
-      await api.patch(`/cars/${car.id}/assignments/${assignment.id}/driver`, { driver_id: driverId });
-      onDone();
-    } catch (err) {
-      setError(errText(err, 'Не удалось сменить водителя'));
-      setSaving(false);
-    }
-  }
-
-  return (
-    <Modal title="Сменить водителя" onClose={onClose}>
-      <form onSubmit={submit}>
-        <p className="muted" style={{ marginTop: 0 }}>
-          <span data-no-translate>{assignment.driver_name || 'Удалённый водитель'}</span>
-          {' '}· {fmtDay(from)} — {assignment.end_at ? fmtDay(to) : 'по сей день'}
-        </p>
-        <p className="muted small">
-          Даты, пробег, начисленная аренда и все оплаты останутся как есть — поменяется только водитель за эти дни.
-        </p>
-        <div className="field">
-          <label className="field__label" htmlFor="cd-driver">Новый водитель</label>
-          <Select
-            id="cd-driver"
-            value={driverId}
-            onChange={setDriverId}
-            required
-            placeholder="— выберите водителя —"
-            options={drivers.map((d) => ({ value: d.id, label: d.full_name || d.name, hint: d.car_plate ? `${d.phone || ''} · сейчас на ${d.car_plate}` : d.phone }))}
-          />
-        </div>
-        {error && <div className="notice notice--error">{error}</div>}
-        <div className="form-actions">
-          <button className="btn" type="submit" disabled={saving || !driverId}>{saving ? 'Сохраняю…' : 'Сменить'}</button>
-          <button className="btn btn--quiet" type="button" onClick={onClose}>Отмена</button>
-        </div>
-      </form>
-    </Modal>
-  );
-}
-
-function DriverHistory({ hub, linkDrivers, canWrite = false, canDelete = false, onChanged }) {
-  const { assignments, today, car } = hub;
-  const [pastOpen, setPastOpen] = useState(false);
-  const [changing, setChanging] = useState(null);
+function DriverHistory({ hub, linkDrivers, canDelete = false, onChanged }) {
+  const { assignments, day_reports: reports = [], today, car } = hub;
   const [picked, setPicked] = useState(today);
   const [month, setMonth] = useState(today.slice(0, 7));
   const [busy, setBusy] = useState(null);
   const [error, setError] = useState('');
 
+  const reportByDay = useMemo(() => new Map(reports.map((r) => [r.day, r])), [reports]);
+  const spans = useMemo(
+    () => assignments.map((a) => ({ a, ...assignmentSpan(a, today) })),
+    [assignments, today]
+  );
+  // Отчёт за день важнее старой выдачи.
+  const whoOn = (day) => {
+    const r = reportByDay.get(day);
+    if (r) return { driver_id: r.driver_id, driver_name: r.driver_name, comment: r.comment, report: true };
+    let hit = null;
+    for (const s of spans) if (s.from <= day && day <= s.to) hit = s;
+    return hit ? { driver_id: hit.a.driver_id, driver_name: hit.a.driver_name, span: hit } : null;
+  };
+  const onDay = whoOn(picked);
+
+  const recent = useMemo(() => {
+    const from = shiftDay(today, -29);
+    const map = new Map();
+    for (const r of reports) {
+      if (r.day < from) continue;
+      const g = map.get(r.driver_id) || { driver_id: r.driver_id, driver_name: r.driver_name, days: 0, last: r.day };
+      g.days += 1;
+      if (r.day > g.last) g.last = r.day;
+      map.set(r.driver_id, g);
+    }
+    return [...map.values()].sort((a, b) => (a.last < b.last ? 1 : -1));
+  }, [reports, today]);
+
   async function remove(a, from, to) {
     const who = a.driver_name || 'Удалённый водитель';
-    const text = `Удалить из истории запись «${who}, ${fmtDay(from)} — ${a.end_at ? fmtDay(to) : 'по сей день'}»?\n\n`
+    const text = `Удалить из истории запись «${who}, ${fmtDay(from)} — ${fmtDay(to)}»?\n\n`
       + 'Аренда за эти дни больше не будет начисляться, долг за них пропадёт. Деньги, которые уже записаны, останутся.';
     if (!window.confirm(text)) return;
     setBusy(a.id);
@@ -629,301 +361,106 @@ function DriverHistory({ hub, linkDrivers, canWrite = false, canDelete = false, 
     }
   }
 
-  const spans = useMemo(
-    () => assignments.map((a) => ({ a, ...assignmentSpan(a, today) })),
-    [assignments, today]
-  );
-  const onDay = spans.filter((s) => s.from <= picked && picked <= s.to);
-
   const dayClass = (day) => {
     if (day === picked) return 'cal__day--pick';
-    return spans.some((s) => s.from <= day && day <= s.to) ? 'cal__day--busy' : '';
+    return whoOn(day) ? 'cal__day--busy' : '';
   };
 
   return (
     <div className="panel">
       <div className="dh__head">
         <h3 className="panel__title" style={{ margin: 0 }}>Кто ездил на машине</h3>
-        {assignments.length > 0 && <span className="muted small">{assignments.length} {plural(assignments.length, 'выдача', 'выдачи', 'выдач')}</span>}
       </div>
-
-      {canWrite && (
-        <div style={{ marginBottom: 12 }}>
-          <button type="button" className="btn btn--sm" onClick={() => setPastOpen(true)}>
-            Отметить период работы
-          </button>
-          <p className="muted small" style={{ margin: '6px 0 0' }}>
-            Если водитель ездил раньше (например, с 1 по 10), а вы отмечаете сегодня — укажите даты здесь.
-          </p>
-        </div>
-      )}
-
-      <p className="muted small" style={{ margin: '0 0 12px' }}>Выберите дату — покажем, какой водитель был на машине в этот день. Цветом отмечены дни, когда машина была у водителя.</p>
+      <p className="muted small" style={{ margin: '0 0 12px' }}>
+        Водителя к машине не привязывают: кто ездил и платил ли он, записывается в отчёте за день
+        (кнопка «+ Отчёт» или день в календаре на вкладке «Отчёт»). Выберите дату — покажем, кто был на машине.
+      </p>
       <DayCalendar month={month} onMonth={setMonth} onPick={setPicked} dayClass={dayClass} today={today} max={today} label="Дата" />
 
       <div className="dh-answer">
         <div className="dh-answer__date">{fmtDay(picked)}</div>
-        {onDay.length === 0 ? (
-          <div className="muted">Машина стояла без водителя</div>
+        {!onDay ? (
+          <div className="muted">Отчёта за этот день нет — аренда не начислена</div>
         ) : (
-          onDay.map(({ a, from, to }) => (
-            <div key={a.id} className="dh-answer__row">
-              <DriverName a={a} linkDrivers={linkDrivers} />
-              <span className="muted small">
-                {' '}· {from === picked ? 'взял(а) машину в этот день' : to === picked && a.end_at ? 'вернул(а) машину в этот день' : `с ${fmtDay(from)} по ${a.end_at ? fmtDay(to) : 'сей день'}`}
-              </span>
-            </div>
-          ))
+          <div className="dh-answer__row">
+            <DriverName a={onDay} linkDrivers={linkDrivers} />
+            <span className="muted small">
+              {onDay.report
+                ? `${onDay.comment ? ` · ${onDay.comment}` : ' · по отчёту за день'}`
+                : ` · старая выдача: с ${fmtDay(onDay.span.from)} по ${fmtDay(onDay.span.to)}`}
+            </span>
+          </div>
         )}
       </div>
 
-      {assignments.length === 0 ? (
-        <p className="muted small" style={{ margin: '16px 0 0' }}>Машину ещё никому не выдавали</p>
+      <div className="dh__sub">За последние 30 дней</div>
+      {recent.length === 0 ? (
+        <p className="muted small" style={{ margin: 0 }}>Отчётов с водителями пока нет</p>
       ) : (
-        <>
-          <div className="dh__sub">Все выдачи</div>
+        <ol className="dh">
+          {recent.map((g) => (
+            <li key={g.driver_id} className="dh__item">
+              <span className="dh__dot" aria-hidden="true" />
+              <button type="button" className="dh__body" onClick={() => { setPicked(g.last); setMonth(g.last.slice(0, 7)); }} title="Показать в календаре">
+                <div className="dh__top">
+                  <DriverName a={g} linkDrivers={linkDrivers} />
+                  {g.last >= shiftDay(today, -1) && <span className="badge badge--ok">Сейчас</span>}
+                </div>
+                <div className="dh__dates">
+                  {`${g.days} ${plural(g.days, 'день', 'дня', 'дней')}`}
+                  <span className="muted">{` · последний раз ${fmtDay(g.last)}`}</span>
+                </div>
+              </button>
+            </li>
+          ))}
+        </ol>
+      )}
+
+      {assignments.length > 0 && (
+        <details style={{ marginTop: 16 }}>
+          <summary className="muted small" style={{ cursor: 'pointer' }}>
+            {`Старые выдачи машины (${assignments.length})`}
+          </summary>
           {error && <div className="notice notice--error">{error}</div>}
           <ol className="dh">
             {spans.map(({ a, from, to }) => {
               const days = daysBetween(from, to);
               const km = a.mileage_end != null && a.mileage_start != null ? a.mileage_end - a.mileage_start : null;
-              const hit = onDay.some((s) => s.a.id === a.id);
               return (
-                <li key={a.id} className={`dh__item ${a.end_at ? '' : 'dh__item--now'} ${hit ? 'dh__item--hit' : ''}`}>
+                <li key={a.id} className="dh__item">
                   <span className="dh__dot" aria-hidden="true" />
                   <button type="button" className="dh__body" onClick={() => { setPicked(from); setMonth(from.slice(0, 7)); }} title="Показать в календаре">
                     <div className="dh__top">
                       <span className="dh__name">{a.driver_name || 'Удалённый водитель'}</span>
-                      {!a.end_at && <span className="badge badge--ok">Сейчас</span>}
                     </div>
                     <div className="dh__dates">
-                      {fmtDay(from)} — {a.end_at ? fmtDay(to) : 'по сей день'}
+                      {fmtDay(from)} — {fmtDay(to)}
                       <span className="muted"> · {days} {plural(days, 'день', 'дня', 'дней')}</span>
                     </div>
                     <div className="dh__meta">
-                      {a.end_at
-                        ? <>Пробег {fmtNumber(a.mileage_start)} → {fmtNumber(a.mileage_end)} км{km != null && km >= 0 ? ` (+${fmtNumber(km)})` : ''}</>
-                        : <>Выдана с пробегом {fmtNumber(a.mileage_start)} км</>}
-                      {a.created_by_name ? ` · выдал(а) ${a.created_by_name}` : ''}
+                      Пробег {fmtNumber(a.mileage_start)} → {fmtNumber(a.mileage_end)} км{km != null && km >= 0 ? ` (+${fmtNumber(km)})` : ''}
                     </div>
                     {a.note && <div className="dh__note">{a.note}</div>}
                   </button>
-                  {(canWrite || canDelete) && (
+                  {canDelete && (
                     <div className="dh__actions">
-                      {canWrite && (
-                        <button type="button" className="link-btn" onClick={() => setChanging(a)}>
-                          Сменить водителя
-                        </button>
-                      )}
-                      {canDelete && (
-                        <button
-                          type="button"
-                          className="link-btn link-btn--danger"
-                          disabled={busy === a.id}
-                          onClick={() => remove(a, from, to)}
-                        >
-                          Удалить из истории
-                        </button>
-                      )}
+                      <button
+                        type="button"
+                        className="link-btn link-btn--danger"
+                        disabled={busy === a.id}
+                        onClick={() => remove(a, from, to)}
+                      >
+                        Удалить из истории
+                      </button>
                     </div>
                   )}
                 </li>
               );
             })}
           </ol>
-        </>
-      )}
-      {pastOpen && (
-        <PastAssignmentModal
-          car={car}
-          today={today}
-          onClose={() => setPastOpen(false)}
-          onDone={() => { setPastOpen(false); onChanged?.(); }}
-        />
-      )}
-      {changing && (
-        <ChangeDriverModal
-          car={car}
-          assignment={changing}
-          today={today}
-          onClose={() => setChanging(null)}
-          onDone={() => { setChanging(null); onChanged?.(); }}
-        />
+        </details>
       )}
     </div>
-  );
-}
-
-function ReleaseModal({ car, current, today, onClose, onDone }) {
-  const [day, setDay] = useState(today);
-  const [mileage, setMileage] = useState('');
-  const [error, setError] = useState('');
-  const [saving, setSaving] = useState(false);
-
-  async function submit(e) {
-    e.preventDefault();
-    setSaving(true);
-    setError('');
-    try {
-      await api.post(`/cars/${car.id}/release`, { date: day, mileage });
-      onDone();
-    } catch (err) {
-      setError(errText(err, 'Не удалось принять машину'));
-      setSaving(false);
-    }
-  }
-
-  return (
-    <Modal title="Принять машину у водителя" onClose={onClose}>
-      <form onSubmit={submit}>
-        <p className="muted" style={{ marginTop: 0 }}>
-          {current.driver_name} · выдана {fmtDay(localDayOf(current.start_at))} с пробегом {fmtNumber(current.mileage_start)} км
-        </p>
-        <div className="field">
-          <label className="field__label" htmlFor="rl-date">Дата сдачи</label>
-          <DateInput id="rl-date" className="field__input" value={day} onChange={(e) => setDay(e.target.value)} required />
-        </div>
-        <div className="field">
-          <label className="field__label" htmlFor="rl-km">Пробег при сдаче</label>
-          <MoneyInput id="rl-km" value={mileage} onChange={setMileage} required suffix="км" autoFocus />
-        </div>
-        {error && <div className="notice notice--error">{error}</div>}
-        <div className="form-actions">
-          <button className="btn" type="submit" disabled={saving || !mileage}>{saving ? 'Сохраняю…' : 'Принять'}</button>
-          <button className="btn btn--quiet" type="button" onClick={onClose}>Отмена</button>
-        </div>
-      </form>
-    </Modal>
-  );
-}
-
-function StartDateModal({ car, current, today, onClose, onDone }) {
-  const [day, setDay] = useState(localDayOf(current.start_at));
-  const [endDay, setEndDay] = useState('');
-  const [mileageEnd, setMileageEnd] = useState('');
-  const [error, setError] = useState('');
-  const [saving, setSaving] = useState(false);
-  const closedPeriod = Boolean(endDay);
-
-  async function submit(e) {
-    e.preventDefault();
-    if (endDay && endDay < day) {
-      setError('Дата «работал по» не может быть раньше даты «взял машину»');
-      return;
-    }
-    setSaving(true);
-    setError('');
-    try {
-      const body = { date: day };
-      if (endDay) {
-        body.end_date = endDay;
-        if (mileageEnd !== '') body.mileage_end = mileageEnd;
-      }
-      await api.patch(`/cars/${car.id}/assignments/${current.id}/start`, body);
-      onDone();
-    } catch (err) {
-      setError(errText(err, 'Не удалось изменить дату'));
-      setSaving(false);
-    }
-  }
-
-  return (
-    <Modal title="Дата выдачи" onClose={onClose}>
-      <form onSubmit={submit}>
-        <p className="muted" style={{ marginTop: 0 }}>
-          <span data-no-translate>{current.driver_name}</span> · <span>Сейчас записано с</span> {fmtDay(localDayOf(current.start_at))}
-        </p>
-        <p className="muted small">
-          Укажите, когда водитель взял машину — аренда считается с этого дня по сегодня.
-          Если период уже закончился — заполните «Работал по»: будет запись «с … по …», машина освободится.
-        </p>
-        <div className="date-pair">
-          <div className="field">
-            <label className="field__label" htmlFor="sd-date">Взял машину</label>
-            <DateInput
-              id="sd-date"
-              className="field__input"
-              value={day}
-              max={endDay || today}
-              onChange={(e) => setDay(e.target.value)}
-              required
-            />
-          </div>
-          <div className="field">
-            <label className="field__label" htmlFor="sd-end">Работал по</label>
-            <DateInput
-              id="sd-end"
-              className="field__input"
-              value={endDay}
-              min={day || undefined}
-              max={today}
-              onChange={(e) => setEndDay(e.target.value)}
-            />
-          </div>
-        </div>
-        <p className="muted small date-pair__hint">
-          {closedPeriod ? `Период: ${fmtDay(day)} — ${fmtDay(endDay)}` : 'Второе поле пустое — считается по сей день'}
-        </p>
-        {closedPeriod && (
-          <div className="field">
-            <label className="field__label" htmlFor="sd-km">Пробег при сдаче</label>
-            <MoneyInput id="sd-km" value={mileageEnd} onChange={setMileageEnd} suffix="км" />
-            <span className="muted small">можно не заполнять</span>
-          </div>
-        )}
-        {error && <div className="notice notice--error">{error}</div>}
-        <div className="form-actions">
-          <button className="btn" type="submit" disabled={saving || !day}>
-            {saving ? 'Сохраняю…' : (closedPeriod ? 'Сохранить период' : 'Сохранить')}
-          </button>
-          <button className="btn btn--quiet" type="button" onClick={onClose}>Отмена</button>
-        </div>
-      </form>
-    </Modal>
-  );
-}
-
-function PayFromModal({ car, current, onClose, onDone }) {
-  const start = localDayOf(current.start_at);
-  const [day, setDay] = useState(current.pay_from || start);
-  const [error, setError] = useState('');
-  const [saving, setSaving] = useState(false);
-
-  async function save(date) {
-    setSaving(true);
-    setError('');
-    try {
-      await api.patch(`/cars/${car.id}/assignments/${current.id}/pay-from`, { date });
-      onDone();
-    } catch (err) {
-      setError(errText(err, 'Не удалось сохранить'));
-      setSaving(false);
-    }
-  }
-
-  return (
-    <Modal title="С какого числа платит" onClose={onClose}>
-      <form onSubmit={(e) => { e.preventDefault(); save(day); }}>
-        <p className="muted" style={{ marginTop: 0 }}>
-          <span data-no-translate>{current.driver_name}</span> · <span>взял машину</span> {fmtDay(start)}
-        </p>
-        <p className="muted small">
-          Аренда начнёт начисляться с этого числа. Дата выдачи и пробег не меняются, дни до этого числа водитель не должен.
-        </p>
-        <div className="field">
-          <label className="field__label" htmlFor="pf-date">Платит с</label>
-          <DateInput id="pf-date" className="field__input" value={day} min={start} onChange={(e) => setDay(e.target.value)} required />
-        </div>
-        {error && <div className="notice notice--error">{error}</div>}
-        <div className="form-actions">
-          <button className="btn" type="submit" disabled={saving || !day}>{saving ? 'Сохраняю…' : 'Сохранить'}</button>
-          {current.pay_from && (
-            <button className="btn btn--quiet" type="button" disabled={saving} onClick={() => save(null)}>С даты выдачи</button>
-          )}
-          <button className="btn btn--quiet" type="button" onClick={onClose}>Отмена</button>
-        </div>
-      </form>
-    </Modal>
   );
 }
 
@@ -931,12 +468,18 @@ function RateModal({ hub, onClose, onDone }) {
   const { car, rates, summary, today } = hub;
   const [rate, setRate] = useState('');
   const [from, setFrom] = useState(today);
-  const [scope, setScope] = useState('day'); // day | from
+  const [to, setTo] = useState(today);
+  const [scope, setScope] = useState('day'); // day | range | from
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
+  const replaced = scope === 'from' ? rates.filter((r) => String(r.valid_from).slice(0, 10) > from) : [];
 
   async function submit(e) {
     e.preventDefault();
+    if (scope === 'range' && to < from) {
+      setError('Дата «по» раньше даты «с»');
+      return;
+    }
     setSaving(true);
     setError('');
     try {
@@ -944,6 +487,7 @@ function RateModal({ hub, onClose, onDone }) {
         rate,
         valid_from: from,
         only_day: scope === 'day',
+        ...(scope === 'range' ? { valid_to: to } : {}),
       });
       onDone();
     } catch (err) {
@@ -965,9 +509,15 @@ function RateModal({ hub, onClose, onDone }) {
             <MoneyInput id="rt-rate" value={rate} onChange={setRate} required suffix="сум" autoFocus />
           </div>
           <div className="field">
-            <label className="field__label" htmlFor="rt-from">{scope === 'day' ? 'Дата' : 'Действует с'}</label>
+            <label className="field__label" htmlFor="rt-from">{scope === 'day' ? 'Дата' : scope === 'range' ? 'С' : 'Действует с'}</label>
             <DateInput id="rt-from" className="field__input" value={from} onChange={(e) => setFrom(e.target.value)} required />
           </div>
+          {scope === 'range' && (
+            <div className="field">
+              <label className="field__label" htmlFor="rt-to">По</label>
+              <DateInput id="rt-to" className="field__input" value={to} min={from} onChange={(e) => setTo(e.target.value)} required />
+            </div>
+          )}
         </div>
         <fieldset className="rate-scope" style={{ border: 0, padding: 0, margin: '0 0 12px' }}>
           <legend className="field__label" style={{ marginBottom: 6 }}>На какие дни</legend>
@@ -978,14 +528,26 @@ function RateModal({ hub, onClose, onDone }) {
               <span className="muted small" style={{ display: 'block' }}>Остальные даты без изменений</span>
             </span>
           </label>
+          <label className="rate-scope__opt" style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginBottom: 6 }}>
+            <input type="radio" name="rt-scope" checked={scope === 'range'} onChange={() => setScope('range')} />
+            <span>
+              <b>За период</b>
+              <span className="muted small" style={{ display: 'block' }}>Например, задним числом за прошлые дни. После периода — прежняя цена</span>
+            </span>
+          </label>
           <label className="rate-scope__opt" style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
             <input type="radio" name="rt-scope" checked={scope === 'from'} onChange={() => setScope('from')} />
             <span>
               <b>С этой даты и дальше</b>
-              <span className="muted small" style={{ display: 'block' }}>Как раньше: новая цена с выбранного дня</span>
+              <span className="muted small" style={{ display: 'block' }}>Новая цена с выбранного дня по сегодня и далее</span>
             </span>
           </label>
         </fieldset>
+        {replaced.length > 0 && (
+          <div className="notice">
+            {`Более поздние изменения ставки (${replaced.map((r) => `с ${fmtDay(String(r.valid_from).slice(0, 10))} — ${fmtMoney(r.rate)}`).join(', ')}) будут заменены новой ценой.`}
+          </div>
+        )}
         {error && <div className="notice notice--error">{error}</div>}
         <div className="form-actions">
           <button className="btn" type="submit" disabled={saving || rate === ''}>{saving ? 'Сохраняю…' : 'Изменить ставку'}</button>
@@ -995,7 +557,9 @@ function RateModal({ hub, onClose, onDone }) {
       <p className="muted small">
         {scope === 'day'
           ? 'Цена применится только к выбранной дате. Дни до и после останутся со своей ставкой.'
-          : 'Старые дни считаются по старой цене — прошлые отчёты не меняются.'}
+          : scope === 'range'
+            ? 'Начисление и долг за эти дни пересчитаются по новой цене. Дни до и после периода не меняются.'
+            : 'Дни до выбранной даты считаются по старой цене. Если дата в прошлом, начисление и долг с неё пересчитаются.'}
       </p>
       {rates.length > 0 && (
         <details>
@@ -1315,6 +879,8 @@ export default function CarPage() {
   const [debtOpen, setDebtOpen] = useState(false);
   const [idleOpen, setIdleOpen] = useState(false);
   const [entryOpen, setEntryOpen] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
+  const [reportKey, setReportKey] = useState(0);
   const [rateOpen, setRateOpen] = useState(false);
   const [flash, setFlash] = useState('');
   const [searchParams, setSearchParams] = useSearchParams();
@@ -1352,10 +918,6 @@ export default function CarPage() {
   }
 
   async function removeCar(action) {
-    if (hub.current) {
-      setError(`Сначала примите машину у водителя ${hub.current.driver_name} (вкладка «Водитель»)`);
-      return;
-    }
     const text = action === 'delete'
       ? `Удалить автомобиль ${hub.car.plate} навсегда вместе со всеми доходами, расходами и историей? Это действие нельзя отменить.`
       : `Убрать автомобиль ${hub.car.plate} в архив? Его можно будет вернуть на странице «Автомобили» → «Архив».`;
@@ -1387,7 +949,7 @@ export default function CarPage() {
 
   const tabs = [
     { key: 'report', label: 'Отчёт', count: pending.length, alert: true },
-    { key: 'driver', label: 'Водитель', count: hub.assignments.length },
+    { key: 'driver', label: 'Водители' },
     canWrite && { key: 'days', label: 'Выходные дни', count: upcomingDaysOff },
     { key: 'service', label: 'Обслуживание', count: dueCount, alert: true },
     { key: 'docs', label: 'Документы', count: (hub.documents || []).length },
@@ -1408,7 +970,11 @@ export default function CarPage() {
             <StatusMark status={car.status} />
           </div>
           <div className="badges" style={{ marginTop: 8 }}>
-            {hub.current && <span className="badge badge--muted">Водитель: {hub.current.driver_name}</span>}
+            {hub.driver && (
+              <span className="badge badge--muted">
+                {`Водитель: ${hub.driver.name}${hub.driver.day !== hub.today ? ` (${fmtDay(hub.driver.day)})` : ''}`}
+              </span>
+            )}
             {serviceDue && <DueBadge state={serviceDue.due} soon={`Скоро: ${serviceDue.label}`} overdue="Пора на обслуживание" />}
             <DueBadge state={car.insurance_due} soon="Страховка скоро кончится" overdue="Страховка просрочена" />
             <DueBadge state={car.inspection_due} soon="Техосмотр скоро" overdue="Техосмотр просрочен" />
@@ -1417,9 +983,10 @@ export default function CarPage() {
         </div>
         {canWrite && (
           <div className="form-actions">
-            <button className="btn btn--report" onClick={() => { setFlash(''); setEntryOpen(true); }}>
+            <button className="btn btn--report" onClick={() => { setFlash(''); setReportOpen(true); }}>
               <span className="btn--report__plus" aria-hidden="true">+</span>Отчёт
             </button>
+            <button className="btn btn--quiet" onClick={() => { setFlash(''); setEntryOpen(true); }} title="Другой доход или расход по машине">Доход / расход</button>
             <button className="btn btn--quiet" onClick={() => setIdleOpen(true)} title="Машина на ремонте или водитель оставил её — без начисления аренды">Простой</button>
             <button className="btn btn--quiet" onClick={() => setEditing(true)}>Изменить данные</button>
             {role === 'ADMIN' && <button className="btn btn--ghost" onClick={() => removeCar('archive')}>В архив</button>}
@@ -1491,33 +1058,20 @@ export default function CarPage() {
           </div>
         )}
         {tab === 'report' && reportView === 'days' && (
-          <CarRentStatus carId={car.id} onChanged={load} />
+          <CarRentStatus key={reportKey} carId={car.id} onChanged={load} />
         )}
         {tab === 'report' && reportView === 'ops' && (
           <TxList carId={car.id} items={hub.transactions} role={role} onChanged={load} />
         )}
 
         {tab === 'driver' && (
-          <div className="layout-2">
-            <div>
-              {canWrite ? (
-                <DriverPanel hub={hub} canWrite={canWrite} onChanged={load} />
-              ) : (
-                <div className="panel">
-                  <h3 className="panel__title">Водитель</h3>
-                  <p className="muted" style={{ margin: 0 }}>{hub.current ? `${hub.current.driver_name} · с ${fmtDay(localDayOf(hub.current.start_at))}` : 'Сейчас без водителя'}</p>
-                </div>
-              )}
-            </div>
-            <div>
-              <DriverHistory
-                hub={hub}
-                linkDrivers={role !== 'OWNER'}
-                canWrite={canWrite}
-                canDelete={role === 'ADMIN'}
-                onChanged={load}
-              />
-            </div>
+          <div className="tab-narrow">
+            <DriverHistory
+              hub={hub}
+              linkDrivers={role !== 'OWNER'}
+              canDelete={role === 'ADMIN'}
+              onChanged={load}
+            />
           </div>
         )}
 
@@ -1563,6 +1117,21 @@ export default function CarPage() {
       )}
       {rateOpen && (
         <RateModal hub={hub} onClose={() => setRateOpen(false)} onDone={() => { setRateOpen(false); load(); }} />
+      )}
+      {reportOpen && (
+        <DayReportModal
+          carId={car.id}
+          day={hub.today}
+          onClose={() => setReportOpen(false)}
+          onRefresh={() => { setReportKey((k) => k + 1); load(); }}
+          onDone={() => {
+            setReportOpen(false);
+            setFlash('Отчёт за день записан');
+            setReportKey((k) => k + 1);
+            openTab('report');
+            load();
+          }}
+        />
       )}
       {entryOpen && (
         <AddEntry

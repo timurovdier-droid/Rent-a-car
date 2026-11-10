@@ -2,7 +2,10 @@ import { Router } from 'express';
 import { pool } from '../db.js';
 import { authenticate } from '../middleware/auth.js';
 import { writeAudit } from '../middleware/audit.js';
-import { localDay, localToday, isDay, addDays, daysBetween, carDailyLedger, rentStatus } from '../carMoney.js';
+import {
+  localToday, isDay, addDays, daysBetween, rentStatus, lastCarOfDriver, driverFirstDay,
+  driverLedgerRows, ledgerTotals,
+} from '../carMoney.js';
 import { pushPublicKey, sendPush } from '../push.js';
 
 const router = Router();
@@ -12,16 +15,9 @@ function fail(res, status, code, message, field) {
   return res.status(status).json({ error: { code, message, ...(field ? { field } : {}) } });
 }
 
-async function currentCar(driverId) {
-  const { rows } = await pool.query(
-    `SELECT ca.car_id, ca.start_at
-     FROM car_assignments ca
-     WHERE ca.driver_id = $1 AND ca.end_at IS NULL
-     ORDER BY ca.start_at DESC, ca.id DESC
-     LIMIT 1`,
-    [driverId]
-  );
-  return rows[0] || null;
+// Машина водителя — та, на которой он ездил последней по отчётам.
+function currentCar(driverId) {
+  return lastCarOfDriver(pool, driverId);
 }
 
 // Незакрытые долги водителя помимо аренды: ремонт, штрафы и т. п.
@@ -38,22 +34,18 @@ async function openCharges(driverId) {
     .filter((r) => r.left > 0);
 }
 
-// Долг водителя: аренда по текущей машине и незакрытые начисления
+// Аренда водителя по дням из отчётов за всё время, по всем машинам.
+async function driverRent(driverId, from, to) {
+  const rows = await driverLedgerRows(pool, [driverId], from, to);
+  return { from, to, rows, totals: ledgerTotals(rows) };
+}
+
+// Долг водителя: аренда по всем машинам и незакрытые начисления
 export async function driverDebt(driverId) {
   const today = localToday();
   const charges = (await openCharges(driverId)).reduce((s, c) => s + c.left, 0);
-  const assignment = await currentCar(driverId);
-  let rent = 0;
-  if (assignment) {
-    const carId = Number(assignment.car_id);
-    const { rows: first } = await pool.query(
-      'SELECT MIN(start_at) AS start_at FROM car_assignments WHERE car_id = $1 AND driver_id = $2',
-      [carId, driverId]
-    );
-    const firstDay = localDay(first[0]?.start_at || assignment.start_at) || today;
-    const overall = await carDailyLedger(pool, carId, firstDay, today, { driverId });
-    rent = Number(overall.totals.debt) || 0;
-  }
+  const firstDay = await driverFirstDay(pool, driverId);
+  const rent = firstDay ? Number((await driverRent(driverId, firstDay, today)).totals.debt) || 0 : 0;
   return { rent, charges, total: rent + charges };
 }
 
@@ -82,17 +74,15 @@ function readAmount(value) {
   return Number.isFinite(n) && n > 0 ? Math.round(n) : NaN;
 }
 
-async function carOnDay(driverId, day, today) {
+// Машина водителя в этот день: по отчёту за день, иначе последняя, на которой он ездил.
+async function carOnDay(driverId, day) {
   const { rows } = await pool.query(
-    'SELECT car_id, start_at, end_at FROM car_assignments WHERE driver_id = $1 ORDER BY start_at DESC, id DESC',
-    [driverId]
+    'SELECT car_id FROM car_day_reports WHERE driver_id = $1 AND day = $2 ORDER BY id DESC LIMIT 1',
+    [driverId, day]
   );
-  const hit = rows.find((a) => {
-    const from = localDay(a.start_at);
-    const to = a.end_at ? localDay(a.end_at) : today;
-    return from && from <= day && day <= to;
-  });
-  return hit ? Number(hit.car_id) : null;
+  if (rows.length) return Number(rows[0].car_id);
+  const last = await currentCar(driverId);
+  return last ? Number(last.car_id) : null;
 }
 
 // GET /me/push — ключ для подписки на уведомления
@@ -231,24 +221,20 @@ router.get('/rent', async (req, res) => {
        ORDER BY valid_from DESC, id DESC LIMIT 1`,
       [carId, today]
     );
-    const { rows: first } = await pool.query(
-      'SELECT MIN(start_at) AS start_at FROM car_assignments WHERE car_id = $1 AND driver_id = $2',
-      [carId, driverId]
-    );
-    const firstDay = localDay(first[0]?.start_at || assignment.start_at) || today;
+    const firstDay = (await driverFirstDay(pool, driverId)) || today;
 
     const to = isDay(req.query.to) && req.query.to <= today ? req.query.to : today;
     const from = isDay(req.query.from) ? req.query.from : addDays(to, -29);
     if (from > to) return fail(res, 400, 'BAD_REQUEST', 'Дата «с» позже даты «по»', 'from');
     if (daysBetween(from, to).length > 366) return fail(res, 400, 'BAD_REQUEST', 'Не больше года за раз', 'from');
 
-    const overall = await carDailyLedger(pool, carId, firstDay, today, { driverId });
-    const ledger = await carDailyLedger(pool, carId, from < firstDay ? firstDay : from, to, { driverId });
+    const overall = await driverRent(driverId, firstDay, today);
+    const ledger = await driverRent(driverId, from < firstDay ? firstDay : from, to);
 
     res.json({
       today,
       car: cars[0] || null,
-      since: localDay(assignment.start_at),
+      since: assignment.since,
       rate: rates[0] ? Number(rates[0].rate) : 0,
       debt: overall.totals.debt,
       overpaid: overall.totals.overpaid,
@@ -333,7 +319,7 @@ router.get('/car', async (req, res) => {
     res.json({
       today,
       car: car ? { ...car, mileage: car.mileage == null ? null : Number(car.mileage) } : null,
-      since: localDay(assignment.start_at),
+      since: assignment.since,
       rate: rates[0] ? Number(rates[0].rate) : 0,
       last_odometer: await lastOdometer(req.user.driver_id, carId),
       services,

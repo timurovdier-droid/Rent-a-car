@@ -7,13 +7,10 @@ import {
   INCOME_CATEGORIES,
   EXPENSE_CATEGORIES,
   PAY_METHODS,
-  localDay,
   localToday,
   isDay,
   addDays,
-  dayStartUtc,
   daysBetween,
-  shiftPayFromOnStartChange,
   ensureCarRateFrom,
   syncCarRateToAssignments,
   applyCarRate,
@@ -26,8 +23,9 @@ import {
   carDailyLedger,
   carDebtDays,
   carRentStatus,
+  carFirstDay,
 } from '../carMoney.js';
-import { undoDepositRentTx } from '../depositRent.js';
+import { undoDepositRentTx, dayLabelRu } from '../depositRent.js';
 
 const router = Router();
 router.use(authenticate);
@@ -194,7 +192,17 @@ router.get('/:id/hub', async (req, res) => {
        LIMIT 100`,
       [carId]
     );
-    const current = assignments.find((a) => !a.end_at) || null;
+    const { rows: dayReports } = await pool.query(
+      `SELECT r.day, r.driver_id, r.comment, u.full_name AS driver_name, cb.full_name AS created_by_name
+       FROM car_day_reports r
+       LEFT JOIN drivers d ON d.id = r.driver_id
+       LEFT JOIN users u ON u.id = d.user_id
+       LEFT JOIN users cb ON cb.id = r.created_by
+       WHERE r.car_id = $1 AND r.day >= $2
+       ORDER BY r.day DESC`,
+      [carId, addDays(today, -400)]
+    );
+    const recent = dayReports.find((r) => r.day >= addDays(today, -1)) || null;
     await syncCarRateToAssignments(pool, carId);
 
     const { rows: totalsRows } = await pool.query(
@@ -207,8 +215,7 @@ router.get('/:id/hub', async (req, res) => {
         .reduce((s, r) => s + Number(r.total), 0);
 
     const accrual = computeAccruals(await loadAccrualInputs(pool, [carId])).get(carId);
-    const starts = assignments.map((a) => localDay(a.start_at)).filter(Boolean).sort();
-    const ledgerFrom = starts[0] || today;
+    const ledgerFrom = (await carFirstDay(pool, carId)) || today;
     const ledger = await carDailyLedger(pool, carId, ledgerFrom, today);
     const totals = {
       accrued: accrual.total,
@@ -257,7 +264,7 @@ router.get('/:id/hub', async (req, res) => {
     );
 
     let rates = [];
-    let freeDrivers = [];
+    let drivers = [];
     if (user.role === 'ADMIN') {
       ({ rows: rates } = await pool.query(
         `SELECT r.id, r.rate, r.valid_from, r.created_at, u.full_name AS author_name
@@ -267,13 +274,7 @@ router.get('/:id/hub', async (req, res) => {
       ));
     }
     if (user.role === 'ADMIN' || user.role === 'DISPATCHER') {
-      ({ rows: freeDrivers } = await pool.query(
-        `SELECT d.id, u.full_name, u.phone, d.deposit, d.branch_id
-         FROM drivers d JOIN users u ON u.id = d.user_id
-         WHERE d.archived_at IS NULL
-           AND NOT EXISTS (SELECT 1 FROM car_assignments ca WHERE ca.driver_id = d.id AND ca.end_at IS NULL)
-         ORDER BY u.full_name`
-      ));
+      drivers = await reportDrivers(user);
     }
 
     const { rows: documents } = await pool.query(
@@ -284,12 +285,14 @@ router.get('/:id/hub', async (req, res) => {
     res.json({
       car: {
         ...car,
+        status: recent ? 'RENTED' : 'FREE',
         insurance_due: documentDue(car.insurance_expires, reminders, today),
         inspection_due: documentDue(car.inspection_expires, reminders, today),
       },
       documents,
       today,
-      current,
+      driver: recent ? { id: recent.driver_id, name: recent.driver_name || 'Удалённый водитель', day: recent.day } : null,
+      day_reports: dayReports,
       assignments,
       summary: summaryForRole(user.role, totals),
       transactions: transactions.map((t) => ({ ...t, ...txPermissions(t, user) })),
@@ -301,7 +304,7 @@ router.get('/:id/hub', async (req, res) => {
         due: serviceDue(s, car.mileage, reminders, today),
       })),
       rates,
-      free_drivers: freeDrivers,
+      drivers,
       reminders,
     });
   } catch (err) {
@@ -359,13 +362,14 @@ router.post('/:id/transactions', requireRole('ADMIN', 'DISPATCHER'), async (req,
     if (!category) return fail(res, 400, 'BAD_REQUEST', 'Неизвестная категория', 'category');
 
     const isAdmin = req.user.role === 'ADMIN';
+    const payer = tx.kind === 'INCOME' ? parseInt(req.body.driver_id, 10) || null : null;
     const { rows } = await pool.query(
       `INSERT INTO car_transactions
-         (car_id, kind, category, amount, method, tx_date, comment, status, created_by, confirmed_by, confirmed_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+         (car_id, driver_id, kind, category, amount, method, tx_date, comment, status, created_by, confirmed_by, confirmed_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
        RETURNING *`,
       [
-        car.id, tx.kind, category, tx.amount, tx.method, tx.tx_date, tx.comment,
+        car.id, payer, tx.kind, category, tx.amount, tx.method, tx.tx_date, tx.comment,
         isAdmin ? 'CONFIRMED' : 'PENDING', req.user.id,
         isAdmin ? req.user.id : null, isAdmin ? new Date() : null,
       ]
@@ -506,11 +510,18 @@ router.post('/:id/rate', requireRole('ADMIN', 'DISPATCHER'), async (req, res) =>
     }
     const validFrom = req.body.valid_from || localToday();
     if (!isDay(validFrom)) return fail(res, 400, 'BAD_REQUEST', 'Неверная дата', 'valid_from');
-    const onlyDay = Boolean(req.body.only_day || req.body.scope === 'day');
-    const result = await applyCarRate(pool, car.id, rate, validFrom, { onlyDay, userId: req.user.id });
+    let onlyDay = Boolean(req.body.only_day || req.body.scope === 'day');
+    let validTo = null;
+    if (!onlyDay && req.body.valid_to) {
+      if (!isDay(req.body.valid_to)) return fail(res, 400, 'BAD_REQUEST', 'Неверная дата «по»', 'valid_to');
+      if (req.body.valid_to < validFrom) return fail(res, 400, 'BAD_REQUEST', 'Дата «по» раньше даты «с»', 'valid_to');
+      validTo = req.body.valid_to;
+      if (validTo === validFrom) onlyDay = true;
+    }
+    const result = await applyCarRate(pool, car.id, rate, validFrom, { onlyDay, validTo, userId: req.user.id });
     await writeAudit(pool, req.user.id, 'CAR_RATE_CHANGED', 'car', car.id,
       { daily_rate: car.daily_rate },
-      { rate, valid_from: validFrom, only_day: onlyDay }, req.ip);
+      { rate, valid_from: validFrom, valid_to: result.valid_to, only_day: onlyDay }, req.ip);
     res.json(result);
   } catch (err) {
     serverError(res, 'Ошибка изменения ставки:', err);
@@ -614,437 +625,151 @@ router.delete('/:id/days-off/:day', requireRole('ADMIN', 'DISPATCHER'), async (r
   }
 });
 
-function stampFor(day) {
-  return day === localToday() ? new Date() : dayStartUtc(day);
+function readMoney(value) {
+  if (value === undefined || value === null || value === '') return 0;
+  const n = Number(String(value).replace(/\s+/g, ''));
+  return Number.isFinite(n) && n >= 0 && n <= MAX_AMOUNT ? Math.round(n) : NaN;
 }
 
-// POST /cars/:id/assign — выдать машину водителю
-router.post('/:id/assign', requireRole('ADMIN', 'DISPATCHER'), async (req, res) => {
-  const car = await loadCar(req, res, { write: true }).catch((err) => { serverError(res, 'Ошибка:', err); return null; });
-  if (!car) return;
-  const driverId = parseInt(req.body.driver_id, 10);
-  const day = req.body.date || localToday();
-  const mileage = toInt(req.body.mileage);
-  if (!driverId) return fail(res, 400, 'BAD_REQUEST', 'Выберите водителя', 'driver_id');
-  if (!isDay(day)) return fail(res, 400, 'BAD_REQUEST', 'Неверная дата выдачи', 'date');
-  if (mileage === null || Number.isNaN(mileage) || mileage < 0) {
-    return fail(res, 400, 'BAD_REQUEST', 'Укажите пробег при выдаче', 'mileage');
+// Водители, которых можно выбрать в отчёте за день. Диспетчер видит только свой филиал.
+async function reportDrivers(user, db = pool) {
+  const params = [];
+  let sql = `SELECT d.id, u.full_name, u.phone, d.deposit, d.branch_id
+             FROM drivers d JOIN users u ON u.id = d.user_id
+             WHERE d.archived_at IS NULL`;
+  if (user.role === 'DISPATCHER' && user.branch_id) {
+    params.push(user.branch_id);
+    sql += ` AND d.branch_id = $${params.length}`;
   }
-  const payFrom = req.body.pay_from || null;
-  if (payFrom && (!isDay(payFrom) || payFrom < day)) {
-    return fail(res, 400, 'BAD_REQUEST', 'Платить можно начать не раньше дня выдачи', 'pay_from');
-  }
-
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-    const { rows: active } = await client.query(
-      'SELECT id FROM car_assignments WHERE car_id = $1 AND end_at IS NULL', [car.id]
-    );
-    if (active.length) {
-      await client.query('ROLLBACK');
-      return fail(res, 409, 'CONFLICT', 'Машина уже выдана. Сначала примите её у водителя.');
-    }
-    const { rows: drivers } = await client.query(
-      `SELECT d.id, d.branch_id FROM drivers d
-       WHERE d.id = $1 AND d.archived_at IS NULL
-         AND NOT EXISTS (SELECT 1 FROM car_assignments ca WHERE ca.driver_id = d.id AND ca.end_at IS NULL)`,
-      [driverId]
-    );
-    if (!drivers.length) {
-      await client.query('ROLLBACK');
-      return fail(res, 409, 'CONFLICT', 'Водитель не найден или уже ездит на другой машине');
-    }
-    const { rows } = await client.query(
-      `INSERT INTO car_assignments (car_id, driver_id, start_at, mileage_start, note, created_by, pay_from)
-       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
-      [car.id, driverId, stampFor(day), mileage, req.body.note || null, req.user.id, payFrom && payFrom > day ? payFrom : null]
-    );
-    await client.query(`UPDATE cars SET status = 'RENTED', mileage = $1 WHERE id = $2`, [mileage, car.id]);
-    await client.query(`UPDATE drivers SET status = 'RENTED' WHERE id = $1`, [driverId]);
-    await ensureCarRateFrom(client, car.id, day, req.user.id);
-    await writeAudit(client, req.user.id, 'ASSIGNMENT_CREATED', 'car_assignment', rows[0].id, null,
-      { car_id: car.id, driver_id: driverId, date: day, mileage, pay_from: rows[0].pay_from }, req.ip);
-    await client.query('COMMIT');
-    res.status(201).json(rows[0]);
-  } catch (err) {
-    await client.query('ROLLBACK');
-    serverError(res, 'Ошибка выдачи машины:', err);
-  } finally {
-    client.release();
-  }
-});
-
-// POST /cars/:id/release — принять машину у водителя
-router.post('/:id/release', requireRole('ADMIN', 'DISPATCHER'), async (req, res) => {
-  const car = await loadCar(req, res, { write: true }).catch((err) => { serverError(res, 'Ошибка:', err); return null; });
-  if (!car) return;
-  const day = req.body.date || localToday();
-  const mileage = toInt(req.body.mileage);
-  if (!isDay(day)) return fail(res, 400, 'BAD_REQUEST', 'Неверная дата сдачи', 'date');
-  if (mileage === null || Number.isNaN(mileage) || mileage < 0) {
-    return fail(res, 400, 'BAD_REQUEST', 'Укажите пробег при сдаче', 'mileage');
-  }
-
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-    const { rows } = await client.query(
-      'SELECT * FROM car_assignments WHERE car_id = $1 AND end_at IS NULL ORDER BY start_at DESC LIMIT 1',
-      [car.id]
-    );
-    const assignment = rows[0];
-    if (!assignment) {
-      await client.query('ROLLBACK');
-      return fail(res, 409, 'CONFLICT', 'Машина сейчас никому не выдана');
-    }
-    if (assignment.mileage_start != null && mileage < Number(assignment.mileage_start)) {
-      await client.query('ROLLBACK');
-      return fail(res, 400, 'BAD_REQUEST', `Пробег не может быть меньше, чем при выдаче (${assignment.mileage_start})`, 'mileage');
-    }
-    if (day < localDay(assignment.start_at)) {
-      await client.query('ROLLBACK');
-      return fail(res, 400, 'BAD_REQUEST', 'Дата сдачи раньше даты выдачи', 'date');
-    }
-    await client.query(
-      `UPDATE car_assignments SET end_at = $1, mileage_end = $2, note = COALESCE($3, note) WHERE id = $4`,
-      [stampFor(day), mileage, req.body.note || null, assignment.id]
-    );
-    await client.query(`UPDATE cars SET status = 'FREE', mileage = $1 WHERE id = $2`, [mileage, car.id]);
-    await client.query(`UPDATE drivers SET status = 'FREE' WHERE id = $1`, [assignment.driver_id]);
-    await writeAudit(client, req.user.id, 'ASSIGNMENT_ENDED', 'car_assignment', assignment.id,
-      { mileage_start: assignment.mileage_start }, { date: day, mileage }, req.ip);
-    await client.query('COMMIT');
-    res.json({ id: assignment.id, ended: true });
-  } catch (err) {
-    await client.query('ROLLBACK');
-    serverError(res, 'Ошибка приёма машины:', err);
-  } finally {
-    client.release();
-  }
-});
-
-// PATCH /cars/:id/assignments/:aid/pay-from — с какого числа водитель платит за машину.
-// Дата выдачи и пробег не меняются; null — платит с дня выдачи.
-router.patch('/:id/assignments/:aid/pay-from', requireRole('ADMIN', 'DISPATCHER'), async (req, res) => {
-  try {
-    const car = await loadCar(req, res, { write: true });
-    if (!car) return;
-    const { rows } = await pool.query(
-      'SELECT * FROM car_assignments WHERE id = $1 AND car_id = $2',
-      [parseInt(req.params.aid, 10), car.id]
-    );
-    const assignment = rows[0];
-    if (!assignment) return fail(res, 404, 'NOT_FOUND', 'Запись не найдена');
-    const start = localDay(assignment.start_at);
-    const day = req.body.date || null;
-    if (day && !isDay(day)) return fail(res, 400, 'BAD_REQUEST', 'Неверная дата', 'date');
-    if (day && day < start) return fail(res, 400, 'BAD_REQUEST', 'Платить можно начать не раньше дня выдачи', 'date');
-    if (day && assignment.end_at && day > localDay(assignment.end_at)) {
-      return fail(res, 400, 'BAD_REQUEST', 'Эта дата позже, чем водитель вернул машину', 'date');
-    }
-    const payFrom = day && day > start ? day : null;
-    await pool.query('UPDATE car_assignments SET pay_from = $1 WHERE id = $2', [payFrom, assignment.id]);
-    await writeAudit(pool, req.user.id, 'ASSIGNMENT_PAY_FROM_CHANGED', 'car_assignment', assignment.id,
-      { car_id: car.id, driver_id: assignment.driver_id, pay_from: assignment.pay_from || null },
-      { car_id: car.id, driver_id: assignment.driver_id, pay_from: payFrom }, req.ip);
-    res.json({ id: assignment.id, pay_from: payFrom });
-  } catch (err) {
-    serverError(res, 'Ошибка изменения даты оплаты:', err);
-  }
-});
-
-function assignmentOverlaps(row, from, to, today) {
-  const aFrom = localDay(row.start_at);
-  const aTo = row.end_at ? localDay(row.end_at) : today;
-  return Boolean(aFrom && aFrom <= to && aTo >= from);
+  sql += ' ORDER BY u.full_name';
+  const { rows } = await db.query(sql, params);
+  return rows.map((d) => ({ ...d, deposit: Number(d.deposit || 0) }));
 }
 
-// PATCH /cars/:id/assignments/:aid/driver — поменять водителя в выдаче (текущей или прошлой).
-// Даты, пробег, начисления и оплаты остаются как были — меняется только, кто ездил.
-router.patch('/:id/assignments/:aid/driver', requireRole('ADMIN', 'DISPATCHER'), async (req, res) => {
-  const car = await loadCar(req, res, { write: true }).catch((err) => { serverError(res, 'Ошибка:', err); return null; });
-  if (!car) return;
-  const driverId = parseInt(req.body.driver_id, 10);
-  if (!driverId) return fail(res, 400, 'BAD_REQUEST', 'Выберите водителя', 'driver_id');
-  const today = localToday();
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-    const { rows } = await client.query(
-      'SELECT * FROM car_assignments WHERE id = $1 AND car_id = $2',
-      [parseInt(req.params.aid, 10), car.id]
-    );
-    const assignment = rows[0];
-    if (!assignment) {
-      await client.query('ROLLBACK');
-      return fail(res, 404, 'NOT_FOUND', 'Запись не найдена');
-    }
-    if (Number(assignment.driver_id) === driverId) {
-      await client.query('ROLLBACK');
-      return res.json({ id: assignment.id, driver_id: driverId, changed: false });
-    }
-    const active = !assignment.end_at;
-    const { rows: drivers } = await client.query(
-      `SELECT d.id, d.archived_at, u.full_name FROM drivers d JOIN users u ON u.id = d.user_id WHERE d.id = $1`,
-      [driverId]
-    );
-    const driver = drivers[0];
-    if (!driver) {
-      await client.query('ROLLBACK');
-      return fail(res, 404, 'NOT_FOUND', 'Водитель не найден', 'driver_id');
-    }
-    if (active && driver.archived_at) {
-      await client.query('ROLLBACK');
-      return fail(res, 409, 'CONFLICT', 'Водитель в архиве — сначала верните его из архива', 'driver_id');
-    }
-    const from = localDay(assignment.start_at);
-    const to = active ? today : localDay(assignment.end_at);
-    const { rows: others } = await client.query(
-      'SELECT * FROM car_assignments WHERE driver_id = $1 AND id <> $2',
-      [driverId, assignment.id]
-    );
-    // День передачи (один вернул, другой взял в тот же день) пересечением не считается.
-    const clash = others.find((row) => {
-      const aFrom = localDay(row.start_at);
-      const aTo = row.end_at ? localDay(row.end_at) : today;
-      if (!aFrom) return false;
-      return (aFrom < to && aTo > from) || aFrom === from || (active && !row.end_at);
-    });
-    if (clash) {
-      await client.query('ROLLBACK');
-      return fail(res, 409, 'CONFLICT', !clash.end_at && active
-        ? 'Этот водитель сейчас ездит на другой машине. Сначала примите её у него.'
-        : 'В эти дни этот водитель ездил на другой машине', 'driver_id');
-    }
-
-    await client.query('UPDATE car_assignments SET driver_id = $1 WHERE id = $2', [driverId, assignment.id]);
-    if (active) {
-      await client.query(`UPDATE drivers SET status = 'RENTED' WHERE id = $1`, [driverId]);
-      await client.query(
-        `UPDATE drivers SET status = 'FREE' WHERE id = $1
-           AND NOT EXISTS (SELECT 1 FROM car_assignments WHERE driver_id = $1 AND end_at IS NULL)`,
-        [assignment.driver_id]
-      );
-    }
-    await writeAudit(client, req.user.id, 'ASSIGNMENT_DRIVER_CHANGED', 'car_assignment', assignment.id,
-      { car_id: car.id, driver_id: assignment.driver_id, from, to: active ? null : to },
-      { car_id: car.id, driver_id: driverId, driver_name: driver.full_name, from, to: active ? null : to }, req.ip);
-    await client.query('COMMIT');
-    res.json({ id: assignment.id, driver_id: driverId, changed: true });
-  } catch (err) {
-    await client.query('ROLLBACK');
-    serverError(res, 'Ошибка смены водителя:', err);
-  } finally {
-    client.release();
-  }
-});
-
-// POST /cars/:id/assignments/past — закрытая выдача за прошлый период (кто и когда ездил).
-// Если период пересекается с текущей открытой выдачей на этой машине — сдвигаем её старт на день после конца периода.
-router.post('/:id/assignments/past', requireRole('ADMIN', 'DISPATCHER'), async (req, res) => {
-  const car = await loadCar(req, res, { write: true }).catch((err) => { serverError(res, 'Ошибка:', err); return null; });
-  if (!car) return;
-  const driverId = parseInt(req.body.driver_id, 10);
-  const startDay = req.body.start_date || req.body.date;
-  const endDay = req.body.end_date;
-  let mileageStart = toInt(req.body.mileage_start ?? req.body.mileage);
-  let mileageEnd = toInt(req.body.mileage_end ?? req.body.mileage);
-  const today = localToday();
-  if (!driverId) return fail(res, 400, 'BAD_REQUEST', 'Выберите водителя', 'driver_id');
-  if (!isDay(startDay) || !isDay(endDay)) return fail(res, 400, 'BAD_REQUEST', 'Укажите даты начала и конца', 'start_date');
-  if (startDay > endDay) return fail(res, 400, 'BAD_REQUEST', 'Конец периода раньше начала', 'end_date');
-  if (endDay > today) return fail(res, 400, 'BAD_REQUEST', 'Конец периода не может быть в будущем', 'end_date');
-  if (mileageStart === null || Number.isNaN(mileageStart)) mileageStart = car.mileage != null ? Number(car.mileage) : 0;
-  if (mileageStart < 0) return fail(res, 400, 'BAD_REQUEST', 'Неверный пробег при выдаче', 'mileage_start');
-  if (mileageEnd === null || Number.isNaN(mileageEnd)) mileageEnd = mileageStart;
-  if (mileageEnd < mileageStart) {
-    return fail(res, 400, 'BAD_REQUEST', 'Пробег при сдаче не может быть меньше пробега при выдаче', 'mileage_end');
-  }
-  const payFrom = req.body.pay_from || null;
-  if (payFrom && (!isDay(payFrom) || payFrom < startDay || payFrom > endDay)) {
-    return fail(res, 400, 'BAD_REQUEST', '«Платит с» должно быть внутри периода выдачи', 'pay_from');
-  }
-
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-    const { rows: drivers } = await client.query(
-      'SELECT id FROM drivers WHERE id = $1 AND archived_at IS NULL',
-      [driverId]
-    );
-    if (!drivers.length) {
-      await client.query('ROLLBACK');
-      return fail(res, 404, 'NOT_FOUND', 'Водитель не найден');
-    }
-    const { rows: onCar } = await client.query(
-      'SELECT * FROM car_assignments WHERE car_id = $1',
-      [car.id]
-    );
-    const openOnCar = onCar.find((row) => !row.end_at);
-    // Текущую выдачу сдвигаем вперёд, чтобы освободить прошлый промежуток для старого водителя.
-    if (openOnCar && assignmentOverlaps(openOnCar, startDay, endDay, today)) {
-      const nextStart = addDays(endDay, 1);
-      if (nextStart > today) {
-        await client.query('ROLLBACK');
-        return fail(res, 409, 'CONFLICT', 'Период доходит до сегодня — сначала примите машину у текущего водителя');
-      }
-      if (Number(openOnCar.driver_id) === driverId) {
-        await client.query('ROLLBACK');
-        return fail(res, 409, 'CONFLICT', 'Этот водитель уже числится на машине в эти дни. Измените дату выдачи у текущей записи.');
-      }
-      const payFromNext = shiftPayFromOnStartChange(
-        openOnCar.pay_from,
-        localDay(openOnCar.start_at),
-        nextStart
-      );
-      await client.query(
-        'UPDATE car_assignments SET start_at = $1, pay_from = $2 WHERE id = $3',
-        [stampFor(nextStart), payFromNext, openOnCar.id]
-      );
-      await ensureCarRateFrom(client, car.id, nextStart, req.user.id);
-      await writeAudit(client, req.user.id, 'ASSIGNMENT_DATE_CHANGED', 'car_assignment', openOnCar.id,
-        { car_id: car.id, driver_id: openOnCar.driver_id, date: localDay(openOnCar.start_at) },
-        { car_id: car.id, driver_id: openOnCar.driver_id, date: nextStart, reason: 'past_assignment' }, req.ip);
-    }
-
-    const { rows: onCarAfter } = await client.query(
-      'SELECT * FROM car_assignments WHERE car_id = $1',
-      [car.id]
-    );
-    const { rows: onDriver } = await client.query(
-      'SELECT * FROM car_assignments WHERE driver_id = $1',
-      [driverId]
-    );
-    const clashCar = onCarAfter.find((row) => assignmentOverlaps(row, startDay, endDay, today));
-    if (clashCar) {
-      await client.query('ROLLBACK');
-      return fail(res, 409, 'CONFLICT', 'В эти дни машина уже была у другого водителя (или пересекается с другой выдачей)');
-    }
-    const clashDriver = onDriver.find((row) => assignmentOverlaps(row, startDay, endDay, today));
-    if (clashDriver) {
-      await client.query('ROLLBACK');
-      return fail(res, 409, 'CONFLICT', 'В эти дни водитель уже ездил на этой или другой машине');
-    }
-    const storedPayFrom = payFrom && payFrom > startDay ? payFrom : null;
-    const { rows } = await client.query(
-      `INSERT INTO car_assignments
-         (car_id, driver_id, start_at, end_at, mileage_start, mileage_end, note, created_by, pay_from)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-       RETURNING *`,
-      [
-        car.id, driverId, stampFor(startDay), stampFor(endDay), mileageStart, mileageEnd,
-        req.body.note || null, req.user.id, storedPayFrom,
-      ]
-    );
-    await ensureCarRateFrom(client, car.id, startDay, req.user.id);
-    await writeAudit(client, req.user.id, 'ASSIGNMENT_PAST_CREATED', 'car_assignment', rows[0].id, null,
-      { car_id: car.id, driver_id: driverId, start_date: startDay, end_date: endDay, mileage_start: mileageStart, mileage_end: mileageEnd },
-      req.ip);
-    await client.query('COMMIT');
-    res.status(201).json(rows[0]);
-  } catch (err) {
-    await client.query('ROLLBACK');
-    serverError(res, 'Ошибка записи прошлой выдачи:', err);
-  } finally {
-    client.release();
-  }
-});
-
-// PATCH /cars/:id/assignments/:aid/start — дата выдачи (и опционально конец периода).
-// Без end_date: работал с этой даты по сей день. С end_date: закрытый период с … по ….
-router.patch('/:id/assignments/:aid/start', requireRole('ADMIN', 'DISPATCHER'), async (req, res) => {
+// POST /cars/:id/day-report — отчёт за день: какой водитель ездил и сколько отдал.
+// Без сумм — «не платил»: аренда за день начисляется и становится долгом этого водителя.
+router.post('/:id/day-report', requireRole('ADMIN', 'DISPATCHER'), async (req, res) => {
   const car = await loadCar(req, res, { write: true }).catch((err) => { serverError(res, 'Ошибка:', err); return null; });
   if (!car) return;
   const day = req.body.date;
-  const endDay = req.body.end_date || null;
   const today = localToday();
-  if (!isDay(day) || day > today) return fail(res, 400, 'BAD_REQUEST', 'Неверная дата выдачи', 'date');
-  if (endDay) {
-    if (!isDay(endDay) || endDay > today) return fail(res, 400, 'BAD_REQUEST', 'Неверная дата конца периода', 'end_date');
-    if (endDay < day) return fail(res, 400, 'BAD_REQUEST', 'Конец периода раньше начала', 'end_date');
+  if (!isDay(day)) return fail(res, 400, 'BAD_REQUEST', 'Укажите дату отчёта', 'date');
+  if (day > today) return fail(res, 400, 'BAD_REQUEST', 'Нельзя писать отчёт на будущую дату', 'date');
+  const driverId = parseInt(req.body.driver_id, 10);
+  if (!driverId) return fail(res, 400, 'BAD_REQUEST', 'Выберите водителя', 'driver_id');
+
+  const parts = [
+    ['CASH', readMoney(req.body.cash)],
+    ['CARD', readMoney(req.body.card)],
+    ['BALANCE', readMoney(req.body.balance)],
+    ['DEPOSIT', readMoney(req.body.deposit)],
+  ];
+  if (parts.some(([, amount]) => Number.isNaN(amount))) {
+    return fail(res, 400, 'BAD_REQUEST', 'Неверная сумма', 'amount');
   }
+  const payments = parts.filter(([, amount]) => amount > 0);
+  const depositPay = payments.find(([method]) => method === 'DEPOSIT');
+  const comment = String(req.body.comment || '').trim().slice(0, 300);
+
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-    const { rows } = await client.query(
-      'SELECT * FROM car_assignments WHERE id = $1 AND car_id = $2',
-      [parseInt(req.params.aid, 10), car.id]
-    );
-    const assignment = rows[0];
-    if (!assignment) {
+    const driver = (await reportDrivers(req.user, client)).find((d) => Number(d.id) === driverId);
+    if (!driver) {
       await client.query('ROLLBACK');
-      return fail(res, 404, 'NOT_FOUND', 'Запись не найдена');
+      return fail(res, 404, 'NOT_FOUND', 'Водитель не найден или в архиве', 'driver_id');
     }
-    if (assignment.end_at) {
+    if (depositPay && depositPay[1] > driver.deposit) {
       await client.query('ROLLBACK');
-      return fail(res, 409, 'CONFLICT', 'Машину уже вернули — дату можно менять только у текущей выдачи');
-    }
-    const oldDay = localDay(assignment.start_at);
-    const rangeTo = endDay || today;
-    const { rows: others } = await client.query(
-      `SELECT car_id, driver_id, start_at, end_at FROM car_assignments
-       WHERE id <> $1 AND (car_id = $2 OR driver_id = $3)`,
-      [assignment.id, car.id, assignment.driver_id]
-    );
-    const clash = others.find((row) => assignmentOverlaps(row, day, rangeTo, today));
-    if (clash) {
-      await client.query('ROLLBACK');
-      const msg = clash.car_id === car.id
-        ? 'В эти дни машина была у другого водителя'
-        : 'В эти дни водитель ездил на другой машине';
-      return fail(res, 409, 'CONFLICT', msg, 'date');
-    }
-    const startAt = stampFor(day);
-    const payFrom = shiftPayFromOnStartChange(assignment.pay_from, oldDay, day);
-    if (endDay) {
-      const mileageEnd = toInt(req.body.mileage_end);
-      const endKm = (mileageEnd !== null && !Number.isNaN(mileageEnd) && mileageEnd >= 0)
-        ? mileageEnd
-        : (assignment.mileage_start != null ? Number(assignment.mileage_start) : (car.mileage != null ? Number(car.mileage) : 0));
-      if (assignment.mileage_start != null && endKm < Number(assignment.mileage_start)) {
-        await client.query('ROLLBACK');
-        return fail(res, 400, 'BAD_REQUEST', `Пробег не может быть меньше, чем при выдаче (${assignment.mileage_start})`, 'mileage_end');
-      }
-      await client.query(
-        `UPDATE car_assignments
-         SET start_at = $1, end_at = $2, mileage_end = $3, pay_from = $4
-         WHERE id = $5`,
-        [startAt, stampFor(endDay), endKm, payFrom, assignment.id]
-      );
-      await client.query(`UPDATE cars SET status = 'FREE', mileage = $1 WHERE id = $2`, [endKm, car.id]);
-      await client.query(
-        `UPDATE drivers SET status = 'FREE' WHERE id = $1
-           AND NOT EXISTS (SELECT 1 FROM car_assignments WHERE driver_id = $1 AND end_at IS NULL)`,
-        [assignment.driver_id]
-      );
-      await ensureCarRateFrom(client, car.id, day, req.user.id);
-      await writeAudit(client, req.user.id, 'ASSIGNMENT_DATE_CHANGED', 'car_assignment', assignment.id,
-        { car_id: car.id, driver_id: assignment.driver_id, date: oldDay, end_at: null },
-        { car_id: car.id, driver_id: assignment.driver_id, date: day, end_date: endDay, pay_from: payFrom }, req.ip);
-      await client.query('COMMIT');
-      return res.json({ id: assignment.id, start_at: startAt, end_at: stampFor(endDay), pay_from: payFrom, closed: true });
+      return fail(res, 400, 'BAD_REQUEST', 'В депозите меньше этой суммы', 'deposit');
     }
 
-    if (day === oldDay) {
-      await client.query('ROLLBACK');
-      return res.json({ id: assignment.id, start_at: assignment.start_at, pay_from: assignment.pay_from || null });
-    }
-    await client.query(
-      'UPDATE car_assignments SET start_at = $1, pay_from = $2 WHERE id = $3',
-      [startAt, payFrom, assignment.id]
+    const { rows: before } = await client.query(
+      'SELECT driver_id FROM car_day_reports WHERE car_id = $1 AND day = $2',
+      [car.id, day]
     );
+    await client.query(
+      `INSERT INTO car_day_reports (car_id, driver_id, day, comment, created_by)
+       VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT (car_id, day) DO UPDATE SET driver_id = excluded.driver_id,
+         comment = COALESCE(excluded.comment, car_day_reports.comment), updated_at = datetime('now')`,
+      [car.id, driverId, day, comment || null, req.user.id]
+    );
+    // Водитель ездил — значит, это не выходной и не простой.
+    await client.query('DELETE FROM car_days_off WHERE car_id = $1 AND day = $2', [car.id, day]);
     await ensureCarRateFrom(client, car.id, day, req.user.id);
-    await writeAudit(client, req.user.id, 'ASSIGNMENT_DATE_CHANGED', 'car_assignment', assignment.id,
-      { car_id: car.id, driver_id: assignment.driver_id, date: oldDay, pay_from: assignment.pay_from || null },
-      { car_id: car.id, driver_id: assignment.driver_id, date: day, pay_from: payFrom }, req.ip);
+
+    const dayLabel = dayLabelRu(day);
+    const depositNote = depositPay
+      ? `Закрыта аренда за ${dayLabel} из депозита (${Number(depositPay[1]).toLocaleString('ru-RU')} сум)`
+      : null;
+    const note = [comment, depositNote, `Отчёт за ${day} · ${driver.full_name}`]
+      .filter(Boolean).join(' · ').slice(0, 500);
+    const isAdmin = req.user.role === 'ADMIN';
+    // Списание с депозита подтверждаем сразу — иначе долг «висит», а деньги уже ушли.
+    const ids = [];
+    let depositTxId = null;
+    for (const [method, amount] of payments) {
+      const confirmed = isAdmin || method === 'DEPOSIT';
+      const { rows } = await client.query(
+        `INSERT INTO car_transactions
+           (car_id, driver_id, kind, category, amount, method, tx_date, comment, status, created_by, confirmed_by, confirmed_at)
+         VALUES ($1, $2, 'INCOME', 'RENT', $3, $4, $5, $6, $7, $8, $9, $10)
+         RETURNING id`,
+        [
+          car.id, driverId, amount, method, day, note,
+          confirmed ? 'CONFIRMED' : 'PENDING', req.user.id,
+          confirmed ? req.user.id : null, confirmed ? new Date() : null,
+        ]
+      );
+      ids.push(rows[0].id);
+      if (method === 'DEPOSIT') depositTxId = rows[0].id;
+    }
+    if (depositPay) {
+      const { rows: depRows } = await client.query('SELECT deposit FROM drivers WHERE id = $1', [driverId]);
+      const depositNow = Number(depRows[0]?.deposit || 0);
+      const next = depositNow - depositPay[1];
+      await client.query('UPDATE drivers SET deposit = $1 WHERE id = $2', [next, driverId]);
+      await client.query(
+        `INSERT INTO driver_deposit_history (driver_id, old_value, new_value, reason, changed_by, tx_id)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [driverId, depositNow, next, depositNote, req.user.id, depositTxId]
+      );
+    }
+    await writeAudit(client, req.user.id, 'DAY_REPORT_CREATED', 'car', car.id,
+      before[0] ? { driver_id: Number(before[0].driver_id) } : null,
+      {
+        date: day, driver_id: driverId, driver_name: driver.full_name, payments,
+        unpaid: payments.length === 0, deposit_used: depositPay ? depositPay[1] : 0,
+      }, req.ip);
     await client.query('COMMIT');
-    res.json({ id: assignment.id, start_at: startAt, pay_from: payFrom, closed: false });
+    res.status(201).json({ date: day, car_id: Number(car.id), driver_id: driverId, ids, unpaid: payments.length === 0 });
   } catch (err) {
     await client.query('ROLLBACK');
-    serverError(res, 'Ошибка изменения даты выдачи:', err);
+    serverError(res, 'Ошибка записи отчёта за день:', err);
   } finally {
     client.release();
+  }
+});
+
+// DELETE /cars/:id/day-report/:day — убрать водителя с этого дня: аренда за день больше не начисляется.
+// Записанные деньги остаются, их правят во вкладке «Операции».
+router.delete('/:id/day-report/:day', requireRole('ADMIN', 'DISPATCHER'), async (req, res) => {
+  try {
+    const car = await loadCar(req, res, { write: true });
+    if (!car) return;
+    const day = req.params.day;
+    if (!isDay(day)) return fail(res, 400, 'BAD_REQUEST', 'Неверная дата');
+    const { rows } = await pool.query(
+      'DELETE FROM car_day_reports WHERE car_id = $1 AND day = $2 RETURNING driver_id',
+      [car.id, day]
+    );
+    if (!rows.length) return fail(res, 404, 'NOT_FOUND', 'За этот день водитель не записан');
+    await writeAudit(pool, req.user.id, 'DAY_REPORT_DELETED', 'car', car.id,
+      { date: day, driver_id: Number(rows[0].driver_id) }, null, req.ip);
+    res.json({ date: day, deleted: true });
+  } catch (err) {
+    serverError(res, 'Ошибка удаления отчёта за день:', err);
   }
 });
 

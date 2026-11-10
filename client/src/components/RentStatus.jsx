@@ -4,6 +4,7 @@ import { useAuth } from '../auth';
 import Plate from './Plate';
 import Modal from './Modal';
 import MoneyInput from './MoneyInput';
+import Select from './Select';
 import { fmtMoney, fmtDay } from '../labels';
 import DateInput from './DateInput';
 import TxList from './TxList';
@@ -160,68 +161,70 @@ function CellBody({ state, info }) {
   return null;
 }
 
-function DayReportModal({ driverId, carId, status, day, onClose, onDone, onRefresh }) {
+// Водитель по умолчанию: записанный на этот день, иначе тот, кто ездил последним до этой даты.
+function defaultDriverFor(days, date) {
+  const own = days.find((d) => d.day === date && !d.extra && d.driver_id);
+  if (own) return own.driver_id;
+  let last = null;
+  for (const d of days) if (d.day < date && !d.extra && d.driver_id) last = d.driver_id;
+  return last;
+}
+
+export function DayReportModal({ carId, status: givenStatus, day, onClose, onDone, onRefresh }) {
   const { user } = useAuth();
   const isAdmin = user?.role === 'ADMIN';
+  const [status, setStatus] = useState(givenStatus || null);
+  const [drivers, setDrivers] = useState(null);
   const [date, setDate] = useState(day);
-  const info = status.days.find((item) => item.day === date);
-  const dayRate = info?.accrued > 0 ? info.accrued : (status.rate || 0);
-  const covered = info ? Number(info.covered || 0) : 0;
+  const [driverId, setDriverId] = useState('');
+  const [paidMode, setPaidMode] = useState(true);
   const [cash, setCash] = useState('');
   const [card, setCard] = useState('');
   const [balance, setBalance] = useState('');
   const [deposit, setDeposit] = useState('');
   const [dayRateEdit, setDayRateEdit] = useState('');
-  const [hubDriver, setHubDriver] = useState(null);
-  const [depositLeft, setDepositLeft] = useState(Number(status.deposit || 0));
   const [comment, setComment] = useState('');
   const [saving, setSaving] = useState(false);
   const [rateSaved, setRateSaved] = useState(false);
   const [error, setError] = useState('');
+
+  const days = status?.days || [];
+  const info = days.find((item) => item.day === date && !item.extra);
+  const dayRate = info?.accrued > 0 ? info.accrued : (status?.rate || 0);
+  const covered = info ? Number(info.covered || 0) : 0;
   const editRate = Number(String(dayRateEdit || '').replace(/\D/g, '')) || 0;
   const left = Math.max(editRate - covered, 0);
   const total = (Number(cash) || 0) + (Number(card) || 0) + (Number(balance) || 0) + (Number(deposit) || 0);
-  const early = date < status.first_day;
-  const who = info?.driver_id || driverId || status.driver?.id || hubDriver?.id || null;
-  const whoName = info?.driver_name || status.driver?.name || hubDriver?.name || null;
-  const targetCarId = carId || status.car?.id || null;
+  const driver = (drivers || []).find((d) => String(d.id) === String(driverId)) || null;
+  const depositLeft = Number(driver?.deposit || 0);
+
+  useEffect(() => {
+    if (givenStatus) return undefined;
+    let alive = true;
+    api.get(`/cars/${carId}/rent-status`)
+      .then((data) => { if (alive) setStatus(data.status); })
+      .catch((err) => { if (alive) setError(err.message || 'Не удалось загрузить календарь'); });
+    return () => { alive = false; };
+  }, [carId, givenStatus]);
+
+  useEffect(() => {
+    let alive = true;
+    api.get('/drivers')
+      .then((list) => { if (alive) setDrivers(Array.isArray(list) ? list : []); })
+      .catch(() => { if (alive) setDrivers([]); });
+    return () => { alive = false; };
+  }, []);
+
+  useEffect(() => {
+    if (!status) return;
+    const pick = defaultDriverFor(status.days, date);
+    setDriverId(pick ? String(pick) : '');
+  }, [status, date]);
 
   useEffect(() => {
     setDayRateEdit(dayRate ? String(dayRate) : '');
     setRateSaved(false);
   }, [date, dayRate]);
-
-  useEffect(() => {
-    let alive = true;
-    if (!targetCarId) return undefined;
-    api.get(`/cars/${targetCarId}/hub`)
-      .then((hub) => {
-        if (!alive) return;
-        const cur = hub.current;
-        if (cur?.driver_id) {
-          setHubDriver({
-            id: Number(cur.driver_id),
-            name: cur.driver_name || null,
-            deposit: null,
-          });
-        }
-      })
-      .catch(() => {});
-    return () => { alive = false; };
-  }, [targetCarId]);
-
-  useEffect(() => {
-    let alive = true;
-    const fallback = Number(status.deposit || status.driver?.deposit || 0);
-    if (!who) {
-      setDepositLeft(fallback);
-      return undefined;
-    }
-    api.get(`/drivers/${who}`)
-      .then((d) => { if (alive) setDepositLeft(Number(d.deposit || 0)); })
-      .catch(() => { if (alive) setDepositLeft(fallback); });
-    return () => { alive = false; };
-  }, [who, status.deposit, status.driver?.deposit]);
 
   function payAll(setter, maxAmount) {
     setCash('');
@@ -234,10 +237,6 @@ function DayReportModal({ driverId, carId, status, day, onClose, onDone, onRefre
   }
 
   async function saveDayRate() {
-    if (!targetCarId) {
-      setError('Нет машины, чтобы изменить ставку');
-      return;
-    }
     if (!Number.isFinite(editRate) || editRate < 0) {
       setError('Укажите ставку на этот день');
       return;
@@ -246,11 +245,7 @@ function DayReportModal({ driverId, carId, status, day, onClose, onDone, onRefre
     setError('');
     setRateSaved(false);
     try {
-      await api.post(`/cars/${targetCarId}/rate`, {
-        rate: editRate,
-        valid_from: date,
-        only_day: true,
-      });
+      await api.post(`/cars/${carId}/rate`, { rate: editRate, valid_from: date, only_day: true });
       setRateSaved(true);
       setSaving(false);
       onRefresh?.();
@@ -260,44 +255,44 @@ function DayReportModal({ driverId, carId, status, day, onClose, onDone, onRefre
     }
   }
 
+  async function removeDriver() {
+    const who = info?.driver_name || 'водителя';
+    if (!window.confirm(`Убрать ${who} с ${fmtDay(date)}? Аренда за этот день больше не будет начисляться. Записанные деньги останутся.`)) return;
+    setSaving(true);
+    setError('');
+    try {
+      await api.delete(`/cars/${carId}/day-report/${date}`);
+      onDone();
+    } catch (err) {
+      setError(err.message || 'Не удалось убрать водителя');
+      setSaving(false);
+    }
+  }
+
   async function submit(e) {
     e.preventDefault();
-    if (!total) {
-      setError('Впишите сумму: наличными, картой, с баланса или из депозита');
+    if (!driverId) {
+      setError('Выберите водителя, который ездил в этот день');
+      return;
+    }
+    if (paidMode && !total) {
+      setError('Впишите сумму или отметьте «Не платил»');
+      return;
+    }
+    if (paidMode && Number(deposit) > depositLeft) {
+      setError('В депозите водителя меньше этой суммы');
       return;
     }
     setSaving(true);
     setError('');
     try {
       // Если ставку на день поменяли — сохраняем её вместе с отчётом.
-      if (isAdmin && targetCarId && editRate !== dayRate) {
-        await api.post(`/cars/${targetCarId}/rate`, {
-          rate: editRate,
-          valid_from: date,
-          only_day: true,
-        });
+      if (isAdmin && editRate !== dayRate) {
+        await api.post(`/cars/${carId}/rate`, { rate: editRate, valid_from: date, only_day: true });
       }
-      if (Number(deposit) > 0 && !who) {
-        setError('Чтобы списать с депозита, нужен водитель на этот день');
-        setSaving(false);
-        return;
-      }
-      if (who) {
-        await api.post(`/drivers/${who}/day-report`, { date, cash, card, balance, deposit, comment });
-      } else if (targetCarId) {
-        const note = comment.trim() || `Отчёт за ${date}`;
-        for (const [method, amount] of [['CASH', cash], ['CARD', card], ['BALANCE', balance]]) {
-          if (Number(amount) > 0) {
-            await api.post(`/cars/${targetCarId}/transactions`, {
-              kind: 'INCOME', category: 'RENT', method, amount: Number(amount), tx_date: date, comment: note,
-            });
-          }
-        }
-      } else {
-        setError('В этот день на машине не было водителя');
-        setSaving(false);
-        return;
-      }
+      await api.post(`/cars/${carId}/day-report`, paidMode
+        ? { date, driver_id: driverId, cash, card, balance, deposit, comment }
+        : { date, driver_id: driverId, comment });
       onDone();
     } catch (err) {
       setError(err.message || 'Не удалось записать отчёт');
@@ -305,32 +300,61 @@ function DayReportModal({ driverId, carId, status, day, onClose, onDone, onRefre
     }
   }
 
+  if (!status) {
+    return (
+      <Modal title={`Отчёт за ${fmtDay(date)}`} onClose={onClose}>
+        {error ? <div className="notice notice--error">{error}</div> : <div className="muted">Загрузка…</div>}
+      </Modal>
+    );
+  }
+
+  const otherDriver = info?.reported && info.driver_id && String(info.driver_id) !== String(driverId);
+
   return (
     <Modal title={`Отчёт за ${fmtDay(date)}`} onClose={onClose}>
       <form onSubmit={submit} className="pay-day">
-        <div className="field">
-          <label className="field__label" htmlFor="drp-date">Дата отчёта</label>
-          <DateInput
-            id="drp-date"
-            className="field__input"
-            value={date}
-            max={status.today}
-            onChange={(e) => setDate(e.target.value)}
-            required
-          />
-          <span className="muted small">Любой прошедший день, в том числе до того, как водителя добавили в систему.</span>
+        <div className="form-grid">
+          <div className="field">
+            <label className="field__label" htmlFor="drp-date">Дата отчёта</label>
+            <DateInput
+              id="drp-date"
+              className="field__input"
+              value={date}
+              max={status.today}
+              onChange={(e) => setDate(e.target.value)}
+              required
+            />
+          </div>
+          <div className="field">
+            <label className="field__label" htmlFor="drp-driver">Водитель</label>
+            <Select
+              id="drp-driver"
+              value={driverId}
+              onChange={setDriverId}
+              required
+              disabled={!drivers}
+              placeholder={drivers ? '— кто ездил в этот день —' : 'Загрузка…'}
+              options={(drivers || []).map((d) => ({ value: String(d.id), label: d.full_name, hint: d.phone }))}
+            />
+          </div>
         </div>
-        {early && (
+        {otherDriver && (
           <div className="notice">
-            Водителя учли в системе позже. Отчёт запишется задним числом, а аренда будет считаться с этой даты.
+            {`На ${fmtDay(date)} записан ${info.driver_name}. После сохранения день и его аренда перейдут к выбранному водителю.`}
           </div>
         )}
+
+        <div className="seg" role="tablist" aria-label="Оплата за день">
+          <button type="button" className={`seg__btn seg__btn--income ${paidMode ? 'seg__btn--on' : ''}`} onClick={() => setPaidMode(true)}>Платил</button>
+          <button type="button" className={`seg__btn seg__btn--expense ${!paidMode ? 'seg__btn--on' : ''}`} onClick={() => setPaidMode(false)}>Не платил</button>
+        </div>
+
         <div className="pay-day__info">
           <dl className="kv pay-day__kv">
             <div>
               <dt>Аренда в день</dt>
               <dd>
-                {isAdmin && targetCarId ? (
+                {isAdmin ? (
                   <MoneyInput
                     id="drp-rate"
                     value={dayRateEdit}
@@ -341,12 +365,11 @@ function DayReportModal({ driverId, carId, status, day, onClose, onDone, onRefre
                 ) : `${fmtMoney(dayRate)} сум`}
               </dd>
             </div>
-            {whoName && <div><dt>Водитель</dt><dd>{whoName}</dd></div>}
             <div><dt>Уже закрыто</dt><dd>{fmtMoney(covered)} сум</dd></div>
             <div><dt>Не хватает</dt><dd className={left > 0 ? 'ledger__debt' : ''}>{fmtMoney(left)} сум</dd></div>
-            <div><dt>Депозит</dt><dd>{fmtMoney(depositLeft)} сум</dd></div>
+            {driver && <div><dt>Депозит водителя</dt><dd>{fmtMoney(depositLeft)} сум</dd></div>}
           </dl>
-          {isAdmin && targetCarId && (
+          {isAdmin && (
             <button
               type="button"
               className="pay-day__rate-link"
@@ -358,54 +381,69 @@ function DayReportModal({ driverId, carId, status, day, onClose, onDone, onRefre
           )}
           {rateSaved && <p className="muted small" style={{ margin: 0 }}>Ставка на {fmtDay(date)} сохранена — остальные дни не менялись.</p>}
         </div>
-        <div className="pay-day__grid">
-          <div className="field">
-            <label className="field__label" htmlFor="drp-cash">Наличными</label>
-            <MoneyInput id="drp-cash" value={cash} onChange={setCash} autoFocus />
-          </div>
-          <div className="field">
-            <label className="field__label" htmlFor="drp-card">Картой</label>
-            <MoneyInput id="drp-card" value={card} onChange={setCard} />
-          </div>
-          <div className="field">
-            <label className="field__label" htmlFor="drp-balance">С баланса</label>
-            <MoneyInput id="drp-balance" value={balance} onChange={setBalance} />
-          </div>
-          <div className="field">
-            <label className="field__label" htmlFor="drp-deposit">Из депозита</label>
-            <MoneyInput id="drp-deposit" value={deposit} onChange={setDeposit} disabled={!who} />
-          </div>
-        </div>
-        <p className="muted small pay-day__hint">
-          {who
-            ? '«Из депозита» списывается с депозита водителя и пишется в историю депозита.'
-            : 'Чтобы списать с депозита, на этот день должен быть водитель.'}
-        </p>
-        {(left > 0 || dayRate > 0) && (
-          <div className="pay-day__chips">
-            <button type="button" className="chip" onClick={() => payAll(setCash)}>Всё наличными</button>
-            <button type="button" className="chip" onClick={() => payAll(setCard)}>Всё картой</button>
-            <button type="button" className="chip" onClick={() => payAll(setBalance)}>Всё с баланса</button>
-            <button
-              type="button"
-              className="chip"
-              disabled={!who || depositLeft <= 0}
-              onClick={() => payAll(setDeposit, depositLeft)}
-            >
-              {who && depositLeft > 0
-                ? `Всё из депозита · ${fmtMoney(Math.min(left || dayRate, depositLeft))}`
-                : 'Всё из депозита'}
-            </button>
-          </div>
+
+        {paidMode ? (
+          <>
+            <div className="pay-day__grid">
+              <div className="field">
+                <label className="field__label" htmlFor="drp-cash">Наличными</label>
+                <MoneyInput id="drp-cash" value={cash} onChange={setCash} autoFocus />
+              </div>
+              <div className="field">
+                <label className="field__label" htmlFor="drp-card">Картой</label>
+                <MoneyInput id="drp-card" value={card} onChange={setCard} />
+              </div>
+              <div className="field">
+                <label className="field__label" htmlFor="drp-balance">С баланса</label>
+                <MoneyInput id="drp-balance" value={balance} onChange={setBalance} />
+              </div>
+              <div className="field">
+                <label className="field__label" htmlFor="drp-deposit">Из депозита</label>
+                <MoneyInput id="drp-deposit" value={deposit} onChange={setDeposit} disabled={!driver} />
+              </div>
+            </div>
+            <p className="muted small pay-day__hint">
+              «Из депозита» списывается с депозита выбранного водителя и пишется в историю депозита.
+            </p>
+            {(left > 0 || dayRate > 0) && (
+              <div className="pay-day__chips">
+                <button type="button" className="chip" onClick={() => payAll(setCash)}>Всё наличными</button>
+                <button type="button" className="chip" onClick={() => payAll(setCard)}>Всё картой</button>
+                <button type="button" className="chip" onClick={() => payAll(setBalance)}>Всё с баланса</button>
+                <button
+                  type="button"
+                  className="chip"
+                  disabled={!driver || depositLeft <= 0}
+                  onClick={() => payAll(setDeposit, depositLeft)}
+                >
+                  {driver && depositLeft > 0
+                    ? `Всё из депозита · ${fmtMoney(Math.min(left || dayRate, depositLeft))}`
+                    : 'Всё из депозита'}
+                </button>
+              </div>
+            )}
+          </>
+        ) : (
+          <p className="muted pay-day__hint">
+            {`Аренда за ${fmtDay(date)} (${fmtMoney(editRate || dayRate)} сум) запишется долгом на выбранного водителя.`}
+          </p>
         )}
+
         <div className="field">
           <label className="field__label" htmlFor="drp-note">Комментарий</label>
           <input id="drp-note" className="field__input" value={comment} onChange={(e) => setComment(e.target.value)} placeholder="необязательно" maxLength={200} />
         </div>
         {error && <div className="notice notice--error">{error}</div>}
         <div className="form-actions">
-          <button className="btn" type="submit" disabled={saving || !date}>{saving ? 'Записываю…' : 'Записать отчёт'}</button>
+          <button className="btn" type="submit" disabled={saving || !date || !driverId}>
+            {saving ? 'Записываю…' : paidMode ? 'Записать отчёт' : 'Записать: не платил'}
+          </button>
           <button className="btn btn--quiet" type="button" onClick={onClose}>Отмена</button>
+          {info?.reported && (
+            <button className="btn btn--ghost" type="button" disabled={saving} onClick={removeDriver}>
+              Убрать водителя с этого дня
+            </button>
+          )}
         </div>
       </form>
     </Modal>
@@ -516,7 +554,7 @@ export function RentStatusView({ status, driverId, carId, canWrite = false, onSa
   const [choiceDay, setChoiceDay] = useState(null);
   const [editDay, setEditDay] = useState(null);
   const [debtOpen, setDebtOpen] = useState(false);
-  const byDay = useMemo(() => new Map(status.days.map((d) => [d.day, d])), [status]);
+  const byDay = useMemo(() => new Map(status.days.filter((d) => !d.extra).map((d) => [d.day, d])), [status]);
   const minMonth = shiftMonth(status.today.slice(0, 7), -36);
   const maxMonth = (status.ahead_until && status.ahead_until > status.today ? status.ahead_until : status.today).slice(0, 7);
   const [period, setPeriod] = useState(null);
@@ -587,7 +625,7 @@ export function RentStatusView({ status, driverId, carId, canWrite = false, onSa
             if (!day) return <div key={`x${i}`} className="rs-cell rs-cell--blank" />;
             const info = byDay.get(day);
             const state = cellState(day, info, status);
-            const openReport = canWrite && day <= status.today && (!status.first_day || day >= status.first_day);
+            const openReport = canWrite && Boolean(carId) && day <= status.today;
             const hasMoney = (info?.paid || 0) + (info?.pending || 0) > 0;
             const blank = !info || state === 'empty' || state === 'none' || state === 'future';
             const Tag = openReport ? 'button' : 'div';
@@ -616,9 +654,9 @@ export function RentStatusView({ status, driverId, carId, canWrite = false, onSa
           <span><i className="rs-dot rs-dot--offpaid" />Дал деньги в выходной</span>
         </div>
         <p className="muted small" style={{ margin: 0 }}>
-          {canWrite
-            ? 'Нажмите на любой прошедший день — откроется отчёт. Можно записать и задним числом: если водителя добавили сегодня, а он работал раньше, выберите тот день и впишите сумму. Аренда начнёт считаться с этой даты.'
-            : 'День закрыт, если в этот день водитель отдал его сумму полностью. Деньги в выходной уменьшают долг этого водителя.'}
+          {canWrite && carId
+            ? 'Нажмите на любой прошедший день — откроется отчёт: выберите водителя, который ездил, и впишите, сколько он отдал. Если не платил — отметьте «Не платил», аренда за день станет его долгом. Аренда начисляется только за дни с отчётом.'
+            : 'День закрыт, если в этот день водитель отдал его сумму полностью. Отчёты за день вносятся на странице машины.'}
         </p>
       </div>
       {debtOpen && <DebtDaysModal status={shown} onClose={() => setDebtOpen(false)} />}
@@ -641,9 +679,8 @@ export function RentStatusView({ status, driverId, carId, canWrite = false, onSa
           onChanged={onSaved}
         />
       )}
-      {reportDay && (driverId || carId) && (
+      {reportDay && carId && (
         <DayReportModal
-          driverId={driverId || byDay.get(reportDay)?.driver_id || status.driver?.id}
           carId={carId}
           status={status}
           day={reportDay}

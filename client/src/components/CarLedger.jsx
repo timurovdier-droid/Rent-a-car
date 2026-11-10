@@ -179,6 +179,7 @@ export function PayDayModal({ row, driverName, isAdmin, onClose, onDone }) {
         if (Number(amount) > 0) {
           await api.post(`/cars/${row.car_id}/transactions`, {
             kind: 'INCOME', category: 'RENT', method, amount: Number(amount), tx_date: row.day, comment: note,
+            driver_id: row.driver_id || undefined,
           });
         }
       }

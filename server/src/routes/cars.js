@@ -3,7 +3,7 @@ import { pool } from '../db.js';
 import { authenticate } from '../middleware/auth.js';
 import { requireRole } from '../middleware/rbac.js';
 import { writeAudit } from '../middleware/audit.js';
-import { carScope, defaultBranchId, isDay } from '../carMoney.js';
+import { carScope, defaultBranchId, isDay, carStatusSql, carDriverNameSql } from '../carMoney.js';
 
 const router = Router();
 
@@ -45,12 +45,10 @@ router.get('/', async (req, res) => {
     const scope = await carScope(pool, req.user);
     const archived = req.query.archived === '1';
     const query = `
-      SELECT c.id, c.plate, c.brand, c.model, c.year, c.color, c.vin, c.status, c.branch_id, c.owner_id,
+      SELECT c.id, c.plate, c.brand, c.model, c.year, c.color, c.vin, ${carStatusSql('c')} AS status, c.branch_id, c.owner_id,
              c.daily_rate, c.mileage, c.fuel_type, c.insurance_expires, c.inspection_expires, c.photo_version,
              c.archived_at, o.name AS owner_name, b.name AS branch_name,
-             (SELECT u.full_name FROM car_assignments ca
-                JOIN drivers d ON d.id = ca.driver_id JOIN users u ON u.id = d.user_id
-              WHERE ca.car_id = c.id AND ca.end_at IS NULL LIMIT 1) AS driver_name
+             ${carDriverNameSql('c')} AS driver_name
       FROM cars c
       LEFT JOIN owners o ON c.owner_id = o.id
       LEFT JOIN branches b ON c.branch_id = b.id
@@ -273,7 +271,7 @@ router.delete('/:id', requireRole('ADMIN'), async (req, res) => {
         'DELETE FROM payments WHERE daily_report_id IN (SELECT id FROM daily_reports WHERE car_id = $1)', [carId]
       );
       for (const table of ['daily_reports', 'car_photos', 'car_documents', 'car_transactions', 'car_days_off',
-        'car_rate_history', 'service_records', 'car_assignments']) {
+        'car_rate_history', 'service_records', 'car_assignments', 'car_day_reports']) {
         await client.query(`DELETE FROM ${table} WHERE car_id = $1`, [carId]);
       }
       await client.query('DELETE FROM cars WHERE id = $1', [carId]);
