@@ -833,6 +833,80 @@ export default function DriverRentStatus({ driverId, version = 0, onChanged }) {
   );
 }
 
+function CarDefaultDriverBar({ carId, status, canWrite, onSaved }) {
+  const [drivers, setDrivers] = useState(null);
+  const [pick, setPick] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
+
+  useEffect(() => {
+    if (!canWrite) return undefined;
+    let alive = true;
+    api.get('/drivers')
+      .then((list) => { if (alive) setDrivers(Array.isArray(list) ? list : []); })
+      .catch(() => { if (alive) setDrivers([]); });
+    return () => { alive = false; };
+  }, [canWrite]);
+
+  useEffect(() => {
+    setPick(status?.default_driver?.id ? String(status.default_driver.id) : '');
+    setNotice('');
+  }, [status?.default_driver]);
+
+  if (!canWrite) return null;
+
+  async function save(nextId) {
+    setSaving(true);
+    setError('');
+    setNotice('');
+    try {
+      await api.patch(`/cars/${carId}`, { default_driver_id: nextId ? Number(nextId) : null });
+      setNotice(nextId ? 'Сохранено — в новом отчёте подставится этот водитель' : 'Водитель по умолчанию убран');
+      onSaved?.();
+    } catch (err) {
+      setError(err.message || 'Не удалось сохранить');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="panel" style={{ marginBottom: 12 }}>
+      <h3 className="panel__title" style={{ marginTop: 0 }}>Водитель по умолчанию</h3>
+      <p className="muted small" style={{ margin: '0 0 10px' }}>
+        Подставляется при открытии отчёта за день на этой машине. В отчёте можно выбрать другого водителя.
+      </p>
+      <div className="form-grid" style={{ gridTemplateColumns: 'minmax(0, 1fr) auto auto', alignItems: 'end', gap: 8 }}>
+        <div className="field" style={{ margin: 0 }}>
+          <label className="field__label" htmlFor="car-default-driver">Водитель</label>
+          <Select
+            id="car-default-driver"
+            value={pick}
+            onChange={setPick}
+            disabled={!drivers || saving}
+            placeholder={drivers ? '— не задан —' : 'Загрузка…'}
+            options={[
+              { value: '', label: '— не задан —' },
+              ...(drivers || []).map((d) => ({ value: String(d.id), label: d.full_name, hint: d.phone })),
+            ]}
+          />
+        </div>
+        <button type="button" className="btn btn--sm" disabled={saving || !drivers} onClick={() => save(pick)}>
+          {saving ? 'Сохраняю…' : 'Сохранить'}
+        </button>
+        {status?.default_driver?.id && (
+          <button type="button" className="btn btn--ghost btn--sm" disabled={saving} onClick={() => { setPick(''); save(''); }}>
+            Убрать
+          </button>
+        )}
+      </div>
+      {error && <div className="notice notice--error" style={{ margin: '8px 0 0' }}>{error}</div>}
+      {notice && <div className="notice notice--ok" style={{ margin: '8px 0 0' }}>{notice}</div>}
+    </div>
+  );
+}
+
 export function CarRentStatus({ carId, version = 0, onChanged }) {
   const { user } = useAuth();
   const canWrite = user?.role === 'ADMIN' || user?.role === 'DISPATCHER';
@@ -851,13 +925,17 @@ export function CarRentStatus({ carId, version = 0, onChanged }) {
   if (error) return <div className="notice notice--error">{error}</div>;
   if (!data) return <div className="muted">Загрузка…</div>;
   if (!data.status) return <div className="empty">По этой машине ещё нет дней аренды</div>;
+  const refresh = () => { setTick((n) => n + 1); onChanged?.(); };
   return (
-    <RentStatusView
-      key={carId}
-      status={data.status}
-      carId={carId}
-      canWrite={canWrite}
-      onSaved={() => { setTick((n) => n + 1); onChanged?.(); }}
-    />
+    <>
+      <CarDefaultDriverBar carId={carId} status={data.status} canWrite={canWrite} onSaved={refresh} />
+      <RentStatusView
+        key={carId}
+        status={data.status}
+        carId={carId}
+        canWrite={canWrite}
+        onSaved={refresh}
+      />
+    </>
   );
 }
