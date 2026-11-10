@@ -79,12 +79,31 @@ export async function ensureCarDayReportForRent(db, carId, driverId, day, userId
   await db.query(
     `INSERT INTO car_day_reports (car_id, driver_id, day, created_by)
      VALUES ($1, $2, $3, $4)
-     ON CONFLICT (car_id, day) DO UPDATE SET
-       driver_id = excluded.driver_id,
-       updated_at = datetime('now')`,
+     ON CONFLICT (car_id, day) DO NOTHING`,
     [car, driver, day, userId]
   );
   await ensureCarRateFrom(db, car, day, userId);
+}
+
+/** Починить старые данные: оплата аренды есть, а выходной/отчёт — нет. */
+export async function syncCarRentDays(db, carId) {
+  const id = Number(carId);
+  if (!id) return;
+  const { rows } = await db.query(
+    `SELECT substr(tx_date, 1, 10) AS day,
+            MAX(driver_id) AS driver_id
+     FROM car_transactions
+     WHERE car_id = $1 AND kind = 'INCOME' AND category = 'RENT' AND status = 'CONFIRMED'
+     GROUP BY substr(tx_date, 1, 10)`,
+    [id]
+  );
+  for (const row of rows) {
+    const day = String(row.day).slice(0, 10);
+    if (!isDay(day)) continue;
+    const driverId = row.driver_id ? Number(row.driver_id) : (await driverOnCarDay(db, id, day))?.driver_id;
+    if (driverId) await ensureCarDayReportForRent(db, id, driverId, day, null);
+    else await db.query('DELETE FROM car_days_off WHERE car_id = $1 AND day = $2', [id, day]);
+  }
 }
 
 export async function ensureCarRateFrom(db, carId, day, userId) {
@@ -401,7 +420,7 @@ function placeholders(list, offset = 0) {
 
 export async function loadAccrualInputs(db, carIds) {
   const ids = [...new Set(carIds.map(Number))].filter(Boolean);
-  if (!ids.length) return { ids, assignments: [], reports: [], rates: [], daysOff: [] };
+  if (!ids.length) return { ids, assignments: [], reports: [], rates: [], daysOff: [], rentPaidDays: [] };
   const list = placeholders(ids);
   // Выдачи удалённых водителей тоже начисляются: отчёт по машине не должен меняться от удаления водителя.
   // handed_over: в тот же день водитель взял другую выдачу — этот день начисляется только по новой.
@@ -429,7 +448,15 @@ export async function loadAccrualInputs(db, carIds) {
     `SELECT car_id, day FROM car_day_reports WHERE car_id IN (${list})`,
     ids
   );
-  return { ids, assignments, reports, rates, daysOff };
+  const { rows: rentPaidDays } = await db.query(
+    `SELECT car_id, substr(tx_date, 1, 10) AS day
+     FROM car_transactions
+     WHERE car_id IN (${list}) AND kind = 'INCOME' AND category = 'RENT'
+       AND status = 'CONFIRMED'
+     GROUP BY car_id, substr(tx_date, 1, 10)`,
+    ids
+  );
+  return { ids, assignments, reports, rates, daysOff, rentPaidDays };
 }
 
 // Возвращает Map(carId → { total, days: [{ day, rate }] }).
@@ -449,6 +476,7 @@ export function computeAccruals(inputs, { from = null, to = null } = {}) {
   };
   const assignments = byCar(inputs.assignments);
   const reports = byCar(inputs.reports || []);
+  const rentPaid = byCar(inputs.rentPaidDays || []);
   const rates = byCar(inputs.rates);
   const off = byCar(inputs.daysOff);
 
@@ -471,6 +499,14 @@ export function computeAccruals(inputs, { from = null, to = null } = {}) {
       if ((!from || row.day >= from) && row.day <= upper) {
         days.add(row.day);
         reportDays.add(row.day);
+      }
+    }
+    // Подтверждённая аренда за день = рабочий день, даже если отчёт не успели записать в car_day_reports.
+    for (const row of rentPaid.get(carId) || []) {
+      const day = String(row.day).slice(0, 10);
+      if ((!from || day >= from) && day <= upper) {
+        days.add(day);
+        reportDays.add(day);
       }
     }
     // Выходной снимает начисление, но отчёт за этот день важнее — иначе оплата уйдёт в «дал в выходной».
@@ -811,6 +847,7 @@ export async function carRentStatus(db, carId) {
   const id = Number(carId);
   const today = localToday();
   await syncCarRateToAssignments(db, id);
+  await syncCarRentDays(db, id);
   const firstDay = await carFirstDay(db, id);
   const from = firstDay || today;
   const ledger = await carDailyLedger(db, id, from, today);
