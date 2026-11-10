@@ -3,8 +3,6 @@ import { pool } from '../db.js';
 import { authenticate } from '../middleware/auth.js';
 import { requireRole } from '../middleware/rbac.js';
 import { writeAudit } from '../middleware/audit.js';
-import { ensureCarDayReportForRent, isDay } from '../carMoney.js';
-
 const router = Router();
 
 router.use(authenticate, requireRole('ADMIN'));
@@ -45,33 +43,16 @@ router.post('/pending-transactions/confirm', async (req, res) => {
       return res.status(400).json({ error: { code: 'BAD_REQUEST', message: 'Не выбраны записи', field: 'ids' } });
     }
     const marks = ids.map((_, i) => `$${i + 2}`).join(', ');
-    const client = await pool.connect();
-    try {
-      await client.query('BEGIN');
-      const { rows } = await client.query(
-        `UPDATE car_transactions SET status = 'CONFIRMED', confirmed_by = $1, confirmed_at = datetime('now')
-         WHERE status = 'PENDING' AND id IN (${marks})
-         RETURNING id, amount, car_id, driver_id, kind, category, tx_date`,
-        [req.user.id, ...ids]
-      );
-      for (const r of rows) {
-        if (r.kind === 'INCOME' && r.category === 'RENT' && r.driver_id) {
-          const day = String(r.tx_date).slice(0, 10);
-          if (isDay(day)) {
-            await ensureCarDayReportForRent(client, r.car_id, r.driver_id, day, req.user.id);
-          }
-        }
-        await writeAudit(client, req.user.id, 'CAR_TX_CONFIRMED', 'car_transaction', r.id,
-          { status: 'PENDING' }, { status: 'CONFIRMED', amount: r.amount }, req.ip);
-      }
-      await client.query('COMMIT');
-      res.json({ confirmed: rows.length });
-    } catch (err) {
-      try { await client.query('ROLLBACK'); } catch { /* ignore */ }
-      throw err;
-    } finally {
-      client.release();
+    const { rows } = await pool.query(
+      `UPDATE car_transactions SET status = 'CONFIRMED', confirmed_by = $1, confirmed_at = datetime('now')
+       WHERE status = 'PENDING' AND id IN (${marks}) RETURNING id, amount`,
+      [req.user.id, ...ids]
+    );
+    for (const r of rows) {
+      await writeAudit(pool, req.user.id, 'CAR_TX_CONFIRMED', 'car_transaction', r.id,
+        { status: 'PENDING' }, { status: 'CONFIRMED', amount: r.amount }, req.ip);
     }
+    res.json({ confirmed: rows.length });
   } catch (err) {
     console.error('Ошибка подтверждения операций:', err);
     res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Внутренняя ошибка сервера' } });

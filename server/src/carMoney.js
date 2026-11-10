@@ -70,42 +70,6 @@ export function shiftPayFromOnStartChange(payFrom, oldStart, newStart) {
 }
 
 // Ставка должна действовать с первого дня выдачи, иначе долг «начинается» позже в календаре.
-/** Подтверждённая аренда = рабочий день: отчёт и снятие выходного (если платёж без отчёта). */
-export async function ensureCarDayReportForRent(db, carId, driverId, day, userId = null) {
-  const car = Number(carId);
-  const driver = Number(driverId);
-  if (!car || !driver || !isDay(day)) return;
-  await db.query('DELETE FROM car_days_off WHERE car_id = $1 AND day = $2', [car, day]);
-  await db.query(
-    `INSERT INTO car_day_reports (car_id, driver_id, day, created_by)
-     VALUES ($1, $2, $3, $4)
-     ON CONFLICT (car_id, day) DO NOTHING`,
-    [car, driver, day, userId]
-  );
-  await ensureCarRateFrom(db, car, day, userId);
-}
-
-/** Починить старые данные: оплата аренды есть, а выходной/отчёт — нет. */
-export async function syncCarRentDays(db, carId) {
-  const id = Number(carId);
-  if (!id) return;
-  const { rows } = await db.query(
-    `SELECT substr(tx_date, 1, 10) AS day,
-            MAX(driver_id) AS driver_id
-     FROM car_transactions
-     WHERE car_id = $1 AND kind = 'INCOME' AND category = 'RENT' AND status = 'CONFIRMED'
-     GROUP BY substr(tx_date, 1, 10)`,
-    [id]
-  );
-  for (const row of rows) {
-    const day = String(row.day).slice(0, 10);
-    if (!isDay(day)) continue;
-    const driverId = row.driver_id ? Number(row.driver_id) : (await driverOnCarDay(db, id, day))?.driver_id;
-    if (driverId) await ensureCarDayReportForRent(db, id, driverId, day, null);
-    else await db.query('DELETE FROM car_days_off WHERE car_id = $1 AND day = $2', [id, day]);
-  }
-}
-
 export async function ensureCarRateFrom(db, carId, day, userId) {
   if (!isDay(day)) return;
   // Берём первую ПОЛОЖИТЕЛЬНУЮ ставку — нулевые «заглушки» с 2000-01-01 не считаются.
@@ -420,7 +384,7 @@ function placeholders(list, offset = 0) {
 
 export async function loadAccrualInputs(db, carIds) {
   const ids = [...new Set(carIds.map(Number))].filter(Boolean);
-  if (!ids.length) return { ids, assignments: [], reports: [], rates: [], daysOff: [], rentPaidDays: [] };
+  if (!ids.length) return { ids, assignments: [], reports: [], rates: [], daysOff: [] };
   const list = placeholders(ids);
   // Выдачи удалённых водителей тоже начисляются: отчёт по машине не должен меняться от удаления водителя.
   // handed_over: в тот же день водитель взял другую выдачу — этот день начисляется только по новой.
@@ -448,15 +412,7 @@ export async function loadAccrualInputs(db, carIds) {
     `SELECT car_id, day FROM car_day_reports WHERE car_id IN (${list})`,
     ids
   );
-  const { rows: rentPaidDays } = await db.query(
-    `SELECT car_id, substr(tx_date, 1, 10) AS day
-     FROM car_transactions
-     WHERE car_id IN (${list}) AND kind = 'INCOME' AND category = 'RENT'
-       AND status = 'CONFIRMED'
-     GROUP BY car_id, substr(tx_date, 1, 10)`,
-    ids
-  );
-  return { ids, assignments, reports, rates, daysOff, rentPaidDays };
+  return { ids, assignments, reports, rates, daysOff };
 }
 
 // Возвращает Map(carId → { total, days: [{ day, rate }] }).
@@ -476,7 +432,6 @@ export function computeAccruals(inputs, { from = null, to = null } = {}) {
   };
   const assignments = byCar(inputs.assignments);
   const reports = byCar(inputs.reports || []);
-  const rentPaid = byCar(inputs.rentPaidDays || []);
   const rates = byCar(inputs.rates);
   const off = byCar(inputs.daysOff);
 
@@ -494,25 +449,11 @@ export function computeAccruals(inputs, { from = null, to = null } = {}) {
       for (const day of daysBetween(start, end)) days.add(day);
     }
     // Отчёт за день: водитель ездил — аренда за этот день начислена, даже если он не платил.
-    const reportDays = new Set();
     for (const row of reports.get(carId) || []) {
-      if ((!from || row.day >= from) && row.day <= upper) {
-        days.add(row.day);
-        reportDays.add(row.day);
-      }
+      if ((!from || row.day >= from) && row.day <= upper) days.add(row.day);
     }
-    // Подтверждённая аренда за день = рабочий день, даже если отчёт не успели записать в car_day_reports.
-    for (const row of rentPaid.get(carId) || []) {
-      const day = String(row.day).slice(0, 10);
-      if ((!from || day >= from) && day <= upper) {
-        days.add(day);
-        reportDays.add(day);
-      }
-    }
-    // Выходной снимает начисление, но отчёт за этот день важнее — иначе оплата уйдёт в «дал в выходной».
-    for (const row of off.get(carId) || []) {
-      if (!reportDays.has(row.day)) days.delete(row.day);
-    }
+    // Выходной/простой из календаря машины: без начисления (оплата — «дал в выходной»).
+    for (const row of off.get(carId) || []) days.delete(row.day);
 
     // valid_from иногда приходит с временем — сравниваем только YYYY-MM-DD.
     const carRates = (rates.get(carId) || []).map((row) => ({
@@ -592,7 +533,7 @@ export async function carDailyLedger(db, carId, from, to, { driverId = null } = 
 
   const makeRow = (day, driver, accrued, { cash = 0, transfer = 0, pending = 0 } = {}, extra = false) => {
     const reported = Boolean(driver?.reported);
-    const off = offDays.has(day) && !reported;
+    const off = offDays.has(day);
     return {
     day,
     driver_id: driver?.driver_id ?? null,
@@ -770,19 +711,16 @@ function closeDriverDays(days) {
   const noDebt = paid >= accrued;
   for (const d of days) {
     if (!d.accrued) {
-      if (d.reported && d.paid > 0) {
-        d.accrued = d.paid;
-      } else if (d.paid > 0) {
+      if (d.paid > 0) {
         d.status = 'offpaid';
         d.covered = 0;
         d.left = 0;
         continue;
-      } else {
-        d.status = d.day_off ? 'off' : 'none';
-        d.covered = 0;
-        d.left = 0;
-        continue;
       }
+      d.status = d.day_off ? 'off' : 'none';
+      d.covered = 0;
+      d.left = 0;
+      continue;
     }
     const cover = Math.min(d.paid, d.accrued);
     d.covered = cover;
@@ -847,7 +785,6 @@ export async function carRentStatus(db, carId) {
   const id = Number(carId);
   const today = localToday();
   await syncCarRateToAssignments(db, id);
-  await syncCarRentDays(db, id);
   const firstDay = await carFirstDay(db, id);
   const from = firstDay || today;
   const ledger = await carDailyLedger(db, id, from, today);

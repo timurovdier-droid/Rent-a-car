@@ -52,7 +52,6 @@ export function LedgerSummary({ totals }) {
 
 export function dayStatus(r) {
   if (!r.accrued) {
-    if (r.reported && r.paid > 0) return { key: 'paid', label: 'Оплачено' };
     if (r.paid > 0 && r.day_off) {
       const why = r.idle ? 'Простой' : 'Выходной';
       return { key: 'offpaid', label: `${why} · дал` };
