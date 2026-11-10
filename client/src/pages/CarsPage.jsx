@@ -165,7 +165,7 @@ export default function CarsPage() {
       <div className="page-head">
         <div>
           <h1 className="page-title">{isOwner ? 'Мои автомобили' : 'Автомобили'}</h1>
-          <p className="page-sub">Откройте машину, чтобы записать доход или расход, выдать водителю или отметить ТО</p>
+          <p className="page-sub">Откройте машину, чтобы записать отчёт за день, доход или расход или отметить ТО</p>
         </div>
         {isAdmin && <button className="btn" onClick={() => setCreating(true)}>+ Добавить автомобиль</button>}
       </div>

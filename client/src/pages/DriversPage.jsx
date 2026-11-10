@@ -149,7 +149,7 @@ export default function DriversPage() {
           )}
 
           {!archived && !loading && drivers.length > 0 && (
-            <p className="muted small" style={{ marginTop: 16 }}>Выдать машину водителю можно на странице машины — <Link to="/cars">Автомобили</Link>.</p>
+            <p className="muted small" style={{ marginTop: 16 }}>Водителя к машине не привязывают: кто ездил, выбирается в отчёте за день на странице машины — <Link to="/cars">Автомобили</Link>.</p>
           )}
         </>
       )}
