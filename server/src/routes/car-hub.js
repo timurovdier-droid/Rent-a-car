@@ -985,7 +985,7 @@ router.delete('/:id/service/:sid', requireRole('ADMIN', 'DISPATCHER'), async (re
 const PHOTO_PATTERN = /^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/;
 const MAX_PHOTO_BYTES = 1_500_000;
 
-const DOC_KINDS = ['INSURANCE', 'AD_PASSPORT', 'LICENSE'];
+const DOC_KINDS = ['TECH_PASSPORT', 'INSURANCE', 'TAKAFUL', 'AD_PASSPORT', 'LICENSE'];
 const DOC_PATTERN = /^data:(application\/pdf|image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=\s]+)$/;
 const MAX_DOC_BYTES = 2_400_000;
 

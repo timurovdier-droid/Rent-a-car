@@ -10,6 +10,7 @@ import DriverForm from '../components/DriverForm';
 import DriverLedger from '../components/DriverLedger';
 import DriverRentStatus from '../components/RentStatus';
 import DriverCharges from '../components/DriverCharges';
+import CarDocuments, { DRIVER_DOCS } from '../components/CarDocuments';
 import TxJournal from '../components/TxJournal';
 import { fmtMoney, fmtNumber, fmtDay, fmtDateTime, localDayOf, todayLocal } from '../labels';
 import NavIcon from '../components/NavIcon';
@@ -245,6 +246,7 @@ export default function DriverPage() {
       </nav>
 
       {tab === 'driver' && (
+        <>
         <div className="layout-2">
           <div>
             <div className="panel">
@@ -308,6 +310,18 @@ export default function DriverPage() {
             <DriverCharges driver={driver} isAdmin={isAdmin} onChanged={load} />
           </div>
         </div>
+        <div style={{ marginTop: 16 }}>
+          <CarDocuments
+            kinds={DRIVER_DOCS}
+            documents={driver.documents}
+            canWrite={!archived}
+            apiPrefix={`/drivers/${driver.id}/documents`}
+            title="Документы"
+            lead="Паспорт, права и прописка (место жительства). Можно загрузить PDF или фото."
+            onChanged={load}
+          />
+        </div>
+        </>
       )}
 
       {tab === 'reports' && (

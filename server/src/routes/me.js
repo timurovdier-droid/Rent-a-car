@@ -64,7 +64,12 @@ async function driverProfile(driverId) {
     [driverId]
   );
   const p = rows[0];
-  return p ? { ...p, deposit: Number(p.deposit || 0) } : null;
+  if (!p) return null;
+  const { rows: documents } = await pool.query(
+    'SELECT kind, name, mime, updated_at FROM driver_documents WHERE driver_id = $1 ORDER BY kind',
+    [driverId]
+  );
+  return { ...p, deposit: Number(p.deposit || 0), documents };
 }
 
 const DRIVER_PAY_METHODS = ['CASH', 'CARD', 'BALANCE'];
@@ -635,7 +640,8 @@ router.get('/report', async (req, res) => {
   }
 });
 
-const DRIVER_DOC_KINDS = ['INSURANCE', 'AD_PASSPORT', 'LICENSE'];
+const DRIVER_DOC_KINDS = ['TECH_PASSPORT', 'INSURANCE', 'TAKAFUL', 'AD_PASSPORT', 'LICENSE'];
+const PERSON_DOC_KINDS = ['PASSPORT', 'LICENSE', 'RESIDENCE'];
 
 // GET /me/car-document/:kind — файл документа машины, на которой водитель ездит сейчас
 router.get('/car-document/:kind', async (req, res) => {
@@ -657,6 +663,28 @@ router.get('/car-document/:kind', async (req, res) => {
     res.send(Buffer.from(String(rows[0].data).replace(/\s/g, ''), 'base64'));
   } catch (err) {
     console.error('Ошибка документа для водителя:', err);
+    fail(res, 500, 'INTERNAL_ERROR', 'Внутренняя ошибка сервера');
+  }
+});
+
+// GET /me/document/:kind — свой паспорт, права или прописка
+router.get('/document/:kind', async (req, res) => {
+  try {
+    if (!driverOnly(req, res)) return;
+    const kind = String(req.params.kind || '').toUpperCase();
+    if (!PERSON_DOC_KINDS.includes(kind)) return fail(res, 404, 'NOT_FOUND', 'Документ не найден');
+    const { rows } = await pool.query(
+      'SELECT name, mime, data FROM driver_documents WHERE driver_id = $1 AND kind = $2',
+      [req.user.driver_id, kind]
+    );
+    if (!rows.length) return fail(res, 404, 'NOT_FOUND', 'Файл не загружен');
+    const name = String(rows[0].name || 'document').replace(/[\r\n"]/g, '').slice(0, 120);
+    res.set('Content-Type', rows[0].mime);
+    res.set('Content-Disposition', `inline; filename="${name.replace(/[^\x20-\x7E]/g, '_')}"; filename*=UTF-8''${encodeURIComponent(name)}`);
+    res.set('Cache-Control', 'private, max-age=3600');
+    res.send(Buffer.from(String(rows[0].data).replace(/\s/g, ''), 'base64'));
+  } catch (err) {
+    console.error('Ошибка документа водителя:', err);
     fail(res, 500, 'INTERNAL_ERROR', 'Внутренняя ошибка сервера');
   }
 });

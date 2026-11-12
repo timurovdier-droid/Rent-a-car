@@ -44,6 +44,24 @@ function readPinfl(value) {
   return /^\d{14}$/.test(digits) ? digits : NaN;
 }
 
+const DRIVER_DOC_KINDS = ['PASSPORT', 'LICENSE', 'RESIDENCE'];
+const DOC_PATTERN = /^data:(application\/pdf|image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=\s]+)$/;
+const MAX_DOC_BYTES = 2_400_000;
+
+function cleanDocName(name, mime) {
+  const fallback = mime === 'application/pdf' ? 'document.pdf' : 'document.jpg';
+  const raw = String(name || fallback).replace(/[\r\n"]/g, '').trim().slice(0, 120);
+  return raw || fallback;
+}
+
+function sendDocument(res, row) {
+  const name = cleanDocName(row.name, row.mime);
+  res.set('Content-Type', row.mime);
+  res.set('Content-Disposition', `inline; filename="${name.replace(/[^\x20-\x7E]/g, '_')}"; filename*=UTF-8''${encodeURIComponent(name)}`);
+  res.set('Cache-Control', 'private, max-age=3600');
+  res.send(Buffer.from(String(row.data).replace(/\s/g, ''), 'base64'));
+}
+
 const DRIVER_SELECT = `
   SELECT d.id, d.user_id, d.branch_id, d.passport, d.license_no, d.license_expires, d.pinfl, d.status,
          d.deposit, d.archived_at, d.created_at,
@@ -313,9 +331,87 @@ router.get('/:id', async (req, res) => {
        WHERE h.driver_id = $1 ORDER BY h.id DESC LIMIT 50`,
       [driver.id]
     );
-    res.json({ ...driver, deposit_history: deposits, assignments: await carHistory(driver.id), charges: await loadCharges(driver.id) });
+    const { rows: documents } = await pool.query(
+      'SELECT kind, name, mime, updated_at FROM driver_documents WHERE driver_id = $1 ORDER BY kind',
+      [driver.id]
+    );
+    res.json({
+      ...driver,
+      deposit_history: deposits,
+      assignments: await carHistory(driver.id),
+      charges: await loadCharges(driver.id),
+      documents,
+    });
   } catch (err) {
     serverError(res, 'Ошибка получения водителя:', err);
+  }
+});
+
+// GET /:id/documents/:kind — файл паспорта, прав или прописки
+router.get('/:id/documents/:kind', async (req, res) => {
+  try {
+    const kind = String(req.params.kind || '').toUpperCase();
+    if (!DRIVER_DOC_KINDS.includes(kind)) return fail(res, 404, 'NOT_FOUND', 'Документ не найден');
+    const driver = await loadDriver(req, res);
+    if (!driver) return;
+    const { rows } = await pool.query(
+      'SELECT name, mime, data FROM driver_documents WHERE driver_id = $1 AND kind = $2',
+      [driver.id, kind]
+    );
+    if (!rows.length) return fail(res, 404, 'NOT_FOUND', 'Файл не загружен');
+    sendDocument(res, rows[0]);
+  } catch (err) {
+    serverError(res, 'Ошибка получения документа водителя:', err);
+  }
+});
+
+// PUT /:id/documents/:kind — загрузить или заменить файл { file, name }
+router.put('/:id/documents/:kind', async (req, res) => {
+  try {
+    const kind = String(req.params.kind || '').toUpperCase();
+    if (!DRIVER_DOC_KINDS.includes(kind)) return fail(res, 400, 'BAD_REQUEST', 'Неизвестный тип документа', 'kind');
+    const driver = await loadDriver(req, res);
+    if (!driver) return;
+    const match = DOC_PATTERN.exec(String(req.body?.file || ''));
+    if (!match) return fail(res, 400, 'BAD_REQUEST', 'Нужен файл PDF, JPG, PNG или WEBP', 'file');
+    const payload = match[2].replace(/\s/g, '');
+    const bytes = Math.floor((payload.length * 3) / 4);
+    if (bytes > MAX_DOC_BYTES) return fail(res, 400, 'BAD_REQUEST', 'Файл слишком большой (максимум 2,4 МБ)', 'file');
+    const name = cleanDocName(req.body?.name, match[1]);
+    await pool.query(
+      `INSERT INTO driver_documents (driver_id, kind, name, mime, data, updated_by, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, datetime('now'))
+       ON CONFLICT (driver_id, kind) DO UPDATE SET name = excluded.name, mime = excluded.mime,
+         data = excluded.data, updated_by = excluded.updated_by, updated_at = excluded.updated_at`,
+      [driver.id, kind, name, match[1], payload, req.user.id]
+    );
+    const { rows } = await pool.query(
+      'SELECT kind, name, mime, updated_at FROM driver_documents WHERE driver_id = $1 AND kind = $2',
+      [driver.id, kind]
+    );
+    await writeAudit(pool, req.user.id, 'DRIVER_DOCUMENT_UPDATED', 'driver', driver.id, null, { kind, name, bytes }, req.ip);
+    res.json(rows[0]);
+  } catch (err) {
+    serverError(res, 'Ошибка загрузки документа водителя:', err);
+  }
+});
+
+// DELETE /:id/documents/:kind — убрать файл
+router.delete('/:id/documents/:kind', async (req, res) => {
+  try {
+    const kind = String(req.params.kind || '').toUpperCase();
+    if (!DRIVER_DOC_KINDS.includes(kind)) return fail(res, 404, 'NOT_FOUND', 'Документ не найден');
+    const driver = await loadDriver(req, res);
+    if (!driver) return;
+    const { rows } = await pool.query(
+      'DELETE FROM driver_documents WHERE driver_id = $1 AND kind = $2 RETURNING kind',
+      [driver.id, kind]
+    );
+    if (!rows.length) return fail(res, 404, 'NOT_FOUND', 'Файл не загружен');
+    await writeAudit(pool, req.user.id, 'DRIVER_DOCUMENT_DELETED', 'driver', driver.id, { kind }, null, req.ip);
+    res.json({ kind, deleted: true });
+  } catch (err) {
+    serverError(res, 'Ошибка удаления документа водителя:', err);
   }
 });
 
@@ -795,6 +891,7 @@ router.delete('/:id', requireRole('ADMIN'), async (req, res) => {
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
+      await client.query('DELETE FROM driver_documents WHERE driver_id = $1', [driver.id]);
       await client.query('DELETE FROM driver_deposit_history WHERE driver_id = $1', [driver.id]);
       await client.query(
         'DELETE FROM driver_charge_payments WHERE charge_id IN (SELECT id FROM driver_charges WHERE driver_id = $1)',

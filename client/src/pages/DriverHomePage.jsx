@@ -8,6 +8,7 @@ import MoneyInput from '../components/MoneyInput';
 import DateInput from '../components/DateInput';
 import PeriodPicker from '../components/PeriodPicker';
 import { BrandLogo, CarVisual } from '../components/CarTile';
+import CarDocuments, { DRIVER_DOCS } from '../components/CarDocuments';
 import { LedgerSummary, LedgerTable } from '../components/CarLedger';
 import { RentStatusView } from '../components/RentStatus';
 import useIsPhone from '../components/useIsPhone';
@@ -26,6 +27,7 @@ const REQUEST_STATUS = {
 export function MyProfile({ profile }) {
   if (!profile) return null;
   return (
+    <>
     <div className="panel" style={{ marginTop: 16 }}>
       <h3 className="panel__title">Мои данные</h3>
       <dl className="kv">
@@ -38,6 +40,18 @@ export function MyProfile({ profile }) {
       </dl>
       <p className="muted small" style={{ marginBottom: 0 }}>Если что-то неверно — скажите диспетчеру, он исправит.</p>
     </div>
+    {(profile.documents || []).length > 0 && (
+      <div style={{ marginTop: 16 }}>
+        <CarDocuments
+          kinds={DRIVER_DOCS}
+          documents={profile.documents}
+          filePath={(kind) => `/api/v1/me/document/${kind}`}
+          title="Документы"
+          lead="Паспорт, права и прописка."
+        />
+      </div>
+    )}
+    </>
   );
 }
 

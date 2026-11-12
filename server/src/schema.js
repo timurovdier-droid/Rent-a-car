@@ -304,6 +304,16 @@ CREATE TABLE IF NOT EXISTS car_documents (
   updated_at TEXT NOT NULL DEFAULT (datetime('now')),
   PRIMARY KEY (car_id, kind)
 );
+CREATE TABLE IF NOT EXISTS driver_documents (
+  driver_id INTEGER NOT NULL,
+  kind TEXT NOT NULL,
+  name TEXT NOT NULL,
+  mime TEXT NOT NULL,
+  data TEXT NOT NULL,
+  updated_by INTEGER,
+  updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (driver_id, kind)
+);
 `;
 
 export const SCHEMA_VERSION = 4;

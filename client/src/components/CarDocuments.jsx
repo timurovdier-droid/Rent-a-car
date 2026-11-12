@@ -2,10 +2,18 @@ import { useState } from 'react';
 import { api, ApiError } from '../api';
 import { fmtDay } from '../labels';
 
-const DOCS = [
+const CAR_DOCS = [
+  ['TECH_PASSPORT', 'Техпаспорт', 'Технический паспорт автомобиля'],
   ['INSURANCE', 'Страховка', 'Полис страховки автомобиля'],
+  ['TAKAFUL', 'Страховка Takaful', 'Полис страховки Takaful'],
   ['AD_PASSPORT', 'Рекламный паспорт', 'Рекламный паспорт для работы'],
   ['LICENSE', 'Лицензия', 'Лицензия на перевозку'],
+];
+
+export const DRIVER_DOCS = [
+  ['PASSPORT', 'Паспорт', 'Скан паспорта'],
+  ['LICENSE', 'Права', 'Водительское удостоверение'],
+  ['RESIDENCE', 'Прописка', 'Место жительства'],
 ];
 
 const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
@@ -50,13 +58,27 @@ async function prepareFile(file) {
   return shrinkImage(file);
 }
 
-export default function CarDocuments({ carId, documents = [], canWrite = false, onChanged, filePath }) {
+export default function CarDocuments({
+  carId,
+  documents = [],
+  canWrite = false,
+  onChanged,
+  filePath,
+  kinds = CAR_DOCS,
+  apiPrefix,
+  title = 'Файлы документов',
+  lead,
+}) {
   const byKind = Object.fromEntries((documents || []).map((doc) => [doc.kind, doc]));
   const [busy, setBusy] = useState('');
   const [error, setError] = useState('');
 
+  function apiPath(kind) {
+    return apiPrefix ? `${apiPrefix}/${kind}` : `/cars/${carId}/documents/${kind}`;
+  }
+
   function href(kind, doc) {
-    const base = filePath ? filePath(kind) : `/api/v1/cars/${carId}/documents/${kind}`;
+    const base = filePath ? filePath(kind) : `/api/v1${apiPath(kind)}`;
     return `${base}?v=${encodeURIComponent(doc.updated_at || '')}`;
   }
 
@@ -68,7 +90,7 @@ export default function CarDocuments({ carId, documents = [], canWrite = false, 
     setError('');
     try {
       const data = await prepareFile(file);
-      await api.put(`/cars/${carId}/documents/${kind}`, { file: data, name: file.name });
+      await api.put(apiPath(kind), { file: data, name: file.name });
       onChanged?.();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : (err.message || 'Не удалось загрузить файл'));
@@ -82,7 +104,7 @@ export default function CarDocuments({ carId, documents = [], canWrite = false, 
     setBusy(kind);
     setError('');
     try {
-      await api.delete(`/cars/${carId}/documents/${kind}`);
+      await api.delete(apiPath(kind));
       onChanged?.();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Не удалось удалить файл');
@@ -93,15 +115,15 @@ export default function CarDocuments({ carId, documents = [], canWrite = false, 
 
   return (
     <div className="panel">
-      <h3 className="panel__title">Файлы документов</h3>
+      <h3 className="panel__title">{title}</h3>
       <p className="doc-list__lead">
-        {canWrite
-          ? 'Страховка, рекламный паспорт и лицензия. После загрузки файл видят водитель и арендодатель.'
-          : 'Страховка, рекламный паспорт и лицензия.'}
+        {lead || (canWrite
+          ? 'Техпаспорт, страховка, страховка Takaful, рекламный паспорт и лицензия. После загрузки файл видят водитель и арендодатель.'
+          : 'Техпаспорт, страховка, страховка Takaful, рекламный паспорт и лицензия.')}
       </p>
       {error && <div className="notice notice--error">{error}</div>}
       <ul className="doc-list">
-        {DOCS.map(([kind, title, hint]) => {
+        {kinds.map(([kind, label, hint]) => {
           const doc = byKind[kind];
           const image = doc?.mime?.startsWith('image/');
           return (
@@ -112,7 +134,7 @@ export default function CarDocuments({ carId, documents = [], canWrite = false, 
                 {!doc && <span className="doc-card__empty">Нет файла</span>}
               </div>
               <div className="doc-card__body">
-                <div className="doc-card__title">{title}</div>
+                <div className="doc-card__title">{label}</div>
                 <div className="doc-card__meta">
                   {doc ? `${doc.name} · ${fmtDay(doc.updated_at)}` : hint}
                 </div>
